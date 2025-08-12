@@ -1,5 +1,6 @@
 import time
 import urllib3
+import base64
 
 from abc import abstractmethod
 from dataclasses import dataclass
@@ -10,6 +11,7 @@ from maim_message import Seg, UserInfo, BaseMessageInfo, MessageBase
 from src.common.logger import get_logger
 from src.chat.utils.utils_image import get_image_manager
 from src.chat.utils.utils_voice import get_voice_text
+from src.multimodal.video_analyzer import get_video_analyzer
 from .chat_stream import ChatStream
 
 install(extra_lines=3)
@@ -191,6 +193,40 @@ class MessageRecv(Message):
                     }
                     """
                 return ""
+            elif segment.type == "video":
+                self.is_picid = False
+                self.is_emoji = False
+                self.is_voice = False
+                if isinstance(segment.data, dict):
+                    try:
+                        # 从Adapter接收的视频数据
+                        video_base64 = segment.data.get("base64")
+                        filename = segment.data.get("filename", "video.mp4")
+                        
+                        if video_base64:
+                            # 解码base64视频数据
+                            video_bytes = base64.b64decode(video_base64)
+                            
+                            # 使用video analyzer分析视频
+                            video_analyzer = get_video_analyzer()
+                            result = await video_analyzer.analyze_video_from_bytes(
+                                video_bytes, 
+                                filename,
+                                prompt="请详细分析这个视频的内容，包括场景、人物、动作、情感等"
+                            )
+                            
+                            # 返回视频分析结果
+                            summary = result.get("summary", "")
+                            if summary:
+                                return f"[视频内容] {summary}"
+                            else:
+                                return "[已收到视频，但分析失败]"
+                        else:
+                            return "[收到视频消息，但数据异常]"
+                    except Exception as e:
+                        logger.error(f"视频处理失败: {str(e)}")
+                        return "[收到视频，但处理时出现错误]"
+                return "[发了一个视频，但格式不支持]"
             else:
                 return ""
         except Exception as e:
@@ -314,6 +350,55 @@ class MessageRecvS4U(MessageRecv):
                 self.is_screen = True
                 self.screen_info = segment.data
                 return "屏幕信息"
+            elif segment.type == "video":
+                self.is_voice = False
+                self.is_picid = False
+                self.is_emoji = False
+                
+                logger.info(f"接收到视频消息，数据类型: {type(segment.data)}")
+                logger.debug(f"视频数据内容: {segment.data}")
+                
+                if isinstance(segment.data, dict):
+                    try:
+                        # 从Adapter接收的视频数据
+                        video_base64 = segment.data.get("base64")
+                        filename = segment.data.get("filename", "video.mp4")
+                        
+                        logger.info(f"视频文件名: {filename}")
+                        logger.info(f"Base64数据长度: {len(video_base64) if video_base64 else 0}")
+                        
+                        if video_base64:
+                            # 解码base64视频数据
+                            video_bytes = base64.b64decode(video_base64)
+                            logger.info(f"解码后视频大小: {len(video_bytes)} 字节")
+                            
+                            # 使用video analyzer分析视频
+                            video_analyzer = get_video_analyzer()
+                            result = await video_analyzer.analyze_video_from_bytes(
+                                video_bytes, 
+                                filename,
+                                prompt="请详细分析这个视频的内容，包括场景、人物、动作、情感等"
+                            )
+                            
+                            logger.info(f"视频分析结果: {result}")
+                            
+                            # 返回视频分析结果
+                            summary = result.get("summary", "")
+                            if summary:
+                                return f"[视频内容] {summary}"
+                            else:
+                                return "[已收到视频，但分析失败]"
+                        else:
+                            logger.warning("视频消息中没有base64数据")
+                            return "[收到视频消息，但数据异常]"
+                    except Exception as e:
+                        logger.error(f"视频处理失败: {str(e)}")
+                        import traceback
+                        logger.error(f"错误详情: {traceback.format_exc()}")
+                        return "[收到视频，但处理时出现错误]"
+                else:
+                    logger.warning(f"视频消息数据不是字典格式: {type(segment.data)}")
+                return "[发了一个视频，但格式不支持]"
             else:
                 return ""
         except Exception as e:

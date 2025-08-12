@@ -272,3 +272,23 @@ guidelines = """
 
 [experimental] #实验性功能
 enable_friend_chat = false # 是否启用好友聊天
+
+[video_analysis] # 视频分析配置
+enable = true # 是否启用视频分析功能
+analysis_mode = "batch_frames" # 分析模式："frame_by_frame"（逐帧分析，慢但详细）、"batch_frames"（批量分析，快但可能略简单）或 "auto"（自动选择）
+max_frames = 8 # 最大分析帧数
+frame_quality = 85 # 帧图像JPEG质量 (1-100)
+max_image_size = 800 # 单帧最大图像尺寸(像素)
+enable_frame_timing = true # 是否在分析中包含帧的时间信息
+# 批量分析时使用的提示词
+batch_analysis_prompt = """请分析这个视频的内容。这些图片是从视频中按时间顺序提取的关键帧。
+
+请提供详细的分析，包括：
+1. 视频的整体内容和主题
+2. 主要人物、对象和场景描述
+3. 动作、情节和时间线发展
+4. 视觉风格和艺术特点
+5. 整体氛围和情感表达
+6. 任何特殊的视觉效果或文字内容
+
+请用中文回答，分析要详细准确。"""

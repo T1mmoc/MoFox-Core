@@ -880,3 +880,39 @@ class ScheduleConfig(ConfigBase):
 
     guidelines: Optional[str] = field(default=None)
     """日程生成指导原则，如果为None则使用默认指导原则"""
+
+
+@dataclass
+class VideoAnalysisConfig(ConfigBase):
+    """视频分析配置类"""
+    
+    enable: bool = True
+    """是否启用视频分析功能"""
+    
+    analysis_mode: Literal["frame_by_frame", "batch_frames", "auto"] = "auto"
+    """分析模式：逐帧分析(慢但详细)、批量分析(快但可能略简单)或自动选择"""
+    
+    max_frames: int = 8
+    """最大分析帧数"""
+    
+    frame_quality: int = 85
+    """帧图像JPEG质量 (1-100)"""
+    
+    max_image_size: int = 800
+    """单帧最大图像尺寸(像素)"""
+    
+    batch_analysis_prompt: str = field(default="""请分析这个视频的内容。这些图片是从视频中按时间顺序提取的关键帧。
+
+请提供详细的分析，包括：
+1. 视频的整体内容和主题
+2. 主要人物、对象和场景描述
+3. 动作、情节和时间线发展
+4. 视觉风格和艺术特点
+5. 整体氛围和情感表达
+6. 任何特殊的视觉效果或文字内容
+
+请用中文回答，分析要详细准确。""")
+    """批量分析时使用的提示词"""
+    
+    enable_frame_timing: bool = True
+    """是否在分析中包含帧的时间信息"""

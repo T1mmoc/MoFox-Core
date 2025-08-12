@@ -1,6 +1,5 @@
 sqlalchemy
 APScheduler
-Pillow
 aiohttp
 aiohttp-cors
 colorama
@@ -58,3 +57,6 @@ toml>=0.10.0
 beautifulsoup4
 exa_py
 asyncddgs
+opencv-python
+Pillow
+asyncio
