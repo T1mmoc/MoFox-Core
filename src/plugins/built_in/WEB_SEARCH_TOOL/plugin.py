@@ -339,7 +339,7 @@ class URLParserTool(BaseTool):
 class WEBSEARCHPLUGIN(BasePlugin):
 
     # 插件基本信息
-    plugin_name: str = "hello_world_plugin"  # 内部标识符
+    plugin_name: str = "web_search_tool"  # 内部标识符
     enable_plugin: bool = True
     dependencies: List[str] = []  # 插件依赖列表
     python_dependencies: List[str] = ["asyncddgs","exa_py"]  # Python包依赖列表

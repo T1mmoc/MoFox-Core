@@ -3,7 +3,7 @@ import datetime
 import time
 import traceback
 import os
-import toml
+import json
 from typing import Dict, List, Any
 
 from src.common.logger import get_logger
@@ -29,65 +29,8 @@ class ScheduleManager:
         self.is_running = False
         self.task = None
         self.last_send_times: Dict[str, float] = {}  # 记录每个时间点的最后发送时间
-        self.config_file_path = os.path.join(os.path.dirname(__file__), "config.toml")
         
         logger.info("定时任务管理器初始化完成")
-        
-        # 初始化时测试配置读取
-
-    def _read_schedule_config(self) -> List[Dict[str, str]]:
-        """直接从TOML配置文件读取日程配置"""
-        try:
-            if not os.path.exists(self.config_file_path):
-                logger.error(f"配置文件不存在: {self.config_file_path}")
-                return []
-            
-            # 读取TOML文件
-            with open(self.config_file_path, 'r', encoding='utf-8') as f:
-                config_data = toml.load(f)
-            
-            # 获取schedule配置
-            schedule_config = config_data.get('schedule', {})
-            schedules = schedule_config.get('schedules', [])
-            
-            logger.info(f"从配置文件读取到 {len(schedules)} 个定时任务")
-            
-            # 验证每个日程的格式
-            valid_schedules = []
-            for i, schedule in enumerate(schedules):
-                if isinstance(schedule, dict) and 'time' in schedule and 'topic' in schedule:
-                    valid_schedules.append({
-                        'time': str(schedule['time']),
-                        'topic': str(schedule['topic'])
-                    })
-                    logger.debug(f"日程 {i+1}: {schedule['time']} - {schedule['topic']}")
-                else:
-                    logger.warning(f"跳过无效的日程配置: {schedule}")
-            
-            return valid_schedules
-            
-        except Exception as e:
-            logger.error(f"读取日程配置失败: {str(e)}")
-            return []
-
-    def _is_schedule_enabled(self) -> bool:
-        """检查定时任务是否启用"""
-        try:
-            if not os.path.exists(self.config_file_path):
-                return False
-            
-            with open(self.config_file_path, 'r', encoding='utf-8') as f:
-                config_data = toml.load(f)
-            
-            schedule_config = config_data.get('schedule', {})
-            enabled = schedule_config.get('enable_schedule', False)
-            
-            logger.debug(f"定时任务启用状态: {enabled}")
-            return bool(enabled)
-            
-        except Exception as e:
-            logger.error(f"检查定时任务启用状态失败: {str(e)}")
-            return False
 
     async def start(self):
         """启动定时任务"""
@@ -120,7 +63,7 @@ class ScheduleManager:
         while self.is_running:
             try:
                 # 检查定时任务是否启用
-                if not self._is_schedule_enabled():
+                if not self.plugin.get_config("schedule.enable_schedule", False):
                     logger.info("定时任务已禁用，等待下次检查")
                     await asyncio.sleep(60)
                     continue
@@ -128,16 +71,17 @@ class ScheduleManager:
                 # 获取当前时间
                 current_time = datetime.datetime.now().strftime("%H:%M")
                 
-                # 直接从配置文件读取定时任务配置
-                schedules = self._read_schedule_config()
-                
+                # 从插件配置中获取定时任务
+                schedules = self.plugin.get_config("schedule.schedules", {})
+
                 if not schedules:
                     logger.info("未找到有效的定时任务配置")
                     await asyncio.sleep(60)
                     continue
                 
                 # 检查每个定时任务
-                for schedule in schedules:
+                for time_str, topic in schedules.items():
+                    schedule = {"time": time_str, "topic": topic}
                     await self._check_and_execute_schedule(schedule, current_time)
                 
                 # 每分钟检查一次
@@ -314,49 +258,33 @@ class ScheduleManager:
         """获取定时任务状态"""
         return {
             "is_running": self.is_running,
-            "enabled": self._is_schedule_enabled(),
-            "schedules": self._read_schedule_config(),
+            "enabled": self.plugin.get_config("schedule.enable_schedule", False),
+            "schedules": self.plugin.get_config("schedule.schedules", {}),
             "last_send_times": self.last_send_times
         }
 
     def add_schedule(self, time_str: str, topic: str) -> bool:
         """添加定时任务"""
-        try:
-            schedules = self.plugin.get_config("schedule.schedules", [])
-            new_schedule = {"time": time_str, "topic": topic}
-            
-            # 检查是否已存在相同时间的任务
-            for schedule in schedules:
-                if isinstance(schedule, dict) and schedule.get("time") == time_str:
-                    logger.warning(f"时间 {time_str} 已存在定时任务")
-                    return False
-            
-            schedules.append(new_schedule)
-            # 注意：这里需要插件系统支持动态更新配置
-            logger.info(f"添加定时任务: {time_str} - {topic}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"添加定时任务失败: {str(e)}")
+        schedules = self.plugin.get_config("schedule.schedules", {})
+        
+        if time_str in schedules:
+            logger.warning(f"时间 {time_str} 已存在定时任务")
             return False
+        
+        schedules[time_str] = topic
+        # 注意：这里需要插件系统支持动态更新配置
+        logger.info(f"添加定时任务: {time_str} - {topic}")
+        return True
 
     def remove_schedule(self, time_str: str) -> bool:
         """移除定时任务"""
-        try:
-            schedules = self.plugin.get_config("schedule.schedules", [])
-            original_count = len(schedules)
-            
-            # 过滤掉指定时间的任务
-            schedules = [s for s in schedules if not (isinstance(s, dict) and s.get("time") == time_str)]
-            
-            if len(schedules) < original_count:
-                # 注意：这里需要插件系统支持动态更新配置
-                logger.info(f"移除定时任务: {time_str}")
-                return True
-            else:
-                logger.warning(f"未找到时间为 {time_str} 的定时任务")
-                return False
-                
-        except Exception as e:
-            logger.error(f"移除定时任务失败: {str(e)}")
+        schedules = self.plugin.get_config("schedule.schedules", {})
+        
+        if time_str in schedules:
+            del schedules[time_str]
+            # 注意：这里需要插件系统支持动态更新配置
+            logger.info(f"移除定时任务: {time_str}")
+            return True
+        else:
+            logger.warning(f"未找到时间为 {time_str} 的定时任务")
             return False

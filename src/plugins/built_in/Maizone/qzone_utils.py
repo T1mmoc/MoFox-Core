@@ -28,7 +28,9 @@ class CookieManager:
     @staticmethod
     def get_cookie_file_path(uin: str) -> str:
         """获取Cookie文件路径"""
-        return os.path.join(os.getcwd(), 'plugins/Maizone/', f"cookies-{uin}.json")
+        # .parents 向上追溯四级目录，到达 mmc 根目录
+        base_path = Path(__file__).resolve().parents[5]
+        return str(base_path / 'src' / 'plugins'/ 'built_in' / 'Maizone' / f"cookies-{uin}.json")
 
     @staticmethod
     def parse_cookie_string(cookie_str: str) -> Dict[str, str]:
@@ -82,7 +84,7 @@ class CookieManager:
             uin = CookieManager.extract_uin_from_cookie(cookie_str)
             
             file_path = CookieManager.get_cookie_file_path(uin)
-            
+
             with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(parsed_cookies, f, indent=4, ensure_ascii=False)
                 
@@ -153,9 +155,9 @@ class QZoneAPI:
         self,
         method: str,
         url: str,
-        params: Dict = None,
-        data: Dict = None,
-        headers: Dict = None,
+        params: Optional[Dict] = None,
+        data: Optional[Dict] = None,
+        headers: Optional[Dict] = None,
         timeout: int = 10
     ) -> requests.Response:
         """执行HTTP请求"""
@@ -271,7 +273,7 @@ class QZoneAPI:
             logger.error(f"提取图片信息失败: {str(e)}")
             raise
 
-    async def publish_emotion(self, content: str, images: List[bytes] = None) -> str:
+    async def publish_emotion(self, content: str, images: Optional[List[bytes]] = None) -> str:
         """发布说说"""
         if images is None:
             images = []
@@ -597,7 +599,10 @@ class QZoneAPI:
             
             try:
                 json_data = json5.loads(data)
-                feeds_data = json_data['data']['data']
+                if json_data and isinstance(json_data, dict):
+                    feeds_data = json_data.get('data', {}).get('data', [])
+                else:
+                    feeds_data = []
             except Exception as e:
                 logger.error(f"解析JSON数据失败: {str(e)}")
                 return []
@@ -659,8 +664,8 @@ class QZoneAPI:
             like_btn = soup.find('a', class_='qz_like_btn_v3')
             if not like_btn:
                 like_btn = soup.find('a', attrs={'data-islike': True})
-                
-            if like_btn:
+
+            if isinstance(like_btn, bs4.element.Tag):
                 data_islike = like_btn.get('data-islike')
                 if data_islike == '1':  # 已点赞，跳过
                     return None
@@ -680,10 +685,10 @@ class QZoneAPI:
             # 提取图片
             images = []
             img_box = soup.find('div', class_='img-box')
-            if img_box:
+            if isinstance(img_box, bs4.element.Tag):
                 for img in img_box.find_all('img'):
-                    src = img.get('src')
-                    if src and not src.startswith('http://qzonestyle.gtimg.cn'):
+                    src = img.get('src') if isinstance(img, bs4.element.Tag) else None
+                    if src and isinstance(src, str) and not src.startswith('http://qzonestyle.gtimg.cn'):
                         try:
                             image_base64 = await self._get_image_base64_by_url(src)
                             image_manager = get_image_manager()
@@ -694,14 +699,16 @@ class QZoneAPI:
 
             # 视频缩略图
             img_tag = soup.select_one('div.video-img img')
-            if img_tag and 'src' in img_tag.attrs:
-                try:
-                    image_base64 = await self._get_image_base64_by_url(img_tag['src'])
-                    image_manager = get_image_manager()
-                    description = await image_manager.get_image_description(image_base64)
-                    images.append(f"视频缩略图: {description}")
-                except Exception as e:
-                    logger.warning(f"处理视频缩略图失败: {str(e)}")
+            if isinstance(img_tag, bs4.element.Tag):
+                src = img_tag.get('src')
+                if src and isinstance(src, str):
+                    try:
+                        image_base64 = await self._get_image_base64_by_url(src)
+                        image_manager = get_image_manager()
+                        description = await image_manager.get_image_description(image_base64)
+                        images.append(f"视频缩略图: {description}")
+                    except Exception as e:
+                        logger.warning(f"处理视频缩略图失败: {str(e)}")
 
             # 视频URL
             videos = []

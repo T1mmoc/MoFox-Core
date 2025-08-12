@@ -164,10 +164,9 @@ class MaiZoneConfigLoader:
         # 定时发送配置节
         schedule_section = ConfigSectionSpec("schedule", "定时发送配置")
         schedule_section.add_field(ConfigFieldSpec("enable_schedule", bool, False, "是否启用定时发送说说"))
-        schedule_section.add_field(ConfigFieldSpec("schedules", list, [
-            {"time": "08:00", "topic": "早安"},
-            {"time": "22:00", "topic": "晚安"}
-        ], "定时发送任务列表"))
+        schedule_section.add_field(ConfigFieldSpec("schedules", dict,
+            {"08:00": "早安", "22:00": "晚安"},
+            "定时发送任务列表, 格式为 {\"时间\": \"主题\"}"))
         self.config_specs["schedule"] = schedule_section
     
     def load_config(self) -> bool:
@@ -270,10 +269,13 @@ class MaiZoneConfigLoader:
                         formatted_list = "[" + ", ".join(f'"{item}"' for item in value) + "]"
                     elif all(isinstance(item, dict) for item in value):
                         # 处理字典列表（如schedules）
+                        # 使用 TOML 内联表格式
                         formatted_items = []
                         for item in value:
-                            formatted_items.append("{" + ", ".join(f'{k} = "{v}"' for k, v in item.items()) + "}")
-                        formatted_list = "[\n    " + ",\n    ".join(formatted_items) + ",\n]"
+                            # TOML 内联表中的字符串需要转义
+                            item_str = ", ".join([f'{k} = "{str(v)}"' for k, v in item.items()])
+                            formatted_items.append(f"{{ {item_str} }}")
+                        formatted_list = "[\n    " + ",\n    ".join(formatted_items) + "\n]"
                     else:
                         formatted_list = str(value)
                     toml_content += f"{field_name} = {formatted_list}\n"

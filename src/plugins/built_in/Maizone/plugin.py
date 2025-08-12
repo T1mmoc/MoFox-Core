@@ -720,7 +720,7 @@ class MaiZonePlugin(BasePlugin):
             "siliconflow_apikey": ConfigField(type=str, default="", description="硅基流动AI生图API密钥"),
         },
         "send": {
-            "permission": ConfigField(type=list, default=['2488036428'], description="发送权限QQ号列表"),
+            "permission": ConfigField(type=list, default=['1145141919810'], description="发送权限QQ号列表"),
             "permission_type": ConfigField(type=str, default='whitelist', description="权限类型：whitelist(白名单) 或 blacklist(黑名单)"),
             "enable_image": ConfigField(type=bool, default=False, description="是否启用说说配图"),
             "enable_ai_image": ConfigField(type=bool, default=False, description="是否启用AI生成配图"),
@@ -742,12 +742,9 @@ class MaiZonePlugin(BasePlugin):
         "schedule": {
             "enable_schedule": ConfigField(type=bool, default=False, description="是否启用定时发送说说"),
             "schedules": ConfigField(
-                type=list,
-                default=[
-                    {"time": "08:00", "topic": "早安"},
-                    {"time": "22:00", "topic": "晚安"}
-                ],
-                description="定时发送任务列表"
+                type=str,
+                default=r"""{"08:00" = "早安","22:00" = "晚安"}""",
+                description="定时发送任务列表, 格式为 {\"时间\"= \"主题\"}"
             ),
         },
     }
