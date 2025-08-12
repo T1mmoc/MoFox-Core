@@ -86,32 +86,12 @@ def init_prompt():
 {keywords_reaction_prompt}
 请注意不要输出多余内容(包括前后缀，冒号和引号，at或 @等 )。只输出回复内容。
 {moderation_prompt}
-不要输出多余内容(包括前后缀，冒号和引号，括号()，表情包，at或 @等 )。只输出一条回复就好
-现在，你说：
-""",
-        "replyer_prompt",
-    )
-    
-    Prompt(
-        """
-{expression_habits_block}{tool_info_block}
-{knowledge_prompt}{memory_block}{relation_info_block}
-{extra_info_block}
-{identity}
-{action_descriptions}
-{time_block}
-你现在正在一个QQ群里聊天，以下是正在进行的聊天内容：
-{background_dialogue_prompt}
-
-你现在想补充说明你刚刚自己的发言内容：{target}，原因是{reason}
-请你根据聊天内容，组织一条新回复。注意，{target} 是刚刚你自己的发言，你要在这基础上进一步发言，请按照你自己的角度来继续进行回复。
-注意保持上下文的连贯性。
-你现在的心情是：{mood_state}
-{reply_style}
-{keywords_reaction_prompt}
-请注意不要输出多余内容(包括前后缀，冒号和引号，at或 @等 )。只输出回复内容。
-{moderation_prompt}
-不要输出多余内容(包括前后缀，冒号和引号，括号()，表情包，at或 @等 )。只输出一条回复就好
+你的核心任务是针对 {reply_target_block} 中提到的内容，生成一段紧密相关且能推动对话的回复。你的回复应该：
+1.  明确回应目标消息，而不是宽泛地评论。
+2.  可以分享你的看法、提出相关问题，或者开个合适的玩笑。
+3.  目的是让对话更有趣、更深入。
+4.  不要浮夸，不要夸张修辞，不要输出多余内容(包括前后缀，冒号和引号，括号()，表情包，at或 @等 )。
+最终请输出一条简短、完整且口语化的回复。
 现在，你说：
 """,
         "replyer_self_prompt",

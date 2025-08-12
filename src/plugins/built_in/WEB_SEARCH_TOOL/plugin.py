@@ -44,7 +44,11 @@ class WebSurfingTool(BaseTool):
     def __init__(self, plugin_config=None):
         super().__init__(plugin_config)
         EXA_API_KEY = self.get_config("exa.api_key", None)
-        self.exa = Exa(api_key=EXA_API_KEY) if EXA_API_KEY else None
+        # 确保API key是字符串类型
+        if EXA_API_KEY and isinstance(EXA_API_KEY, str) and EXA_API_KEY.strip() != "None":
+            self.exa = Exa(api_key=str(EXA_API_KEY).strip())
+        else:
+            self.exa = None
 
         if not self.exa:
             logger.warning("Exa API Key 未配置，Exa 搜索功能将不可用。")
@@ -177,11 +181,14 @@ class URLParserTool(BaseTool):
     def __init__(self, plugin_config=None):
         super().__init__(plugin_config)
         EXA_API_KEY = self.get_config("exa.api_key", None)
-        if not EXA_API_KEY or EXA_API_KEY == "YOUR_API_KEY_HERE":
+        # 确保API key是字符串类型
+        if (not EXA_API_KEY or 
+            not isinstance(EXA_API_KEY, str) or 
+            EXA_API_KEY.strip() in ("YOUR_API_KEY_HERE", "None", "")):
             self.exa = None
             logger.error("Exa API Key 未配置，URL解析功能将受限。")
         else:
-            self.exa = Exa(api_key=EXA_API_KEY)
+            self.exa = Exa(api_key=str(EXA_API_KEY).strip())
     async def _local_parse_and_summarize(self, url: str) -> Dict[str, Any]:
         """
         使用本地库(httpx, BeautifulSoup)解析URL，并调用LLM进行总结。
@@ -243,10 +250,41 @@ class URLParserTool(BaseTool):
         """
         执行URL内容提取和总结。优先使用Exa，失败后尝试本地解析。
         """
-        urls = function_args.get("urls")
-        if not urls:
+        urls_input = function_args.get("urls")
+        if not urls_input:
             return {"error": "URL列表不能为空。"}
 
+        # 处理URL输入，确保是列表格式
+        if isinstance(urls_input, str):
+            # 如果是字符串，尝试解析为URL列表
+            import re
+            # 提取所有HTTP/HTTPS URL
+            url_pattern = r'https?://[^\s\],]+'
+            urls = re.findall(url_pattern, urls_input)
+            if not urls:
+                # 如果没有找到标准URL，将整个字符串作为单个URL
+                if urls_input.strip().startswith(('http://', 'https://')):
+                    urls = [urls_input.strip()]
+                else:
+                    return {"error": "提供的字符串中未找到有效的URL。"}
+        elif isinstance(urls_input, list):
+            urls = [url.strip() for url in urls_input if isinstance(url, str) and url.strip()]
+        else:
+            return {"error": "URL格式不正确，应为字符串或列表。"}
+
+        # 验证URL格式
+        valid_urls = []
+        for url in urls:
+            if url.startswith(('http://', 'https://')):
+                valid_urls.append(url)
+            else:
+                logger.warning(f"跳过无效URL: {url}")
+        
+        if not valid_urls:
+            return {"error": "未找到有效的URL。"}
+        
+        urls = valid_urls
+        logger.info(f"准备解析 {len(urls)} 个URL: {urls}")
 
         successful_results = []
         error_messages = []
