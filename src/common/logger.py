@@ -418,12 +418,64 @@ MODULE_COLORS = {
     "relationship_builder": "\033[38;5;93m",  # 浅蓝色
     # s4u
     "context_web_api": "\033[38;5;240m",  # 深灰色
-    "S4U_chat": "\033[92m",  # 深灰色
+    "S4U_chat": "\033[92m",  # 亮绿色
+    
+    # API相关扩展
+    "chat_api": "\033[38;5;34m",  # 深绿色
+    "emoji_api": "\033[38;5;40m",  # 亮绿色
+    "generator_api": "\033[38;5;28m",  # 森林绿
+    "person_api": "\033[38;5;22m",  # 深绿色
+    "tool_api": "\033[38;5;76m",  # 绿色
+    
+    # 插件系统扩展
+    "plugin_base": "\033[38;5;196m",  # 红色
+    "base_event_handler": "\033[38;5;203m",  # 粉红色
+    "events_manager": "\033[38;5;209m",  # 橙红色
+    "global_announcement_manager": "\033[38;5;215m",  # 浅橙色
+    
+    # 工具和依赖管理
+    "dependency_config": "\033[38;5;24m",  # 深蓝色
+    "dependency_manager": "\033[38;5;30m",  # 深青色
+    "manifest_utils": "\033[38;5;39m",  # 蓝色
+    "schedule_manager": "\033[38;5;27m",  # 深蓝色
+    
+    # 聊天和多媒体扩展
+    "chat_voice": "\033[38;5;87m",  # 浅青色
+    "typo_gen": "\033[38;5;123m",  # 天蓝色
+    "src.multimodal.video_analyzer": "\033[38;5;75m",  # 亮蓝色
+    "ReplyerManager": "\033[38;5;173m",  # 浅橙色
+    "relationship_builder_manager": "\033[38;5;176m",  # 浅紫色
+    
+    # MaiZone QQ空间相关
+    "MaiZone": "\033[38;5;98m",  # 紫色
+    "MaiZone-Monitor": "\033[38;5;104m",  # 深紫色
+    "MaiZone.ConfigLoader": "\033[38;5;110m",  # 蓝紫色
+    "MaiZone-Scheduler": "\033[38;5;134m",  # 紫红色
+    "MaiZone-Utils": "\033[38;5;140m",  # 浅紫色
+    
+    # 网络工具
+    "web_surfing_tool": "\033[38;5;130m",  # 棕色
+    "tts": "\033[38;5;136m",  # 浅棕色
+    
+    # mais4u系统扩展
+    "s4u_config": "\033[38;5;18m",  # 深蓝色
+    "action": "\033[38;5;52m",  # 深红色（mais4u的action）
+    "context_web": "\033[38;5;58m",  # 深黄色
+    "gift_manager": "\033[38;5;161m",  # 粉红色
+    "prompt": "\033[38;5;99m",  # 紫色（mais4u的prompt）
+    "super_chat_manager": "\033[38;5;125m",  # 紫红色
+    "watching": "\033[38;5;131m",  # 深橙色
+    "offline_llm": "\033[38;5;236m",  # 深灰色
+    "s4u_stream_generator": "\033[38;5;60m",  # 深紫色
+    
+    # 其他工具
+    "消息压缩工具": "\033[38;5;244m",  # 灰色
+    "lpmm_get_knowledge_tool": "\033[38;5;102m",  # 绿色
 }
 
 # 定义模块别名映射 - 将真实的logger名称映射到显示的别名
 MODULE_ALIASES = {
-    # 示例映射
+    # 核心模块
     "individuality": "人格特质",
     "emoji": "表情包",
     "no_reply_action": "摸鱼",
@@ -449,6 +501,58 @@ MODULE_ALIASES = {
     "replyer": "言语",
     "config": "配置",
     "main": "主程序",
+    
+    # API相关扩展
+    "chat_api": "聊天接口",
+    "emoji_api": "表情接口",
+    "generator_api": "生成接口",
+    "person_api": "人物接口",
+    "tool_api": "工具接口",
+    
+    # 插件系统扩展
+    "plugin_base": "插件基类",
+    "base_event_handler": "事件处理",
+    "events_manager": "事件管理",
+    "global_announcement_manager": "全局通知",
+    
+    # 工具和依赖管理
+    "dependency_config": "依赖配置",
+    "dependency_manager": "依赖管理",
+    "manifest_utils": "清单工具",
+    "schedule_manager": "计划管理",
+    
+    # 聊天和多媒体扩展
+    "chat_voice": "语音处理",
+    "typo_gen": "错字生成",
+    "src.multimodal.video_analyzer": "视频分析",
+    "ReplyerManager": "回复管理",
+    "relationship_builder_manager": "关系管理",
+    
+    # MaiZone QQ空间相关
+    "MaiZone": "Mai空间",
+    "MaiZone-Monitor": "Mai空间监控",
+    "MaiZone.ConfigLoader": "Mai空间配置",
+    "MaiZone-Scheduler": "Mai空间调度",
+    "MaiZone-Utils": "Mai空间工具",
+    
+    # 网络工具
+    "web_surfing_tool": "网络搜索",
+    "tts": "语音合成",
+    
+    # mais4u系统扩展
+    "s4u_config": "直播配置",
+    "action": "直播动作",
+    "context_web": "网络上下文",
+    "gift_manager": "礼物管理",
+    "prompt": "直播提示",
+    "super_chat_manager": "醒目留言",
+    "watching": "观看状态",
+    "offline_llm": "离线模型",
+    "s4u_stream_generator": "直播生成",
+    
+    # 其他工具
+    "消息压缩工具": "消息压缩",
+    "lpmm_get_knowledge_tool": "知识获取",
 }
 
 RESET_COLOR = "\033[0m"

@@ -694,7 +694,7 @@ class MaiZonePlugin(BasePlugin):
     plugin_name: str = "MaiZonePlugin"
     enable_plugin: bool = True
     dependencies: List[str] = []
-    python_dependencies: List[str] = ["pytz"]
+    python_dependencies: List[str] = []
     config_file_name: str = "config.toml"
 
     # 配置节描述
