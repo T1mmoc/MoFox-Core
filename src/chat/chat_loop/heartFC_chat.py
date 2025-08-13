@@ -130,6 +130,10 @@ class HeartFChatting:
         self.last_energy_log_time = 0  # 上次记录能量值日志的时间
         self.energy_log_interval = 90  # 能量值日志间隔（秒）
 
+        # 主动思考功能相关属性
+        self.last_message_time = time.time()  # 最后一条消息的时间
+        self._proactive_thinking_task: Optional[asyncio.Task] = None  # 主动思考任务
+
     async def start(self):
         """检查是否需要启动主循环，如果未激活则启动。"""
 
@@ -141,6 +145,15 @@ class HeartFChatting:
         try:
             # 标记为活动状态，防止重复启动
             self.running = True
+
+            self._energy_task = asyncio.create_task(self._energy_loop())
+            self._energy_task.add_done_callback(self._handle_energy_completion)
+
+            # 启动主动思考任务（仅在群聊且启用的情况下）
+            if (global_config.chat.enable_proactive_thinking and 
+                self.chat_stream.group_info is not None):
+                self._proactive_thinking_task = asyncio.create_task(self._proactive_thinking_loop())
+                self._proactive_thinking_task.add_done_callback(self._handle_proactive_thinking_completion)
 
             self._loop_task = asyncio.create_task(self._main_chat_loop())
             self._loop_task.add_done_callback(self._handle_loop_completion)
@@ -178,6 +191,24 @@ class HeartFChatting:
         self._current_cycle_detail.end_time = time.time()
 
     def _handle_energy_completion(self, task: asyncio.Task):
+        """当 energy_loop 任务完成时执行的回调。"""
+        try:
+            if exception := task.exception():
+                logger.error(f"{self.log_prefix} 能量循环异常: {exception}")
+            else:
+                logger.info(f"{self.log_prefix} 能量循环正常结束")
+        except asyncio.CancelledError:
+            logger.info(f"{self.log_prefix} 能量循环被取消")
+
+    def _handle_proactive_thinking_completion(self, task: asyncio.Task):
+        """当 proactive_thinking_loop 任务完成时执行的回调。"""
+        try:
+            if exception := task.exception():
+                logger.error(f"{self.log_prefix} 主动思考循环异常: {exception}")
+            else:
+                logger.info(f"{self.log_prefix} 主动思考循环正常结束")
+        except asyncio.CancelledError:
+            logger.info(f"{self.log_prefix} 主动思考循环被取消")
         """处理能量循环任务的完成"""
         if task.cancelled():
             logger.info(f"{self.log_prefix} 能量循环任务被取消")
@@ -229,6 +260,132 @@ class HeartFChatting:
             if self.loop_mode == ChatMode.FOCUS:
                 self.energy_value -= 0.6
                 self.energy_value = max(self.energy_value, 0.3)
+
+    async def _proactive_thinking_loop(self):
+        """主动思考循环，仅在focus模式下生效"""
+        while self.running:
+            await asyncio.sleep(30)  # 每30秒检查一次
+            
+            # 只在focus模式下进行主动思考
+            if self.loop_mode != ChatMode.FOCUS:
+                continue
+                
+            current_time = time.time()
+            silence_duration = current_time - self.last_message_time
+            
+            # 检查是否达到主动思考的时间间隔
+            if silence_duration >= global_config.chat.proactive_thinking_interval:
+                try:
+                    await self._execute_proactive_thinking(silence_duration)
+                    # 重置计时器，避免频繁触发
+                    self.last_message_time = current_time
+                except Exception as e:
+                    logger.error(f"{self.log_prefix} 主动思考执行出错: {e}")
+                    logger.error(traceback.format_exc())
+
+    def _format_duration(self, seconds: float) -> str:
+        """格式化时间间隔为易读格式"""
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+        
+        parts = []
+        if hours > 0:
+            parts.append(f"{hours}小时")
+        if minutes > 0:
+            parts.append(f"{minutes}分")
+        if secs > 0 or not parts:  # 如果没有小时和分钟，显示秒
+            parts.append(f"{secs}秒")
+            
+        return "".join(parts)
+
+    async def _execute_proactive_thinking(self, silence_duration: float):
+        """执行主动思考"""
+        formatted_time = self._format_duration(silence_duration)
+        logger.info(f"{self.log_prefix} 触发主动思考，已沉默{formatted_time}")
+        
+        try:
+            # 构建主动思考的prompt
+            proactive_prompt = global_config.chat.proactive_thinking_prompt_template.format(
+                time=formatted_time
+            )
+            
+            # 获取当前上下文
+            context_messages = message_api.get_recent_messages(
+                chat_id=self.stream_id,
+                limit=global_config.chat.max_context_size
+            )
+            
+            # 构建完整的prompt（结合人设和上下文）
+            full_context = global_prompt_manager.build_context_prompt(
+                context_messages, 
+                self.stream_id
+            )
+            
+            # 创建一个虚拟的消息数据用于主动思考
+            """
+            因为主动思考是在没有用户消息的情况下触发的
+            但规划器仍然需要一个"消息"作为输入来工作
+            所以需要"伪造"一个消息来触发思考流程，本质上是系统与自己的对话，让AI能够主动思考和决策。
+            """
+            thinking_message = {
+                "processed_plain_text": proactive_prompt,
+                "user_id": "system_proactive_thinking",
+                "user_platform": "system",
+                "timestamp": time.time(),
+                "message_type": "proactive_thinking"
+            }
+            
+            # 执行思考规划
+            cycle_timers, thinking_id = self.start_cycle()
+            
+            timer = Timer()
+            plan_result = await self.action_planner.plan(
+                new_message_data=[thinking_message],
+                context_prompt=full_context,
+                thinking_id=thinking_id,
+                timeout=global_config.chat.thinking_timeout
+            )
+            cycle_timers["规划"] = timer.elapsed()
+            
+            if not plan_result:
+                logger.info(f"{self.log_prefix} 主动思考规划失败")
+                self.end_cycle(ERROR_LOOP_INFO, cycle_timers)
+                return
+            
+            # 执行动作
+            timer.restart()
+            action_info = await self.action_modifier.execute_action(
+                plan_result["action_result"],
+                context=full_context,
+                thinking_id=thinking_id
+            )
+            cycle_timers["执行"] = timer.elapsed()
+            
+            # 构建循环信息
+            loop_info = {
+                "loop_plan_info": plan_result,
+                "loop_action_info": action_info,
+            }
+            
+            self.end_cycle(loop_info, cycle_timers)
+            self.print_cycle_info(cycle_timers)
+            
+            # 如果有回复内容且不是"沉默"，则发送
+            reply_text = action_info.get("reply_text", "").strip()
+            if reply_text and reply_text != "沉默":
+                logger.info(f"{self.log_prefix} 主动思考决定发言: {reply_text}")
+                await send_api.text_to_stream(
+                    text=reply_text,
+                    stream_id=self.stream_id,
+                    typing=True  # 主动发言时显示输入状态
+                )
+            else:
+                logger.info(f"{self.log_prefix} 主动思考决定保持沉默")
+                
+        except Exception as e:
+            logger.error(f"{self.log_prefix} 主动思考执行异常: {e}")
+            logger.error(traceback.format_exc())
 
     def print_cycle_info(self, cycle_timers):
         # 记录循环信息和计时器结果
@@ -370,8 +527,11 @@ class HeartFChatting:
             filter_command=True,
         )   
         
-        # 统一的消息处理逻辑
-        should_process,interest_value = await self._should_process_messages(recent_messages_dict)
+        # 如果有新消息，更新最后消息时间（用于主动思考计时）
+        if new_message_count > 0:
+            current_time = time.time()
+            self.last_message_time = current_time
+        
         
         if self.loop_mode == ChatMode.FOCUS:
             

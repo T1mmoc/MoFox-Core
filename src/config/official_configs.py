@@ -223,6 +223,21 @@ class ChatConfig(ConfigBase):
     - relative: 相对时间格式 (几分钟前/几小时前等)
     """
 
+    # 主动思考功能配置
+    enable_proactive_thinking: bool = False
+    """是否启用主动思考功能（仅在focus模式下生效）"""
+
+    proactive_thinking_interval: int = 1500
+    """主动思考触发间隔时间（秒），默认1500秒（25分钟）"""
+
+    proactive_thinking_prompt_template: str = """现在群里面已经隔了{time}没有人发送消息了，请你结合上下文以及群聊里面之前聊过的话题和你的人设来决定要不要主动发送消息，你可以选择：
+
+1. 继续保持沉默（当{time}以前已经结束了一个话题并且你不想挑起新话题时）
+2. 选择回复（当{time}以前你发送了一条消息且没有人回复你时、你想主动挑起一个话题时）
+
+请根据当前情况做出选择。如果选择回复，请直接发送你想说的内容；如果选择保持沉默，请回复"沉默"。"""
+    """主动思考时使用的prompt模板，{time}会被替换为实际的沉默时间"""
+
     def get_current_talk_frequency(self, chat_stream_id: Optional[str] = None) -> float:
         """
         根据当前时间和聊天流获取对应的 talk_frequency
