@@ -1,5 +1,5 @@
 [inner]
-version = "6.2.8"
+version = "6.2.9"
 
 #----以下是给开发人员阅读的，如果你只是部署了麦麦，不需要阅读----
 #如果你想要修改配置文件，请递增version的值
@@ -96,6 +96,9 @@ talk_frequency = 1 # 麦麦活跃度，越高，麦麦回复越频繁
 
 # 强制私聊专注模式
 force_focus_private = false # 是否强制私聊进入专注模式，开启后私聊将始终保持专注状态
+
+# 群聊聊天模式设置
+group_chat_mode = "auto" # 群聊聊天模式：auto-自动切换，normal-强制普通模式，focus-强制专注模式
 
 max_context_size = 25 # 上下文长度
 thinking_timeout = 40 # 麦麦一次回复最长思考规划时间，超过这个时间的思考会放弃（往往是api反应太慢）

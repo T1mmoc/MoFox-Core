@@ -111,6 +111,18 @@ class HeartFChatting:
 
         self.last_read_time = time.time() - 1
         
+        # 根据配置初始化聊天模式和能量值
+        is_group_chat = self.chat_stream.group_info is not None
+        if is_group_chat and global_config.chat.group_chat_mode != "auto":
+            if global_config.chat.group_chat_mode == "focus":
+                self.loop_mode = ChatMode.FOCUS
+                self.energy_value = 35
+                logger.info(f"{self.log_prefix} 群聊强制专注模式已启用，能量值设置为35")
+            elif global_config.chat.group_chat_mode == "normal":
+                self.loop_mode = ChatMode.NORMAL
+                self.energy_value = 15
+                logger.info(f"{self.log_prefix} 群聊强制普通模式已启用，能量值设置为15")
+        
         self.focus_energy = 1
         self.no_reply_consecutive = 0
         
@@ -197,6 +209,20 @@ class HeartFChatting:
     async def _energy_loop(self):
         while self.running:
             await asyncio.sleep(10)
+            
+            # 检查是否为群聊且配置了强制模式
+            is_group_chat = self.chat_stream.group_info is not None
+            if is_group_chat and global_config.chat.group_chat_mode != "auto":
+                # 强制模式下固定能量值和聊天模式
+                if global_config.chat.group_chat_mode == "focus":
+                    self.loop_mode = ChatMode.FOCUS
+                    self.energy_value = 35  # 强制设置为35
+                elif global_config.chat.group_chat_mode == "normal":
+                    self.loop_mode = ChatMode.NORMAL
+                    self.energy_value = 15  # 强制设置为15
+                continue  # 跳过正常的能量值衰减逻辑
+            
+            # 原有的自动模式逻辑
             if self.loop_mode == ChatMode.NORMAL:
                 self.energy_value -= 0.3
                 self.energy_value = max(self.energy_value, 0.3)
@@ -330,24 +356,36 @@ class HeartFChatting:
             
             if self.last_action == "no_reply":
                 if not await self._execute_no_reply(recent_messages_dict):
-                    self.energy_value -= 0.3 / global_config.chat.focus_value
-                    self._log_energy_change("能量值减少")
+                    # 在强制模式下，能量值不会随时间减少
+                    is_group_chat = self.chat_stream.group_info is not None
+                    if not (is_group_chat and global_config.chat.group_chat_mode != "auto"):
+                        self.energy_value -= 0.3 / global_config.chat.focus_value
+                        self._log_energy_change("能量值减少")
                     await asyncio.sleep(0.5)
                     return True
             
             self.last_read_time = time.time()
             
             if await self._observe():
-                self.energy_value += 1 / global_config.chat.focus_value
-                self._log_energy_change("能量值增加")
+                # 在强制模式下，能量值不会因观察而增加
+                is_group_chat = self.chat_stream.group_info is not None
+                if not (is_group_chat and global_config.chat.group_chat_mode != "auto"):
+                    self.energy_value += 1 / global_config.chat.focus_value
+                    self._log_energy_change("能量值增加")
 
             # 检查是否应该退出专注模式
             # 如果开启了强制私聊专注模式且当前为私聊，则不允许退出专注状态
             is_private_chat = self.chat_stream.group_info is None
+            is_group_chat = self.chat_stream.group_info is not None
+            
             if global_config.chat.force_focus_private and is_private_chat:
                 # 强制私聊专注模式下，保持专注状态，但重置能量值防止过低
                 if self.energy_value <= 1:
                     self.energy_value = 5  # 重置为较低但足够的能量值
+                return True
+            
+            # 群聊强制专注模式下，不允许退出专注状态
+            if is_group_chat and global_config.chat.group_chat_mode == "focus":
                 return True
             
             if self.energy_value <= 1:
@@ -359,12 +397,18 @@ class HeartFChatting:
         elif self.loop_mode == ChatMode.NORMAL:
             # 检查是否应该强制进入专注模式（私聊且开启强制专注）
             is_private_chat = self.chat_stream.group_info is None
+            is_group_chat = self.chat_stream.group_info is not None
+            
             if global_config.chat.force_focus_private and is_private_chat:
                 self.loop_mode = ChatMode.FOCUS
                 self.energy_value = 10  # 设置初始能量值
                 return True
             
-            if global_config.chat.focus_value != 0:
+            # 群聊强制普通模式下，不允许进入专注状态
+            if is_group_chat and global_config.chat.group_chat_mode == "normal":
+                # 在强制普通模式下，即使满足条件也不进入专注模式
+                pass
+            elif global_config.chat.focus_value != 0:
                 if new_message_count > 3 / pow(global_config.chat.focus_value, 0.5):
                     self.loop_mode = ChatMode.FOCUS
                     self.energy_value = (
@@ -381,7 +425,13 @@ class HeartFChatting:
                 self.last_read_time = earliest_messages_data.get("time")
 
                 if_think = await self.normal_response(earliest_messages_data)
-                if if_think:
+                
+                # 在强制模式下，能量值变化逻辑需要特殊处理
+                is_group_chat = self.chat_stream.group_info is not None
+                if is_group_chat and global_config.chat.group_chat_mode != "auto":
+                    # 强制模式下不改变能量值
+                    pass
+                elif if_think:
                     factor = max(global_config.chat.focus_value, 0.1)
                     self.energy_value *= 1.1 * factor
                     self._log_energy_change("进行了思考，能量值按倍数增加")
