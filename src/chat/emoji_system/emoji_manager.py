@@ -985,25 +985,31 @@ class EmojiManager:
                 if content == "否":
                     return "", []
 
-            # 第二步：LLM情感分析 - 基于详细描述生成情感标签列表
-            emotion_prompt = f"""
-            请你识别这个表情包的含义和适用场景，给我简短的描述，每个描述不要超过15个字
-            这是一个基于这个表情包的描述：'{description}'
-            你可以关注其幽默和讽刺意味，动用贴吧，微博，小红书的知识，必须从互联网梗,meme的角度去分析
-            请直接输出描述，不要出现任何其他内容，如果有多个描述，可以用逗号分隔
-            """
-            emotions_text, _ = await self.llm_emotion_judge.generate_response_async(
-                emotion_prompt, temperature=0.7, max_tokens=600
-            )
+            # 第二步：LLM情感分析 - 基于详细描述生成情感标签列表（可选）
+            emotions = []
+            if global_config.emoji.enable_emotion_analysis:
+                logger.info("[情感分析] 启用表情包感情关键词二次识别")
+                emotion_prompt = f"""
+                请你识别这个表情包的含义和适用场景，给我简短的描述，每个描述不要超过15个字
+                这是一个基于这个表情包的描述：'{description}'
+                你可以关注其幽默和讽刺意味，动用贴吧，微博，小红书的知识，必须从互联网梗,meme的角度去分析
+                请直接输出描述，不要出现任何其他内容，如果有多个描述，可以用逗号分隔
+                """
+                emotions_text, _ = await self.llm_emotion_judge.generate_response_async(
+                    emotion_prompt, temperature=0.7, max_tokens=600
+                )
 
-            # 处理情感列表
-            emotions = [e.strip() for e in emotions_text.split(",") if e.strip()]
+                # 处理情感列表
+                emotions = [e.strip() for e in emotions_text.split(",") if e.strip()]
 
-            # 根据情感标签数量随机选择 - 超过5个选3个，超过2个选2个
-            if len(emotions) > 5:
-                emotions = random.sample(emotions, 3)
-            elif len(emotions) > 2:
-                emotions = random.sample(emotions, 2)
+                # 根据情感标签数量随机选择 - 超过5个选3个，超过2个选2个
+                if len(emotions) > 5:
+                    emotions = random.sample(emotions, 3)
+                elif len(emotions) > 2:
+                    emotions = random.sample(emotions, 2)
+            else:
+                logger.info("[情感分析] 表情包感情关键词二次识别已禁用")
+                emotions = []
 
             logger.info(f"[注册分析] 详细描述: {description[:50]}... -> 情感标签: {emotions}")
 

@@ -1,5 +1,5 @@
 [inner]
-version = "6.3.1"
+version = "6.3.2"
 
 #----以下是给开发人员阅读的，如果你只是部署了麦麦，不需要阅读----
 #如果你想要修改配置文件，请递增version的值
@@ -174,6 +174,7 @@ check_interval = 10 # 检查表情包（注册，破损，删除）的时间间�
 steal_emoji = true # 是否偷取表情包，让麦麦可以将一些表情包据为己有
 content_filtration = false  # 是否启用表情包过滤，只有符合该要求的表情包才会被保存
 filtration_prompt = "符合公序良俗" # 表情包过滤要求，只有符合该要求的表情包才会被保存
+enable_emotion_analysis = false # 是否启用表情包感情关键词二次识别，启用后表情包在第一次识别完毕后将送入第二次大模型识别来总结感情关键词，并构建进回复和决策器的上下文消息中
 
 [memory]
 enable_memory = true # 是否启用记忆系统

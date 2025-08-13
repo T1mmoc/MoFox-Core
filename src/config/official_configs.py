@@ -633,6 +633,9 @@ class EmojiConfig(ConfigBase):
     filtration_prompt: str = "符合公序良俗"
     """表情包过滤要求"""
 
+    enable_emotion_analysis: bool = True
+    """是否启用表情包感情关键词二次识别，启用后表情包在第一次识别完毕后将送入第二次大模型识别来总结感情关键词，并构建进回复和决策器的上下文消息中"""
+
 
 @dataclass
 class MemoryConfig(ConfigBase):
