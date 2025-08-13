@@ -9,9 +9,7 @@ on:
   #     # 添加你希望触发此 workflow 的其他分支
   workflow_dispatch: # 允许手动触发工作流
     branches:
-      - main
-      - dev
-      - dev-refactor
+      - master
 
 permissions:
   contents: write
