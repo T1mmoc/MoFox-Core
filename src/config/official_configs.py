@@ -220,6 +220,14 @@ class ChatConfig(ConfigBase):
     
     planner_custom_prompt_content: str = ""
     """决策器自定义提示词内容，仅在planner_custom_prompt_enable为True时生效"""
+    
+    timestamp_display_mode: Literal["normal", "normal_no_YMD", "relative"] = "normal_no_YMD"
+    """
+    消息时间戳显示模式：
+    - normal: 完整日期时间格式 (YYYY-MM-DD HH:MM:SS)
+    - normal_no_YMD: 仅显示时间 (HH:MM:SS)
+    - relative: 相对时间格式 (几分钟前/几小时前等)
+    """
 
     def get_current_talk_frequency(self, chat_stream_id: Optional[str] = None) -> float:
         """

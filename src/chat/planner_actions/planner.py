@@ -35,7 +35,6 @@ def init_prompt():
 {mood_block}
 {time_block}
 {identity_block}
-你的核心任务是智能判断消息是否真正需要你的回应，避免强行插话或无意义的参与。只有当消息确实针对你或你能提供有价值的回应时才参与对话。
 
 {custom_prompt_block}
 {chat_context_description}，以下是具体的聊天内容
@@ -295,7 +294,7 @@ class ActionPlanner:
 
             chat_content_block, message_id_list = build_readable_messages_with_id(
                 messages=message_list_before_now,
-                timestamp_mode="normal_no_YMD",
+                timestamp_mode="normal",
                 read_mark=self.last_obs_time_mark,
                 truncate=True,
                 show_actions=True,
