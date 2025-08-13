@@ -68,10 +68,11 @@ class CookieManager:
             response = await send_api.adapter_command_to_stream(
                 action="get_cookies",
                 params={"domain": domain},
+                platform="qq",
                 stream_id=stream_id,
                 timeout=40.0,
                 storage_message=False
-            )
+                )
             
             logger.info(f"适配器响应: {response}")
             

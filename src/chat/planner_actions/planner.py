@@ -35,7 +35,7 @@ def init_prompt():
 {mood_block}
 {time_block}
 {identity_block}
-你的核心任务是积极地在对话中寻找参与机会，像一个真正的群成员一样，自然地融入并活跃气氛。你的目标是让对话更有趣、更顺畅。
+你的核心任务是智能判断消息是否真正需要你的回应，避免强行插话或无意义的参与。只有当消息确实针对你或你能提供有价值的回应时才参与对话。
 
 {custom_prompt_block}
 {chat_context_description}，以下是具体的聊天内容

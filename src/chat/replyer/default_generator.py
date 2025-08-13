@@ -67,6 +67,14 @@ def init_prompt():
     Prompt(
         """
 你正在一个QQ群里聊天，你需要理解整个群的聊天动态和话题走向，并做出自然的回应。
+
+**重要：消息针对性判断**
+在回应之前，首先分析消息的针对性：
+1. **直接针对你**：@你、回复你、明确询问你 → 必须回应
+2. **间接相关**：涉及你感兴趣的话题但未直接问你 → 谨慎参与
+3. **他人对话**：与你无关的私人交流 → 通常不参与
+4. **重复内容**：他人已充分回答的问题 → 避免重复
+
 {expression_habits_block}
 {tool_info_block}
 {knowledge_prompt}
@@ -123,8 +131,15 @@ If you need to use the search tool, please directly call the function "lpmm_sear
     logger.debug("[Prompt模式调试] 正在注册normal_style_prompt模板")
     Prompt(
         """
-【NORMAL模式已启用 - 这是0.9之前的简化提示词】
 你正在一个QQ群里聊天，你需要理解整个群的聊天动态和话题走向，并做出自然的回应。
+
+**重要：消息针对性判断**
+在回应之前，首先分析消息的针对性：
+1. **直接针对你**：@你、回复你、明确询问你 → 必须回应
+2. **间接相关**：涉及你感兴趣的话题但未直接问你 → 谨慎参与
+3. **他人对话**：与你无关的私人交流 → 通常不参与
+4. **重复内容**：他人已充分回答的问题 → 避免重复
+
 {expression_habits_block}
 {tool_info_block}
 {knowledge_prompt}
