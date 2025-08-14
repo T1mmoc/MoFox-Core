@@ -255,7 +255,16 @@ def get_actions_by_timestamp_with_chat(
     limit_mode: str = "latest",
 ) -> List[Dict[str, Any]]:
     """获取在特定聊天从指定时间戳到指定时间戳的动作记录，按时间升序排序，返回动作记录列表"""
+    from src.common.logger import get_logger
     from src.common.database.sqlalchemy_database_api import get_db_session
+    
+    logger = get_logger("chat_message_builder")
+    
+    # 记录函数调用参数
+    logger.debug(f"[get_actions_by_timestamp_with_chat] 调用参数: chat_id={chat_id}, "
+                f"timestamp_start={timestamp_start}, timestamp_end={timestamp_end}, "
+                f"limit={limit}, limit_mode={limit_mode}")
+    
     with get_db_session() as session:
         if limit > 0:
             if limit_mode == "latest":
@@ -267,7 +276,22 @@ def get_actions_by_timestamp_with_chat(
                     )
                 ).order_by(ActionRecords.time.desc()).limit(limit))
                 actions = list(query.scalars())
-                return [action.__dict__ for action in reversed(actions)]
+                actions_result = []
+                for action in reversed(actions):
+                    action_dict = {
+                        'id': action.id,
+                        'action_id': action.action_id,
+                        'time': action.time,
+                        'action_name': action.action_name,
+                        'action_data': action.action_data,
+                        'action_done': action.action_done,
+                        'action_build_into_prompt': action.action_build_into_prompt,
+                        'action_prompt_display': action.action_prompt_display,
+                        'chat_id': action.chat_id,
+                        'chat_info_stream_id': action.chat_info_stream_id,
+                        'chat_info_platform': action.chat_info_platform,
+                    }
+                    actions_result.append(action_dict)
             else:  # earliest
                 query = session.execute(select(ActionRecords).where(
                     and_(
@@ -276,6 +300,23 @@ def get_actions_by_timestamp_with_chat(
                         ActionRecords.time < timestamp_end
                     )
                 ).order_by(ActionRecords.time.asc()).limit(limit))
+                actions = list(query.scalars())
+                actions_result = []
+                for action in actions:
+                    action_dict = {
+                        'id': action.id,
+                        'action_id': action.action_id,
+                        'time': action.time,
+                        'action_name': action.action_name,
+                        'action_data': action.action_data,
+                        'action_done': action.action_done,
+                        'action_build_into_prompt': action.action_build_into_prompt,
+                        'action_prompt_display': action.action_prompt_display,
+                        'chat_id': action.chat_id,
+                        'chat_info_stream_id': action.chat_info_stream_id,
+                        'chat_info_platform': action.chat_info_platform,
+                    }
+                    actions_result.append(action_dict)
         else:
             query = session.execute(select(ActionRecords).where(
                 and_(
@@ -284,9 +325,24 @@ def get_actions_by_timestamp_with_chat(
                     ActionRecords.time < timestamp_end
                 )
             ).order_by(ActionRecords.time.asc()))
-
-        actions = list(query.scalars())
-        return [action.__dict__ for action in actions]
+            actions = list(query.scalars())
+            actions_result = []
+            for action in actions:
+                action_dict = {
+                    'id': action.id,
+                    'action_id': action.action_id,
+                    'time': action.time,
+                    'action_name': action.action_name,
+                    'action_data': action.action_data,
+                    'action_done': action.action_done,
+                    'action_build_into_prompt': action.action_build_into_prompt,
+                    'action_prompt_display': action.action_prompt_display,
+                    'chat_id': action.chat_id,
+                    'chat_info_stream_id': action.chat_info_stream_id,
+                    'chat_info_platform': action.chat_info_platform,
+                }
+                actions_result.append(action_dict)
+        return actions_result
 
 
 def get_actions_by_timestamp_with_chat_inclusive(
@@ -753,24 +809,50 @@ def build_readable_actions(actions: List[Dict[str, Any]]) -> str:
     Returns:
         格式化的动作字符串。
     """
+    from src.common.logger import get_logger
+    logger = get_logger("chat_message_builder")
+    
+    logger.info(f"[build_readable_actions] 开始处理 {len(actions) if actions else 0} 条动作记录")
+    
     if not actions:
+        logger.debug("[build_readable_actions] 动作记录为空，返回空字符串")
         return ""
 
     output_lines = []
     current_time = time.time()
+    
+    logger.info(f"[build_readable_actions] 当前时间戳: {current_time}")
 
     # The get functions return actions sorted ascending by time. Let's reverse it to show newest first.
     # sorted_actions = sorted(actions, key=lambda x: x.get("time", 0), reverse=True)
 
-    for action in actions:
+    for i, action in enumerate(actions):
+        logger.info(f"[build_readable_actions] === 处理第 {i} 条动作记录 ===")
+        logger.info(f"[build_readable_actions] 原始动作数据: {action}")
+        
         action_time = action.get("time", current_time)
         action_name = action.get("action_name", "未知动作")
+        
+        logger.info(f"[build_readable_actions] 动作时间戳: {action_time}, 动作名称: '{action_name}'")
+        
+        # 检查是否是原始的 action_name 值
+        original_action_name = action.get("action_name")
+        if original_action_name is None:
+            logger.error(f"[build_readable_actions] 动作 #{i}: action_name 为 None!")
+        elif original_action_name == "":
+            logger.error(f"[build_readable_actions] 动作 #{i}: action_name 为空字符串!")
+        elif original_action_name == "未知动作":
+            logger.error(f"[build_readable_actions] 动作 #{i}: action_name 已经是'未知动作'!")
+        
         if action_name in ["no_action", "no_reply"]:
+            logger.debug(f"[build_readable_actions] 跳过动作 #{i}: {action_name} (在跳过列表中)")
             continue
 
         action_prompt_display = action.get("action_prompt_display", "无具体内容")
+        logger.info(f"[build_readable_actions] 动作提示显示: '{action_prompt_display}'")
 
         time_diff_seconds = current_time - action_time
+        logger.info(f"[build_readable_actions] 时间差: {time_diff_seconds} 秒")
 
         if time_diff_seconds < 60:
             time_ago_str = f"在{int(time_diff_seconds)}秒前"
@@ -778,10 +860,15 @@ def build_readable_actions(actions: List[Dict[str, Any]]) -> str:
             time_diff_minutes = round(time_diff_seconds / 60)
             time_ago_str = f"在{int(time_diff_minutes)}分钟前"
 
-        line = f"{time_ago_str}，你使用了“{action_name}”，具体内容是：“{action_prompt_display}”"
+        logger.info(f"[build_readable_actions] 时间描述: '{time_ago_str}'")
+
+        line = f"{time_ago_str}，你使用了\"{action_name}\"，具体内容是：\"{action_prompt_display}\""
+        logger.info(f"[build_readable_actions] 生成的行: '{line}'")
         output_lines.append(line)
 
-    return "\n".join(output_lines)
+    result = "\n".join(output_lines)
+    logger.info(f"[build_readable_actions] 最终结果: '{result}'")
+    return result
 
 
 async def build_readable_messages_with_list(
