@@ -1800,7 +1800,7 @@ class HippocampusManager:
         except Exception as e:
             logger.error(f"文本产生激活值失败: {e}")
             response = 0.0
-            keywords = []  # 在异常情况下初始化 keywords 为空列表
+            keywords = []  # 初始化 keywords 为空列表
         return response, keywords
 
     def get_memory_from_keyword(self, keyword: str, max_depth: int = 2) -> list:
