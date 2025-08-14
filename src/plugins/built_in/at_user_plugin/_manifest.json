@@ -1,0 +1,11 @@
+{
+    "manifest_version": 1,
+    "name": "At User Plugin",
+    "description": "一个通过名字艾特用户的插件",
+    "author": "Kilo Code",
+    "version": "1.0.0",
+    "requirements": [],
+    "license": "MIT",
+    "keywords": ["at", "mention", "user"],
+    "categories": ["Chat", "Utility"]
+}
