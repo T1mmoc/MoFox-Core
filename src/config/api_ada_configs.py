@@ -148,6 +148,12 @@ class ModelTaskConfig(ConfigBase):
     ))
     """视频分析模型配置"""
 
+    emoji_vlm: TaskConfig = field(default_factory=lambda: TaskConfig(
+        model_list=["qwen2.5-vl-72b"],
+        max_tokens=800
+    ))
+    """表情包识别模型配置"""
+
     def get_task(self, task_name: str) -> TaskConfig:
         """获取指定任务的配置"""
         if hasattr(self, task_name):

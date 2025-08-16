@@ -389,7 +389,7 @@ class EmojiManager:
 
         self._scan_task = None
 
-        self.vlm = LLMRequest(model_set=model_config.model_task_config.vlm, request_type="emoji")
+        self.vlm = LLMRequest(model_set=model_config.model_task_config.emoji_vlm, request_type="emoji")
         self.llm_emotion_judge = LLMRequest(
             model_set=model_config.model_task_config.utils, request_type="emoji"
         )  # 更高的温度，更少的token（后续可以根据情绪来调整温度）
@@ -945,11 +945,11 @@ class EmojiManager:
                 with get_db_session() as session:
                 # from src.common.database.database_model_compat import Images
 
-                    stmt = select(Images).where((Images.emoji_hash == image_hash) & (Images.type == "emoji"))
-                    existing_image = session.execute(stmt).scalar_one_or_none()
-                    if existing_image and existing_image.description:
-                        existing_description = existing_image.description
-                        logger.info(f"[复用描述] 找到已有详细描述: {existing_description[:50]}...")
+                stmt = select(Images).where((Images.emoji_hash == image_hash) & (Images.type == "emoji"))
+                existing_image = session.query(Images).filter((Images.emoji_hash == image_hash) & (Images.type == "emoji")).one_or_none()
+                if existing_image and existing_image.description:
+                    existing_description = existing_image.description
+                    logger.info(f"[复用描述] 找到已有详细描述: {existing_description[:50]}...")
             except Exception as e:
                 logger.debug(f"查询已有描述时出错: {e}")
 
