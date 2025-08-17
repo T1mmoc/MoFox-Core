@@ -30,20 +30,23 @@ class VideoAnalyzer:
     
     def __init__(self):
         """初始化视频分析器"""
+        # 首先初始化logger
+        self.logger = get_logger(__name__)
+        
         # 使用专用的视频分析配置
         try:
             self.video_llm = LLMRequest(
                 model_set=model_config.model_task_config.video_analysis,
                 request_type="video_analysis"
             )
-            logger.info("✅ 使用video_analysis模型配置")
+            self.logger.info("✅ 使用video_analysis模型配置")
         except (AttributeError, KeyError) as e:
             # 如果video_analysis不存在，使用vlm配置
             self.video_llm = LLMRequest(
                 model_set=model_config.model_task_config.vlm,
                 request_type="vlm"
             )
-            logger.warning(f"video_analysis配置不可用({e})，回退使用vlm配置")
+            self.logger.warning(f"video_analysis配置不可用({e})，回退使用vlm配置")
         
         # 从配置文件读取参数，如果配置不存在则使用默认值
         try:
@@ -63,18 +66,18 @@ class VideoAnalyzer:
             elif config_mode == "auto":
                 self.analysis_mode = "auto"
             else:
-                logger.warning(f"无效的分析模式: {config_mode}，使用默认的auto模式")
+                self.logger.warning(f"无效的分析模式: {config_mode}，使用默认的auto模式")
                 self.analysis_mode = "auto"
                 
             self.frame_analysis_delay = 0.3  # API调用间隔（秒）
             self.frame_interval = 1.0  # 抽帧时间间隔（秒）
             self.batch_size = 3  # 批处理时每批处理的帧数
             self.timeout = 60.0  # 分析超时时间（秒）
-            logger.info(f"✅ 从配置文件读取视频分析参数")
+            self.logger.info(f"✅ 从配置文件读取视频分析参数")
             
         except AttributeError as e:
             # 如果配置不存在，使用代码中的默认值
-            logger.warning(f"配置文件中缺少video_analysis配置({e})，使用默认值")
+            self.logger.warning(f"配置文件中缺少video_analysis配置({e})，使用默认值")
             self.max_frames = 6
             self.frame_quality = 85
             self.max_image_size = 600
@@ -99,7 +102,7 @@ class VideoAnalyzer:
         # 系统提示词
         self.system_prompt = "你是一个专业的视频内容分析助手。请仔细观察用户提供的视频关键帧，详细描述视频内容。"
         
-        logger.info(f"✅ 视频分析器初始化完成，分析模式: {self.analysis_mode}")
+        self.logger.info(f"✅ 视频分析器初始化完成，分析模式: {self.analysis_mode}")
 
     def _calculate_video_hash(self, video_data: bytes) -> str:
         """计算视频文件的hash值"""
@@ -143,9 +146,9 @@ class VideoAnalyzer:
         """设置分析模式"""
         if mode in ["batch", "sequential", "auto"]:
             self.analysis_mode = mode
-            # logger.info(f"分析模式已设置为: {mode}")
+            # self.logger.info(f"分析模式已设置为: {mode}")
         else:
-            logger.warning(f"无效的分析模式: {mode}")
+            self.logger.warning(f"无效的分析模式: {mode}")
 
     async def extract_frames(self, video_path: str) -> List[Tuple[str, float]]:
         """提取视频帧"""
@@ -155,7 +158,7 @@ class VideoAnalyzer:
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         duration = total_frames / fps if fps > 0 else 0
         
-        logger.info(f"视频信息: {total_frames}帧, {fps:.2f}FPS, {duration:.2f}秒")
+        self.logger.info(f"视频信息: {total_frames}帧, {fps:.2f}FPS, {duration:.2f}秒")
         
         # 动态计算帧间隔
         if duration > 0:
@@ -192,17 +195,17 @@ class VideoAnalyzer:
                 frames.append((frame_base64, timestamp))
                 extracted_count += 1
                 
-                logger.debug(f"📸 提取第{extracted_count}帧 (时间: {timestamp:.2f}s)")
+                self.logger.debug(f"📸 提取第{extracted_count}帧 (时间: {timestamp:.2f}s)")
             
             frame_count += 1
         
         cap.release()
-        logger.info(f"✅ 成功提取{len(frames)}帧")
+        self.logger.info(f"✅ 成功提取{len(frames)}帧")
         return frames
 
     async def analyze_frames_batch(self, frames: List[Tuple[str, float]], user_question: str = None) -> str:
         """批量分析所有帧"""
-        logger.info(f"开始批量分析{len(frames)}帧")
+        self.logger.info(f"开始批量分析{len(frames)}帧")
         
         # 构建提示词
         prompt = self.batch_analysis_prompt
@@ -226,17 +229,17 @@ class VideoAnalyzer:
                     image_base64=frame_base64,
                     image_format="jpeg"
                 )
-                logger.info("✅ 批量分析完成")
+                self.logger.info("✅ 批量分析完成")
                 return response
             else:
                 return "❌ 没有可分析的帧"
         except Exception as e:
-            logger.error(f"❌ 批量分析失败: {e}")
+            self.logger.error(f"❌ 批量分析失败: {e}")
             raise
 
     async def analyze_frames_sequential(self, frames: List[Tuple[str, float]], user_question: str = None) -> str:
         """逐帧分析并汇总"""
-        logger.info(f"开始逐帧分析{len(frames)}帧")
+        self.logger.info(f"开始逐帧分析{len(frames)}帧")
         
         frame_analyses = []
         
@@ -257,18 +260,18 @@ class VideoAnalyzer:
                 )
                 
                 frame_analyses.append(f"第{i+1}帧 ({timestamp:.2f}s): {response}")
-                logger.debug(f"✅ 第{i+1}帧分析完成")
+                self.logger.debug(f"✅ 第{i+1}帧分析完成")
                 
                 # API调用间隔
                 if i < len(frames) - 1:
                     await asyncio.sleep(self.frame_analysis_delay)
                     
             except Exception as e:
-                logger.error(f"❌ 第{i+1}帧分析失败: {e}")
+                self.logger.error(f"❌ 第{i+1}帧分析失败: {e}")
                 frame_analyses.append(f"第{i+1}帧: 分析失败 - {e}")
         
         # 生成汇总
-        logger.info("开始生成汇总分析")
+        self.logger.info("开始生成汇总分析")
         summary_prompt = f"""基于以下各帧的分析结果，请提供一个完整的视频内容总结：
 
 {chr(10).join(frame_analyses)}
@@ -287,19 +290,19 @@ class VideoAnalyzer:
                     image_base64=last_frame_base64,
                     image_format="jpeg"
                 )
-                logger.info("✅ 逐帧分析和汇总完成")
+                self.logger.info("✅ 逐帧分析和汇总完成")
                 return summary
             else:
                 return "❌ 没有可用于汇总的帧"
         except Exception as e:
-            logger.error(f"❌ 汇总分析失败: {e}")
+            self.logger.error(f"❌ 汇总分析失败: {e}")
             # 如果汇总失败，返回各帧分析结果
             return f"视频逐帧分析结果：\n\n{chr(10).join(frame_analyses)}"
 
     async def analyze_video(self, video_path: str, user_question: str = None) -> str:
         """分析视频的主要方法"""
         try:
-            logger.info(f"开始分析视频: {os.path.basename(video_path)}")
+            self.logger.info(f"开始分析视频: {os.path.basename(video_path)}")
             
             # 提取帧
             frames = await self.extract_frames(video_path)
@@ -310,7 +313,7 @@ class VideoAnalyzer:
             if self.analysis_mode == "auto":
                 # 智能选择：少于等于3帧用批量，否则用逐帧
                 mode = "batch" if len(frames) <= 3 else "sequential"
-                logger.info(f"自动选择分析模式: {mode} (基于{len(frames)}帧)")
+                self.logger.info(f"自动选择分析模式: {mode} (基于{len(frames)}帧)")
             else:
                 mode = self.analysis_mode
             
@@ -320,12 +323,12 @@ class VideoAnalyzer:
             else:  # sequential
                 result = await self.analyze_frames_sequential(frames, user_question)
             
-            logger.info("✅ 视频分析完成")
+            self.logger.info("✅ 视频分析完成")
             return result
             
         except Exception as e:
             error_msg = f"❌ 视频分析失败: {str(e)}"
-            logger.error(error_msg)
+            self.logger.error(error_msg)
             return error_msg
 
     async def analyze_video_from_bytes(self, video_bytes: bytes, filename: str = None, user_question: str = None, prompt: str = None) -> Dict[str, str]:
