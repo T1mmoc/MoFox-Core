@@ -460,6 +460,8 @@ class QZoneService:
 
                 feeds_list = []
                 for feed in feeds_data:
+                    if feed is None:
+                        continue
                     if str(feed.get("appid", "")) != "311" or str(feed.get("uin", "")) == str(uin):
                         continue
 
