@@ -607,26 +607,32 @@ class HeartFChatting:
                         available_actions=available_actions,
                     )
 
-
-            
-            # 3. 并行执行所有动作
-            async def execute_action(action_info,actions):
-                """执行单个动作的通用函数"""
-                try:
-                    if action_info["action_type"] == "no_reply":
-                        # 直接处理no_reply逻辑，不再通过动作系统
-                        reason = action_info.get("reasoning", "选择不回复")
-                        logger.info(f"{self.log_prefix} 选择不回复，原因: {reason}")
-                        
-                        # 存储no_reply信息到数据库
-                        await database_api.store_action_info(
-                            chat_stream=self.chat_stream,
-                            action_build_into_prompt=False,
-                            action_prompt_display=reason,
-                            action_done=True,
-                            thinking_id=thinking_id,
-                            action_data={"reason": reason},
-                            action_name="no_reply",
+                action_data["loop_start_time"] = loop_start_time
+ 
+             # 在私聊的专注模式下，如果规划动作为no_reply，则强制改为reply
+            is_private_chat = self.chat_stream.group_info is None
+            if self.loop_mode == ChatMode.FOCUS and is_private_chat and action_type == "no_reply":
+                action_type = "reply"
+                logger.info(f"{self.log_prefix} 私聊专注模式下强制回复")
+ 
+            if action_type == "reply":
+                logger.info(f"{self.log_prefix}{global_config.bot.nickname} 决定进行回复")
+            elif is_parallel:
+                logger.info(f"{self.log_prefix}{global_config.bot.nickname} 决定进行回复, 同时执行{action_type}动作")
+            else:
+                # 只有在gen_task存在时才进行相关操作
+                if gen_task:
+                    if not gen_task.done():
+                        gen_task.cancel()
+                        logger.debug(f"{self.log_prefix} 已取消预生成的回复任务")
+                        logger.info(
+                            f"{self.log_prefix}{global_config.bot.nickname} 原本想要回复，但选择执行{action_type}，不发表回复"
+                        )
+                    elif generation_result := gen_task.result():
+                        content = " ".join([item[1] for item in generation_result if item[0] == "text"])
+                        logger.debug(f"{self.log_prefix} 预生成的回复任务已完成")
+                        logger.info(
+                            f"{self.log_prefix}{global_config.bot.nickname} 原本想要回复：{content}，但选择执行{action_type}，不发表回复"
                         )
                         
                         return {
