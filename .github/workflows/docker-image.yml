@@ -74,7 +74,7 @@ jobs:
           file: ./Dockerfile
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/maibot:amd64-buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/maibot:amd64-buildcache,mode=max
-          outputs: type=image,name=${{ secrets.DOCKERHUB_USERNAME }}/maibot:${{ env.tag }},push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ secrets.DOCKERHUB_USERNAME }}/maibot:${{ env.tag }},name-canonical=true,push=true
           build-args: |
             BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
             VCS_REF=${{ github.sha }}
