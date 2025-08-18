@@ -207,6 +207,9 @@ class VideoAnalyzer:
         """批量分析所有帧"""
         self.logger.info(f"开始批量分析{len(frames)}帧")
         
+        if not frames:
+            return "❌ 没有可分析的帧"
+        
         # 构建提示词
         prompt = self.batch_analysis_prompt
         
@@ -214,28 +217,77 @@ class VideoAnalyzer:
             prompt += f"\n\n用户问题: {user_question}"
         
         # 添加帧信息到提示词
+        frame_info = []
         for i, (frame_base64, timestamp) in enumerate(frames):
             if self.enable_frame_timing:
-                prompt += f"\n\n第{i+1}帧 (时间: {timestamp:.2f}s):"
+                frame_info.append(f"第{i+1}帧 (时间: {timestamp:.2f}s)")
+            else:
+                frame_info.append(f"第{i+1}帧")
+        
+        prompt += f"\n\n视频包含{len(frames)}帧图像：{', '.join(frame_info)}"
+        prompt += "\n\n请基于所有提供的帧图像进行综合分析，描述视频的完整内容和故事发展。"
         
         try:
-            # 使用第一帧进行分析（批量模式暂时使用单帧，后续可以优化为真正的多图片分析）
-            if frames:
-                frame_base64, _ = frames[0]
-                prompt += f"\n\n注意：当前显示的是第1帧，请基于这一帧和提示词进行分析。视频共有{len(frames)}帧。"
+            # 尝试使用多图片分析
+            response = await self._analyze_multiple_frames(frames, prompt)
+            self.logger.info("✅ 批量多图片分析完成")
+            return response
+            
+        except Exception as e:
+            self.logger.error(f"❌ 多图片分析失败: {e}")
+            # 降级到单帧分析
+            self.logger.warning("降级到单帧分析模式")
+            try:
+                frame_base64, timestamp = frames[0]
+                fallback_prompt = prompt + f"\n\n注意：由于技术限制，当前仅显示第1帧 (时间: {timestamp:.2f}s)，视频共有{len(frames)}帧。请基于这一帧进行分析。"
                 
                 response, _ = await self.video_llm.generate_response_for_image(
-                    prompt=prompt,
+                    prompt=fallback_prompt,
                     image_base64=frame_base64,
                     image_format="jpeg"
                 )
-                self.logger.info("✅ 批量分析完成")
+                self.logger.info("✅ 降级的单帧分析完成")
                 return response
-            else:
-                return "❌ 没有可分析的帧"
-        except Exception as e:
-            self.logger.error(f"❌ 批量分析失败: {e}")
-            raise
+            except Exception as fallback_e:
+                self.logger.error(f"❌ 降级分析也失败: {fallback_e}")
+                raise
+
+    async def _analyze_multiple_frames(self, frames: List[Tuple[str, float]], prompt: str) -> str:
+        """使用多图片分析方法"""
+        self.logger.info(f"开始构建包含{len(frames)}帧的多图片分析请求")
+        
+        # 导入MessageBuilder用于构建多图片消息
+        from src.llm_models.payload_content.message import MessageBuilder, RoleType
+        from src.llm_models.utils_model import RequestType
+        
+        # 构建包含多张图片的消息
+        message_builder = MessageBuilder().set_role(RoleType.User).add_text_content(prompt)
+        
+        # 添加所有帧图像
+        for i, (frame_base64, timestamp) in enumerate(frames):
+            message_builder.add_image_content("jpeg", frame_base64)
+            # self.logger.info(f"已添加第{i+1}帧到分析请求 (时间: {timestamp:.2f}s, 图片大小: {len(frame_base64)} chars)")
+        
+        message = message_builder.build()
+        self.logger.info(f"✅ 多图片消息构建完成，包含{len(frames)}张图片")
+        
+        # 获取模型信息和客户端
+        model_info, api_provider, client = await self.video_llm._get_best_model_and_client()
+        self.logger.info(f"使用模型: {model_info.name} 进行多图片分析")
+        
+        # 直接执行多图片请求
+        api_response = await self.video_llm._execute_request(
+            api_provider=api_provider,
+            client=client,
+            request_type=RequestType.RESPONSE,
+            model_info=model_info,
+            message_list=[message],
+            temperature=None,
+            max_tokens=None
+        )
+        
+        self.logger.info(f"视频识别完成，响应长度: {len(api_response.content or '')} ")
+        return api_response.content or "❌ 未获得响应内容"
 
     async def analyze_frames_sequential(self, frames: List[Tuple[str, float]], user_question: str = None) -> str:
         """逐帧分析并汇总"""
@@ -355,7 +407,7 @@ class VideoAnalyzer:
             
             # 计算视频hash值
             video_hash = self._calculate_video_hash(video_bytes)
-            logger.info(f"视频hash: {video_hash[:16]}...")
+            # logger.info(f"视频hash: {video_hash[:16]}...")
             
             # 检查数据库中是否已存在该视频的分析结果
             existing_video = self._check_video_exists(video_hash)
