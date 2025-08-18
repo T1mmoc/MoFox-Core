@@ -9,6 +9,15 @@
 import time
 from typing import List, Optional
 from dataclasses import dataclass, field
+from enum import Enum
+
+
+class ProcessResult(Enum):
+    """处理结果枚举"""
+    ALLOWED = "allowed"           # 允许通过
+    BLOCKED_INJECTION = "blocked_injection"  # 被阻止-注入攻击
+    BLOCKED_BAN = "blocked_ban"   # 被阻止-用户封禁
+    SHIELDED = "shielded"         # 已加盾处理
 
 
 @dataclass
