@@ -9,6 +9,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import QueuePool
 import os
 import datetime
+import time
 from src.common.logger import get_logger
 import threading
 from contextlib import contextmanager
@@ -473,6 +474,40 @@ class AntiInjectionStats(Base):
     __table_args__ = (
         Index('idx_anti_injection_stats_created_at', 'created_at'),
         Index('idx_anti_injection_stats_updated_at', 'updated_at'),
+    )
+
+
+class CacheEntries(Base):
+    """工具缓存条目模型"""
+    __tablename__ = 'cache_entries'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    cache_key = Column(get_string_field(500), nullable=False, unique=True, index=True)
+    """缓存键，包含工具名、参数和代码哈希"""
+    
+    cache_value = Column(Text, nullable=False)
+    """缓存的数据，JSON格式"""
+    
+    expires_at = Column(Float, nullable=False, index=True)
+    """过期时间戳"""
+    
+    tool_name = Column(get_string_field(100), nullable=False, index=True)
+    """工具名称"""
+    
+    created_at = Column(Float, nullable=False, default=lambda: time.time())
+    """创建时间戳"""
+    
+    last_accessed = Column(Float, nullable=False, default=lambda: time.time())
+    """最后访问时间戳"""
+    
+    access_count = Column(Integer, nullable=False, default=0)
+    """访问次数"""
+
+    __table_args__ = (
+        Index('idx_cache_entries_key', 'cache_key'),
+        Index('idx_cache_entries_expires_at', 'expires_at'),
+        Index('idx_cache_entries_tool_name', 'tool_name'),
+        Index('idx_cache_entries_created_at', 'created_at'),
     )
 
 
