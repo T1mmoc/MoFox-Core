@@ -5,6 +5,7 @@
 """
 import asyncio
 import datetime
+import random
 import traceback
 from typing import Callable
 
@@ -91,8 +92,12 @@ class SchedulerService:
                             result.get("message", "")
                         )
                 
-                # 6. 等待5分钟后进行下一次检查
-                await asyncio.sleep(300)
+                # 6. 计算并等待一个随机的时间间隔
+                min_minutes = self.get_config("schedule.random_interval_min_minutes", 5)
+                max_minutes = self.get_config("schedule.random_interval_max_minutes", 15)
+                wait_seconds = random.randint(min_minutes * 60, max_minutes * 60)
+                logger.info(f"下一次检查将在 {wait_seconds / 60:.2f} 分钟后进行。")
+                await asyncio.sleep(wait_seconds)
                 
             except asyncio.CancelledError:
                 logger.info("定时任务循环被取消。")
