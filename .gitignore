@@ -321,8 +321,6 @@ src/chat/focus_chat/working_memory/test/test4.txt
 run_maiserver.bat
 src/plugins/test_plugin_pic/actions/pic_action_config.toml
 run_pet.bat
-
-/plugins/*
 !/plugins
 !/plugins/hello_world_plugin
 !/plugins/take_picture_plugin
