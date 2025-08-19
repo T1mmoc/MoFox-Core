@@ -24,7 +24,7 @@ from src.chat.utils.chat_message_builder import (
 )
 from src.chat.express.expression_selector import expression_selector
 from src.chat.memory_system.memory_activator import MemoryActivator
-from src.chat.memory_system.hybrid_instant_memory import HybridInstantMemory
+from src.chat.memory_system.vector_instant_memory import VectorInstantMemoryV2
 from src.mood.mood_manager import mood_manager
 from src.person_info.person_info import Person, is_person_known
 from src.plugin_system.base.component_types import ActionInfo, EventType
@@ -190,8 +190,8 @@ class DefaultReplyer:
         self.is_group_chat, self.chat_target_info = get_chat_type_and_target_info(self.chat_stream.stream_id)
         self.heart_fc_sender = HeartFCSender()
         self.memory_activator = MemoryActivator()
-        # 使用混合瞬时记忆系统V2，支持自定义保留时间
-        self.instant_memory = HybridInstantMemory(
+        # 使用纯向量瞬时记忆系统V2，支持自定义保留时间
+        self.instant_memory = VectorInstantMemoryV2(
             chat_id=self.chat_stream.stream_id,
             retention_hours=1
         )
@@ -425,20 +425,13 @@ class DefaultReplyer:
         
 
         if global_config.memory.enable_instant_memory:
-            # 异步存储聊天历史到混合记忆系统
-            asyncio.create_task(self.instant_memory.create_and_store_memory(chat_history))
+            # 异步存储聊天历史到向量记忆系统
+            asyncio.create_task(self.instant_memory.store_message(chat_history))
 
-            # 从混合记忆系统获取相关记忆
-            instant_memory_result = await self.instant_memory.get_memory(target)
+            # 从向量记忆系统获取相关记忆上下文
+            instant_memory = await self.instant_memory.get_memory_for_context(target)
             
-            # 处理不同类型的返回结果
-            instant_memory = None
-            if isinstance(instant_memory_result, list) and instant_memory_result:
-                instant_memory = instant_memory_result[0]
-            elif isinstance(instant_memory_result, str) and instant_memory_result:
-                instant_memory = instant_memory_result
-            
-            logger.info(f"混合瞬时记忆：{instant_memory}")
+            logger.info(f"向量瞬时记忆：{instant_memory}")
 
         # 构建记忆字符串，即使某种记忆为空也要继续
         memory_str = ""
