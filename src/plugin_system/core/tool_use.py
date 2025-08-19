@@ -40,7 +40,7 @@ class ToolExecutor:
     可以直接输入聊天消息内容，自动判断并执行相应的工具，返回结构化的工具执行结果。
     """
 
-    def __init__(self, chat_id: str, enable_cache: bool = True, cache_ttl: int = 3):
+    def __init__(self, chat_id: str, enable_cache: bool = False, cache_ttl: int = 3):
         """初始化工具执行器
 
         Args:
