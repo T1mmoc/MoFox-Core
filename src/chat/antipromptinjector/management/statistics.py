@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional
 
 from src.common.logger import get_logger
 from src.common.database.sqlalchemy_models import AntiInjectionStats, get_db_session
+from src.config.config import global_config
 
 logger = get_logger("anti_injector.statistics")
 
@@ -19,7 +20,8 @@ class AntiInjectionStatistics:
     
     def __init__(self):
         """初始化统计管理器"""
-        pass
+        self.session_start_time = datetime.datetime.now()
+        """当前会话开始时间"""
     
     async def get_or_create_stats(self):
         """获取或创建统计记录"""
@@ -78,6 +80,22 @@ class AntiInjectionStatistics:
     async def get_stats(self) -> Dict[str, Any]:
         """获取统计信息"""
         try:
+            # 检查反注入系统是否启用
+            if not global_config.anti_prompt_injection.enabled:
+                return {
+                    "status": "disabled",
+                    "message": "反注入系统未启用",
+                    "uptime": "N/A",
+                    "total_messages": 0,
+                    "detected_injections": 0,
+                    "blocked_messages": 0,
+                    "shielded_messages": 0,
+                    "detection_rate": "N/A",
+                    "average_processing_time": "N/A",
+                    "last_processing_time": "N/A",
+                    "error_count": 0
+                }
+            
             stats = await self.get_or_create_stats()
             
             # 计算派生统计信息 - 处理None值
@@ -88,10 +106,13 @@ class AntiInjectionStatistics:
             detection_rate = (detected_injections / total_messages * 100) if total_messages > 0 else 0
             avg_processing_time = (processing_time_total / total_messages) if total_messages > 0 else 0
             
+            # 使用当前会话开始时间计算运行时间，而不是数据库中的start_time
+            # 这样可以避免重启后显示错误的运行时间
             current_time = datetime.datetime.now()
-            uptime = current_time - stats.start_time
+            uptime = current_time - self.session_start_time
             
             return {
+                "status": "enabled",
                 "uptime": str(uptime),
                 "total_messages": total_messages,
                 "detected_injections": detected_injections,

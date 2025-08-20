@@ -32,8 +32,14 @@ class AntiInjectorStatusCommand(BaseCommand):
             anti_injector = get_anti_injector()
             stats = await anti_injector.get_stats()
             
-            if stats.get("stats_disabled"):
-                return True, "反注入系统统计功能已禁用", True
+            # 检查反注入系统是否禁用
+            if stats.get("status") == "disabled":
+                await self.send_text("❌ 反注入系统未启用\n\n💡 请在配置文件中启用反注入功能后重试")
+                return True, "反注入系统未启用", True
+            
+            if stats.get("error"):
+                await self.send_text(f"❌ 获取状态失败: {stats['error']}")
+                return False, f"获取状态失败: {stats['error']}", True
             
             status_text = f"""🛡️ 反注入系统状态报告
 

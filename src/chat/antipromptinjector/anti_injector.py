@@ -60,11 +60,12 @@ class AntiPromptInjector:
         start_time = time.time()
         
         try:
-            # 统计更新
-            await self.statistics.update_stats(total_messages=1)
             # 1. 检查系统是否启用
             if not self.config.enabled:
                 return ProcessResult.ALLOWED, None, "反注入系统未启用"
+            
+            # 统计更新 - 只有在系统启用时才进行统计
+            await self.statistics.update_stats(total_messages=1)
             logger.debug(f"开始处理消息: {message.processed_plain_text}")
             
             # 2. 检查用户是否被封禁
