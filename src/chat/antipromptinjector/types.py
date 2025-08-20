@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-反注入系统配置模块
+反注入系统数据类型定义模块
 
-本模块定义了反注入系统的检测结果和统计数据类。
-配置直接从 global_config.anti_prompt_injection 获取。
+本模块定义了反注入系统使用的数据类型、枚举和数据结构：
+- ProcessResult: 处理结果枚举
+- DetectionResult: 检测结果数据类
+
+实际的配置从 global_config.anti_prompt_injection 获取。
 """
 
 import time

@@ -8,35 +8,38 @@ MaiBot 反注入系统模块
 1. 基于规则的快速检测
 2. 黑白名单机制
 3. LLM二次分析
-4. 消息处理模式（严格模式/宽松模式）
-5. 消息加盾功能
+4. 消息处理模式（严格模式/宽松模式/反击模式）
 
 作者: FOX YaNuo
 """
 
 from .anti_injector import AntiPromptInjector, get_anti_injector, initialize_anti_injector
-from .config import DetectionResult
-from .detector import PromptInjectionDetector
-from .shield import MessageShield
-from .command_skip_list import (
+from .types import DetectionResult, ProcessResult
+from .core import PromptInjectionDetector, MessageShield
+from .processors import (
     initialize_skip_list, 
     should_skip_injection_detection, 
-    refresh_plugin_commands,
-    get_skip_patterns_info
+    MessageProcessor
 )
+from .management import AntiInjectionStatistics, UserBanManager
+from .decision import CounterAttackGenerator, ProcessingDecisionMaker
     
 __all__ = [
-        "AntiPromptInjector",
-        "get_anti_injector",
-        "initialize_anti_injector",
-        "DetectionResult",
-        "PromptInjectionDetector",
-        "MessageShield",
-        "initialize_skip_list",
-        "should_skip_injection_detection",
-        "refresh_plugin_commands",
-        "get_skip_patterns_info"
-    ]
+    "AntiPromptInjector",
+    "get_anti_injector", 
+    "initialize_anti_injector",
+    "DetectionResult",
+    "ProcessResult",
+    "PromptInjectionDetector",
+    "MessageShield",
+    "MessageProcessor",
+    "AntiInjectionStatistics",
+    "UserBanManager", 
+    "CounterAttackGenerator",
+    "ProcessingDecisionMaker",
+    "initialize_skip_list",
+    "should_skip_injection_detection"
+]
 
 
 __author__ = "FOX YaNuo"

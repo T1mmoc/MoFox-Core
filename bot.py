@@ -26,12 +26,14 @@ from src.common.logger import initialize_logging, get_logger, shutdown_logging
 initialize_logging()
 
 from src.main import MainSystem #noqa
+from src import BaseMain
 from src.manager.async_task_manager import async_task_manager #noqa
-
-
+from src.config.config import global_config
+from src.common.database.database import initialize_sql_database
+from src.common.database.sqlalchemy_models import initialize_database as init_db
+        
 
 logger = get_logger("main")
-egg = get_logger("小彩蛋")
 
 
 install(extra_lines=3)
@@ -74,7 +76,7 @@ def easter_egg():
     rainbow_text = ""
     for i, char in enumerate(text):
         rainbow_text += rainbow_colors[i % len(rainbow_colors)] + char
-    egg.info(rainbow_text)
+    logger.info(rainbow_text)
 
 
 
@@ -192,47 +194,62 @@ def check_eula():
         _save_confirmations(eula_updated, privacy_updated, eula_hash, privacy_hash)
 
 
-def raw_main():
-    # 利用 TZ 环境变量设定程序工作的时区
-    if platform.system().lower() != "windows":
-        time.tzset()  # type: ignore
-
-    check_eula()
-    logger.info("检查EULA和隐私条款完成")
-
-    easter_egg()
+class MaiBotMain(BaseMain):
+    """麦麦机器人主程序类"""
     
-    # 在此处初始化数据库
-    from src.config.config import global_config
-    from src.common.database.database import initialize_sql_database
-    from src.common.database.sqlalchemy_models import initialize_database as init_db
+    def __init__(self):
+        super().__init__()
+        self.main_system = None
     
-    logger.info("正在初始化数据库连接...")
-    try:
-        initialize_sql_database(global_config.database)
-        logger.info(f"数据库连接初始化成功，使用 {global_config.database.database_type} 数据库")
-    except Exception as e:
-        logger.error(f"数据库连接初始化失败: {e}")
-        raise e
+    def setup_timezone(self):
+        """设置时区"""
+        if platform.system().lower() != "windows":
+            time.tzset()  # type: ignore
+            
+    def check_and_confirm_eula(self):
+        """检查并确认EULA和隐私条款"""
+        check_eula()
+        logger.info("检查EULA和隐私条款完成")
+    
+    def initialize_database(self):
+        """初始化数据库"""
 
-    logger.info("正在初始化数据库表结构...")
-    try:
-        init_db()
-        logger.info("数据库表结构初始化完成")
-    except Exception as e:
-        logger.error(f"数据库表结构初始化失败: {e}")
-        raise e
+        logger.info("正在初始化数据库连接...")
+        try:
+            initialize_sql_database(global_config.database)
+            logger.info(f"数据库连接初始化成功，使用 {global_config.database.database_type} 数据库")
+        except Exception as e:
+            logger.error(f"数据库连接初始化失败: {e}")
+            raise e
 
+        logger.info("正在初始化数据库表结构...")
+        try:
+            init_db()
+            logger.info("数据库表结构初始化完成")
+        except Exception as e:
+            logger.error(f"数据库表结构初始化失败: {e}")
+            raise e
+    
+    def create_main_system(self):
+        """创建MainSystem实例"""
+        self.main_system = MainSystem()
+        return self.main_system
+    
+    def run(self):
+        """运行主程序"""
+        self.setup_timezone()
+        self.check_and_confirm_eula()
+        self.initialize_database()
+        return self.create_main_system()
 
-    # 返回MainSystem实例
-    return MainSystem()
 
 
 if __name__ == "__main__":
     exit_code = 0  # 用于记录程序最终的退出状态
     try:
-        # 获取MainSystem实例
-        main_system = raw_main()
+        # 创建MaiBotMain实例并获取MainSystem
+        maibot = MaiBotMain()
+        main_system = maibot.run()
 
         # 创建事件循环
         loop = asyncio.new_event_loop()

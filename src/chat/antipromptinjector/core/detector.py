@@ -16,7 +16,7 @@ from dataclasses import asdict
 
 from src.common.logger import get_logger
 from src.config.config import global_config
-from .types import DetectionResult
+from ..types import DetectionResult
 
 # 导入LLM API
 from src.plugin_system.apis import llm_api

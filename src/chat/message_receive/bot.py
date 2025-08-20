@@ -20,7 +20,7 @@ from src.plugin_system.apis import send_api
 
 # 导入反注入系统
 from src.chat.antipromptinjector import get_anti_injector, initialize_anti_injector
-from src.chat.antipromptinjector.config import ProcessResult
+from src.chat.antipromptinjector.types import ProcessResult
 
 # 定义日志配置
 
