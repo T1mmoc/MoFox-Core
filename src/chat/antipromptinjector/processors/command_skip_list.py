@@ -65,9 +65,6 @@ class CommandSkipListManager:
         if self.config.auto_collect_plugin_commands:
             self._collect_plugin_commands()
         
-        # 添加手动指定的模式
-        self._add_manual_patterns()
-        
         self._is_initialized = True
         logger.info(f"跳过列表初始化完成，共收集 {len(self._skip_patterns)} 个模式")
         
@@ -75,8 +72,8 @@ class CommandSkipListManager:
         """添加系统内置命令模式"""
         system_patterns = [
             (r"^/pm\b", "/pm 插件管理命令"),
-            (r"^/反注入统计\b", "反注入统计查询命令"),
-            (r"^^/反注入跳过列表(?:\s+(.+))?$", "反注入列表管理命令"),
+            (r"^/反注入统计$", "反注入统计查询命令"),
+            (r"^/反注入跳过列表$", "反注入列表管理命令"),
         ]
         
         for pattern_str, description in system_patterns:
@@ -129,14 +126,6 @@ class CommandSkipListManager:
             
         except Exception as e:
             logger.warning(f"自动收集插件命令时出错: {e}")
-    
-    def _add_manual_patterns(self):
-        """添加手动指定的模式"""
-        manual_patterns = self.config.manual_skip_patterns or []
-        
-        for pattern_str in manual_patterns:
-            if pattern_str.strip():
-                self._add_skip_pattern(pattern_str.strip(), "manual", "手动配置的跳过模式")
     
     def _add_skip_pattern(self, pattern_str: str, source: str, description: str = "") -> bool:
         """添加跳过模式
@@ -227,7 +216,7 @@ class CommandSkipListManager:
         Returns:
             按来源分组的模式信息
         """
-        result = {"system": [], "plugin": [], "manual": []}
+        result = {"system": [], "plugin": []}
         
         for skip_pattern in self._skip_patterns.values():
             pattern_info = {
@@ -239,31 +228,6 @@ class CommandSkipListManager:
                 result[skip_pattern.source].append(pattern_info)
         
         return result
-    
-    def add_temporary_skip_pattern(self, pattern: str, description: str = "") -> bool:
-        """添加临时跳过模式（运行时添加，不保存到配置）
-        
-        Args:
-            pattern: 模式字符串
-            description: 模式描述
-            
-        Returns:
-            是否成功添加
-        """
-        return self._add_skip_pattern(pattern, "temporary", description or "临时跳过模式")
-    
-    def remove_temporary_patterns(self):
-        """移除所有临时跳过模式"""
-        temp_patterns = [
-            key for key, pattern in self._skip_patterns.items() 
-            if pattern.source == "temporary"
-        ]
-        
-        for key in temp_patterns:
-            del self._skip_patterns[key]
-        
-        logger.info(f"已移除 {len(temp_patterns)} 个临时跳过模式")
-
 
 # 全局跳过列表管理器实例
 skip_list_manager = CommandSkipListManager()
