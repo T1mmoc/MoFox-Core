@@ -231,9 +231,6 @@ class BingSearch:
                     sample_links.append({"text": link.text.strip(), "href": link.get("href", "")})
             logger.debug(f"链接示例: {sample_links}")
 
-            # 尝试多种选择器查找搜索结果
-            search_results = []
-
             # 方法0：查找动态提取的结果
             # 尝试查找包含完整结果项的父容器
             result_containers = []

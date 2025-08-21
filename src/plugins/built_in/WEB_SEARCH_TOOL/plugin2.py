@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from exa_py import Exa
 from asyncddgs import aDDGS
 from tavily import TavilyClient
+from .bing_search import BingSearch
 
 from src.common.logger import get_logger
 from typing import Tuple,Type
@@ -39,6 +40,7 @@ class WebSurfingTool(BaseTool):
 
     def __init__(self, plugin_config=None):
         super().__init__(plugin_config)
+        self.bing_search = BingSearch()
         
         # 初始化EXA API密钥轮询器
         self.exa_clients = []
@@ -124,19 +126,17 @@ class WebSurfingTool(BaseTool):
         search_tasks = []
         
         for engine in enabled_engines:
+            custom_args = function_args.copy()
+            custom_args["num_results"] = custom_args.get("num_results", 5)
             if engine == "exa" and self.exa_clients:
                 # 使用参数中的数量，如果没有则默认5个
-                custom_args = function_args.copy()
-                custom_args["num_results"] = custom_args.get("num_results", 5)
                 search_tasks.append(self._search_exa(custom_args))
             elif engine == "tavily" and self.tavily_clients:
-                custom_args = function_args.copy()
-                custom_args["num_results"] = custom_args.get("num_results", 5)
                 search_tasks.append(self._search_tavily(custom_args))
             elif engine == "ddg":
-                custom_args = function_args.copy()
-                custom_args["num_results"] = custom_args.get("num_results", 5)
                 search_tasks.append(self._search_ddg(custom_args))
+            elif engine == "bing":
+                search_tasks.append(self._search_bing(custom_args))
 
         if not search_tasks:
             return {"error": "没有可用的搜索引擎。"}
@@ -177,6 +177,8 @@ class WebSurfingTool(BaseTool):
                     results = await self._search_tavily(custom_args)
                 elif engine == "ddg":
                     results = await self._search_ddg(custom_args)
+                elif engine == "bing":
+                    results = await self._search_bing(custom_args)
                 else:
                     continue
                 
@@ -206,6 +208,8 @@ class WebSurfingTool(BaseTool):
                     results = await self._search_tavily(custom_args)
                 elif engine == "ddg":
                     results = await self._search_ddg(custom_args)
+                elif engine == "bing":
+                    results = await self._search_bing(custom_args)
                 else:
                     continue
                 
@@ -330,6 +334,28 @@ class WebSurfingTool(BaseTool):
             ]
         except Exception as e:
             logger.error(f"DuckDuckGo 搜索失败: {e}")
+            return []
+
+    async def _search_bing(self, args: Dict[str, Any]) -> List[Dict[str, Any]]:
+        query = args["query"]
+        num_results = args.get("num_results", 3)
+        
+        try:
+            loop = asyncio.get_running_loop()
+            func = functools.partial(self.bing_search.search, query, num_results=num_results)
+            search_response = await loop.run_in_executor(None, func)
+            if search_response:
+                return [
+                    {
+                        "title": r.get("title"),
+                        "url": r.get("url"),
+                        "snippet": r.get("abstract"),
+                        "provider": "Bing"
+                    }
+                    for r in search_response
+                ]
+        except Exception as e:
+            logger.error(f"Bing 搜索失败: {e}")
             return []
 
     def _format_results(self, results: List[Dict[str, Any]]) -> str:
@@ -586,8 +612,10 @@ class URLParserTool(BaseTool):
         }
         
         # 保存到缓存
+        import os
+        current_file_path = os.path.abspath(__file__)
         if "error" not in result:
-            await tool_cache.set(self.name, function_args, self.__class__, result)
+            await tool_cache.set(self.name, function_args, current_file_path, result)
 
         return result
 
