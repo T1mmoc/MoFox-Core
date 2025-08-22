@@ -330,7 +330,11 @@ class ActionPlanner:
                     
                     
 
-                    if action != "no_reply" and action != "reply" and action not in current_available_actions:
+                    if action == "no_action":
+                        reasoning = "normal决定不使用额外动作"
+                    elif mode == ChatMode.PROACTIVE and action == "do_nothing":
+                        pass  # 在PROACTIVE模式下，do_nothing是有效动作
+                    elif action != "no_reply" and action != "reply" and action not in current_available_actions:
                         logger.warning(
                             f"{self.log_prefix}LLM 返回了当前不可用或无效的动作: '{action}' (可用: {list(current_available_actions.keys())})，将强制使用 'no_reply'"
                         )
