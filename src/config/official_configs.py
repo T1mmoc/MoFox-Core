@@ -685,3 +685,15 @@ class MonthlyPlanSystemConfig(ValidatedConfigBase):
     generation_threshold: int = Field(default=10, ge=0, description="启动时，如果当月计划少于此数量，则触发LLM生成")
     plans_per_generation: int = Field(default=5, ge=1, description="每次调用LLM期望生成的计划数量")
     deletion_probability_on_use: float = Field(default=0.5, ge=0.0, le=1.0, description="计划被使用后，被删除的概率")
+
+
+class ContextGroup(ValidatedConfigBase):
+    """上下文共享组配置"""
+    name: str = Field(..., description="共享组的名称")
+    chat_ids: List[str] = Field(..., description="属于该组的聊天ID列表")
+
+
+class CrossContextConfig(ValidatedConfigBase):
+    """跨群聊上下文共享配置"""
+    enable: bool = Field(default=False, description="是否启用跨群聊上下文共享功能")
+    groups: List[ContextGroup] = Field(default_factory=list, description="上下文共享组列表")

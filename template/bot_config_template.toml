@@ -1,5 +1,5 @@
 [inner]
-version = "6.4.1"
+version = "6.4.2"
 
 #----以下是给开发人员阅读的，如果你只是部署了麦麦，不需要阅读----
 #如果你想要修改配置文件，请递增version的值
@@ -429,3 +429,24 @@ group_mention_increment = 2.0 #"群聊艾特增加的唤醒度"
 decay_rate = 0.2 #"每次衰减的唤醒度数值"
 decay_interval = 30.0 #"唤醒度衰减间隔(秒)"
 angry_duration = 300.0 #"愤怒状态持续时间(秒)"
+
+[cross_context] # 跨群聊上下文共享配置
+# 这是总开关，用于一键启用或禁用此功能
+enable = false
+
+# 在这里定义您的“共享组”
+# 只有在同一个组内的群聊才会共享上下文
+# 注意：这里的chat_ids需要填写群号，而不是哈希过的ID
+[[cross_context.groups]]
+name = "项目A技术讨论组"
+chat_ids = [
+    "111111",  # 假设这是“开发群”的ID
+    "222222"   # 假设这是“产品群”的ID
+]
+
+[[cross_context.groups]]
+name = "日常闲聊组"
+chat_ids = [
+    "333333",  # 假设这是“吹水群”的ID
+    "444444"   # 假设这是“游戏群”的ID
+]

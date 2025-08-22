@@ -12,7 +12,7 @@ from src.config.config import global_config, model_config
 from src.individuality.individuality import get_individuality
 from src.llm_models.utils_model import LLMRequest
 from src.chat.message_receive.message import UserInfo, Seg, MessageRecv, MessageSending
-from src.chat.message_receive.chat_stream import ChatStream
+from src.chat.message_receive.chat_stream import ChatStream, get_chat_manager
 from src.chat.message_receive.uni_message_sender import HeartFCSender
 from src.chat.utils.timer_calculator import Timer  # <--- Import Timer
 from src.chat.utils.utils import get_chat_type_and_target_info
@@ -21,6 +21,7 @@ from src.chat.utils.chat_message_builder import (
     build_readable_messages,
     get_raw_msg_before_timestamp_with_chat,
     replace_user_references_sync,
+    build_readable_messages_with_id,
 )
 from src.chat.express.expression_selector import expression_selector
 from src.chat.memory_system.memory_activator import MemoryActivator
@@ -81,6 +82,9 @@ def init_prompt():
 {memory_block}
 {relation_info_block}
 {extra_info_block}
+
+{cross_context_block}
+
 {identity}
 {action_descriptions}
 {time_block}
@@ -147,6 +151,7 @@ If you need to use the search tool, please directly call the function "lpmm_sear
 {relation_info_block}
 {extra_info_block}
 
+{cross_context_block}
 {identity}
 如果有人说你是人机，你可以用一种阴阳怪气的口吻来回应
 {schedule_block}
@@ -199,6 +204,84 @@ class DefaultReplyer:
         from src.plugin_system.core.tool_use import ToolExecutor  # 延迟导入ToolExecutor，不然会循环依赖
 
         self.tool_executor = ToolExecutor(chat_id=self.chat_stream.stream_id, enable_cache=False)
+
+    async def _build_cross_context_block(self, current_chat_id: str, target_user_info: Optional[Dict[str, Any]]) -> str:
+        """构建跨群聊上下文"""
+        if not global_config.cross_context.enable:
+            return ""
+
+        # 找到当前群聊所在的共享组
+        target_group = None
+        current_stream = get_chat_manager().get_stream(current_chat_id)
+        if not current_stream or not current_stream.group_info:
+            return ""
+        current_chat_raw_id = current_stream.group_info.group_id
+
+        for group in global_config.cross_context.groups:
+            if str(current_chat_raw_id) in group.chat_ids:
+                target_group = group
+                break
+        
+        if not target_group:
+            return ""
+
+        # 根据prompt_mode选择策略
+        prompt_mode = global_config.personality.prompt_mode
+        other_chat_raw_ids = [chat_id for chat_id in target_group.chat_ids if chat_id != str(current_chat_raw_id)]
+        
+        cross_context_messages = []
+
+        if prompt_mode == "normal":
+            # normal模式：获取其他群聊的最近N条消息
+            for chat_raw_id in other_chat_raw_ids:
+                stream_id = get_chat_manager().get_stream_id(current_stream.platform, chat_raw_id, is_group=True)
+                if not stream_id: continue
+                
+                messages = get_raw_msg_before_timestamp_with_chat(
+                    chat_id=stream_id,
+                    timestamp=time.time(),
+                    limit=5  # 可配置
+                )
+                if messages:
+                    chat_name = get_chat_manager().get_stream_name(stream_id) or stream_id
+                    formatted_messages, _ = build_readable_messages_with_id(messages, timestamp_mode="relative")
+                    cross_context_messages.append(f"[以下是来自“{chat_name}”的近期消息]\n{formatted_messages}")
+
+        elif prompt_mode == "s4u":
+            # s4u模式：获取当前发言用户在其他群聊的消息
+            if target_user_info:
+                user_id = target_user_info.get("user_id")
+
+                if user_id:
+                    for chat_raw_id in other_chat_raw_ids:
+                        stream_id = get_chat_manager().get_stream_id(current_stream.platform, chat_raw_id, is_group=True)
+                        if not stream_id: continue
+
+                        messages = get_raw_msg_before_timestamp_with_chat(
+                            chat_id=stream_id,
+                            timestamp=time.time(),
+                            limit=20 # 获取更多消息以供筛选
+                        )
+                        user_messages = [msg for msg in messages if msg.get('user_id') == user_id][-5:] # 筛选并取最近5条
+                        
+                        if user_messages:
+                            chat_name = get_chat_manager().get_stream_name(stream_id) or stream_id
+                            user_name = target_user_info.get("person_name") or target_user_info.get("user_nickname") or user_id
+                            formatted_messages, _ = build_readable_messages_with_id(user_messages, timestamp_mode="relative")
+                            cross_context_messages.append(f"[以下是“{user_name}”在“{chat_name}”的近期发言]\n{formatted_messages}")
+
+        if not cross_context_messages:
+            return ""
+
+        return "# 跨群上下文参考\n" + "\n\n".join(cross_context_messages) + "\n"
+
+    def _select_weighted_models_config(self) -> Tuple[TaskConfig, float]:
+        """使用加权随机选择来挑选一个模型配置"""
+        configs = self.model_set
+        # 提取权重，如果模型配置中没有'weight'键，则默认为1.0
+        weights = [weight for _, weight in configs]
+
+        return random.choices(population=configs, weights=weights, k=1)[0]
 
     async def generate_reply_with_context(
         self,

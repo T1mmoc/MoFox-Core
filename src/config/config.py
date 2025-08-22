@@ -44,7 +44,8 @@ from src.config.official_configs import (
     AntiPromptInjectionConfig,
     PluginsConfig,
     WakeUpSystemConfig,
-    MonthlyPlanSystemConfig
+    MonthlyPlanSystemConfig,
+    CrossContextConfig
 )
 
 from .api_ada_configs import (
@@ -406,6 +407,7 @@ class Config(ValidatedConfigBase):
     plugins: PluginsConfig = Field(default_factory=lambda: PluginsConfig(), description="插件配置")
     wakeup_system: WakeUpSystemConfig = Field(default_factory=lambda: WakeUpSystemConfig(), description="唤醒度系统配置")
     monthly_plan_system: MonthlyPlanSystemConfig = Field(default_factory=lambda: MonthlyPlanSystemConfig(), description="月层计划系统配置")
+    cross_context: CrossContextConfig = Field(default_factory=lambda: CrossContextConfig(), description="跨群聊上下文共享配置")
 
 
 class APIAdapterConfig(ValidatedConfigBase):
