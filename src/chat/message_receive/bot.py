@@ -20,8 +20,6 @@ from src.mais4u.mais4u_chat.s4u_msg_processor import S4UMessageProcessor
 # 导入反注入系统
 from src.chat.antipromptinjector import initialize_anti_injector
 
-# 定义日志配置
-
 # 获取项目根目录（假设本文件在src/chat/message_receive/下，根目录为上上上级目录）
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
@@ -244,6 +242,20 @@ class ChatBot:
         - 性能计时
         """
         try:
+            # 首先处理可能的切片消息重组
+            from src.utils.message_chunker import reassembler
+            
+            # 尝试重组切片消息
+            reassembled_message = await reassembler.process_chunk(message_data)
+            if reassembled_message is None:
+                # 这是一个切片，但还未完整，等待更多切片
+                logger.debug("等待更多切片，跳过此次处理")
+                return
+            elif reassembled_message != message_data:
+                # 消息已被重组，使用重组后的消息
+                logger.info("使用重组后的完整消息进行处理")
+                message_data = reassembled_message
+            
             # 确保所有任务已启动
             await self._ensure_started()
 

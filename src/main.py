@@ -71,6 +71,19 @@ class MainSystem:
     def _cleanup(self):
         """清理资源"""
         try:
+            # 停止消息重组器
+            from src.utils.message_chunker import reassembler
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(reassembler.stop_cleanup_task())
+            else:
+                loop.run_until_complete(reassembler.stop_cleanup_task())
+            logger.info("🛑 消息重组器已停止")
+        except Exception as e:
+            logger.error(f"停止消息重组器时出错: {e}")
+        
+        try:
             # 停止插件热重载系统
             hot_reload_manager.stop()
             logger.info("🛑 插件热重载系统已停止")
@@ -206,6 +219,11 @@ MaiMbot-Pro-Max(第三方修改版)
 
         # 将bot.py中的chat_bot.message_process消息处理函数注册到api.py的消息处理基类中
         self.app.register_message_handler(chat_bot.message_process)
+
+        # 启动消息重组器的清理任务
+        from src.utils.message_chunker import reassembler
+        await reassembler.start_cleanup_task()
+        logger.info("消息重组器已启动")
 
         # 初始化个体特征
         await self.individuality.initialize()

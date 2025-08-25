@@ -9,7 +9,6 @@ from typing import List
 from src.plugin_system.apis.plugin_register_api import register_plugin
 from src.plugin_system.base.base_plugin import BasePlugin
 from src.plugin_system.base.base_command import BaseCommand
-from src.plugin_system.apis.permission_api import permission_api
 from src.plugin_system.apis.logging_api import get_logger
 from src.plugin_system.base.config_types import ConfigField
 from src.plugin_system.utils.permission_decorators import require_permission, require_master, PermissionChecker
