@@ -1,24 +1,24 @@
 <div align="center">
-  <img src="depends-data/maimai.png" alt="MaiBot-Pro-Max" title="作者:略nd" width="300">
+  <img src="depends-data/maimai.png" alt="MoFox_Bot" title="作者:略nd" width="300">
   
-  # 麦麦Plus！MaiMbot-Pro-Max
+  # 麦麦Plus！MoFox_Bot
   
   <p>
     <strong>基于 MaiCore 的增强版智能体，提供更完善的功能和更好的使用体验</strong>
   </p>
 
   [![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python&style=for-the-badge)](https://www.python.org/)
-  [![License](https://img.shields.io/badge/License-GPLv3-blue?logo=gnu&style=for-the-badge)](https://github.com/MaiBot-Plus/MaiMbot-Pro-Max/blob/master/LICENSE)
-  [![Status](https://img.shields.io/badge/%E7%8A%B6%E6%80%81-%E6%B4%BB%E8%B7%83%E5%BC%80%E5%8F%91-brightgreen?style=for-the-badge)](https://github.com/MaiBot-Plus/MaiMbot-Pro-Max)
-  [![Contributors](https://img.shields.io/github/contributors/MaiBot-Plus/MaiMbot-Pro-Max.svg?style=for-the-badge&label=贡献者)](https://github.com/MaiBot-Plus/MaiMbot-Pro-Max/graphs/contributors)
-  [![Forks](https://img.shields.io/github/forks/MaiBot-Plus/MaiMbot-Pro-Max.svg?style=for-the-badge&label=分支数)](https://github.com/MaiBot-Plus/MaiMbot-Pro-Max/network/members)
-  [![Stars](https://img.shields.io/github/stars/MaiBot-Plus/MaiMbot-Pro-Max?style=for-the-badge&label=星标数)](https://github.com/MaiBot-Plus/MaiMbot-Pro-Max/stargazers)
-  [![Issues](https://img.shields.io/github/issues/MaiBot-Plus/MaiMbot-Pro-Max?style=for-the-badge&label=问题)](https://github.com/MaiBot-Plus/MaiMbot-Pro-Max/issues)
-  [![Enhanced](https://img.shields.io/badge/Enhanced-MaiMbot_Pro_Max-purple?style=for-the-badge&logo=github)](https://github.com/MaiBot-Plus/MaiMbot-Pro-Max)
+  [![License](https://img.shields.io/badge/License-GPLv3-blue?logo=gnu&style=for-the-badge)](https://github.com/MoFox-Studio/MoFox_Bot/blob/master/LICENSE)
+  [![Status](https://img.shields.io/badge/%E7%8A%B6%E6%80%81-%E6%B4%BB%E8%B7%83%E5%BC%80%E5%8F%91-brightgreen?style=for-the-badge)](https://github.com/MoFox-Studio/MoFox_Bot)
+  [![Contributors](https://img.shields.io/github/contributors/MaiBot-Plus/MaiMbot-Pro-Max.svg?style=for-the-badge&label=贡献者)](https://github.com/MoFox-Studio/MoFox_Bot/graphs/contributors)
+  [![Forks](https://img.shields.io/github/forks/MaiBot-Plus/MaiMbot-Pro-Max.svg?style=for-the-badge&label=分支数)](https://github.com/MoFox-Studio/MoFox_Bot/network/members)
+  [![Stars](https://img.shields.io/github/stars/MaiBot-Plus/MaiMbot-Pro-Max?style=for-the-badge&label=星标数)](https://github.com/MoFox-Studio/MoFox_Bot/stargazers)
+  [![Issues](https://img.shields.io/github/issues/MaiBot-Plus/MaiMbot-Pro-Max?style=for-the-badge&label=问题)](https://github.com/MoFox-Studio/MoFox_Bot/issues)
+  [![Enhanced](https://img.shields.io/badge/Enhanced-MaiMbot_Pro_Max-purple?style=for-the-badge&logo=github)](https://github.com/MoFox-Studio/MoFox_Bot)
 
   <p>
     <strong>
-      <a href="https://github.com/MaiBot-Plus/MaiMbot-Pro-Max">项目主页</a> • 
+      <a href="https://github.com/MoFox-Studio/MoFox_Bot">项目主页</a> • 
       <a href="#-快速开始">快速开始</a> • 
       <a href="#-核心优势">核心优势</a> • 
       <a href="#-讨论交流">讨论交流</a> • 
@@ -48,17 +48,17 @@
 
 ## 项目介绍
 
-**MaiMbot-Pro-Max** 是基于 MaiCore 的增强版智能体，在保留原版0.10.0 snapshot.5所有功能的基础上，提供了更完善的功能、更好的稳定性和更丰富的使用体验。
+**MoFox_Bot** 是基于 MaiCore 的增强版智能体，在保留原版0.10.0 snapshot.5所有功能的基础上，提供了更完善的功能、更好的稳定性和更丰富的使用体验。
 
 **请注意！这个版本的所有后续更新均为我们的第三方更新，不代表MaiBot官方立场**
 
-无论你是想要一个智能的聊天伙伴，还是需要一个功能强大的群聊助手，MaiMbot-Pro-Max 都能满足你的需求。
+无论你是想要一个智能的聊天伙伴，还是需要一个功能强大的群聊助手，MoFox_Bot 都能满足你的需求。
 
 ## 核心优势
 
-相比官方版本，MaiMbot-Pro-Max 带来以下增强：
+相比官方版本，MoFox_Bot 带来以下增强：
 
-| 特性 | 官方版本 | Pro-Max 版本 |
+| 特性 | 官方版本 | MoFox_Bot 版本 |
 |------|----------|-------------|
 | **多模型支持** | 基础支持 | 适配 Gemini 等主流大语言模型 |
 | **插件生态** | 标准插件 | 额外提供实用插件，涵盖更多使用场景 |
@@ -67,11 +67,11 @@
 | **性能** | 标准 | 优化性能，响应更快速 |
 
 > [!TIP]
-> 请注意！ 从官方版本到 Pro-Max 版本迁移暂时存在问题，因为数据库结构有改变
+> 请注意！ 从官方版本到 MoFox_Bot 版本迁移暂时存在问题，因为数据库结构有改变
 
 ### 核心优势
 
-相比官方版本，MaiMbot-Pro-Max 拥有更完善的功能：
+相比官方版本，MoFox_Bot 拥有更完善的功能：
 
 - **增强插件**：额外提供 一些插件，涵盖更多使用场景
 - **稳定性提升**：修复官方版本的一些已知问题，提供更稳定的运行体验
@@ -101,12 +101,12 @@
 - **QQ协议端**: [NapCat](https://github.com/NapNeko/NapCatQQ) 或其他兼容协议端
 - **数据库**: SQLite (内置) 或 MySQL (可选)
 
-**MaiMbot-Pro-Max 是基于 MaiCore 的增强版智能体，提供更完善的功能和更好的使用体验** 
+**MoFox_Bot 是基于 MaiCore 的增强版智能体，提供更完善的功能和更好的使用体验** 
 
 
 ## 更新和安装
 
-**最新版本: v1.0.0-maibotProMax** 
+**最新版本: v1.0.0-MoFox_Bot** 
 
 
 **GitHub 分支说明：**
@@ -121,13 +121,13 @@
 ## 讨论交流
 
 ### 官方社区
-- **交流群**: [maibot-Pro-Max 交流群] - 群号：169850076
-- **功能建议**: [GitHub Discussions](https://github.com/MaiBot-Plus/MaiMbot-Pro-Max/discussions)
-- **问题反馈**: [GitHub Issues](https://github.com/MaiBot-Plus/MaiMbot-Pro-Max/issues)
+- **交流群**: [MoFox_Bot 交流群] - 群号：169850076
+- **功能建议**: [GitHub Discussions](https://github.com/MoFox-Studio/MoFox_Bot/discussions)
+- **问题反馈**: [GitHub Issues](https://github.com/MoFox-Studio/MoFox_Bot/issues)
 
 **其他资源：**
-- [问题反馈](https://github.com/MaiBot-Plus/MaiMbot-Pro-Max/issues)
-- [功能建议](https://github.com/MaiBot-Plus/MaiMbot-Pro-Max/discussions)
+- [问题反馈](https://github.com/MoFox-Studio/MoFox_Bot/issues)
+- [功能建议](https://github.com/MoFox-Studio/MoFox_Bot/discussions)
 
 ## 文档资源
 
@@ -138,11 +138,11 @@
 
 ## 贡献和致谢
 
-MaiMbot-Pro-Max 是一个开源项目，欢迎所有人参与贡献！
+MoFox_Bot 是一个开源项目，欢迎所有人参与贡献！
 
 ### 贡献者
 
-感谢所有为 Pro-Max 版本做出贡献的开发者！
+感谢所有为 MoFox_Bot 做出贡献的开发者！
 
 
 ### 致谢
@@ -150,7 +150,7 @@ MaiMbot-Pro-Max 是一个开源项目，欢迎所有人参与贡献！
 - [MaiM-with-u](https://github.com/MaiM-with-u/MaiBot): 原版 MaiBot 项目，感谢提供优秀的基础框架
 - [略nd](https://space.bilibili.com/1344099355): 为麦麦绘制人设
 - [NapCat](https://github.com/NapNeko/NapCatQQ): 现代化的基于 NTQQ 的 Bot 协议端实现
-- **Pro-Max 社区**: 感谢所有提供建议和反馈的用户
+- **MoFox_Bot 社区**: 感谢所有提供建议和反馈的用户
 
 ## 注意事项
 
