@@ -24,11 +24,12 @@ class PermissionCommand(BaseCommand):
     
     command_name = "permission"
     command_description = "权限管理命令"
-    command_pattern = r"^/permission"
+    command_pattern = r"^/permission(?:\s|$)"
     command_help = "/permission <子命令> [参数...]"
     intercept_message = True
         
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         # 注册权限节点
         permission_api.register_permission_node(
             "plugin.permission.manage",

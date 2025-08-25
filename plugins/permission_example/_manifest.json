@@ -4,15 +4,13 @@
   "version": "1.0.0",
   "description": "MaiCore权限系统演示插件，包含权限节点注册、权限检查和多种权限命令示例。",
   "author": {
-    "name": "MaiBot开发团队",
-    "url": "https://github.com/MaiM-with-u"
+    "name": "MoFox-Studio",
+    "url": "https://github.com/MoFox-Studio"
   },
   "license": "GPL-v3.0-or-later",
   "host_application": {
-    "min_version": "0.8.0"
+    "min_version": "0.10.0"
   },
-  "homepage_url": "https://github.com/MaiM-with-u/maibot",
-  "repository_url": "https://github.com/MaiM-with-u/maibot",
   "keywords": ["permission", "example", "权限", "admin", "user", "master", "demo", "tutorial"],
   "categories": ["Examples", "Tutorial", "Permission"],
   "default_locale": "zh-CN",

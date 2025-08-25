@@ -1,27 +1,21 @@
 {
   "manifest_version": 1,
-  "name": "插件和组件管理 (Plugin and Component Management)",
+  "name": "权限管理插件（Permission Management）",
   "version": "1.0.0",
-  "description": "通过系统API管理插件和组件的生命周期，包括加载、卸载、启用和禁用等操作。",
+  "description": "通过系统API管理权限",
   "author": {
-    "name": "MaiBot团队",
-    "url": "https://github.com/MaiM-with-u"
+    "name": "MoFox-Studio",
+    "url": "https://github.com/MoFox-Studio"
   },
   "license": "GPL-v3.0-or-later",
   "host_application": {
-    "min_version": "0.9.1"
+    "min_version": "0.10.0"
   },
-  "homepage_url": "https://github.com/MaiM-with-u/maibot",
-  "repository_url": "https://github.com/MaiM-with-u/maibot",
   "keywords": [
     "plugins",
-    "components",
+    "permission",
     "management",
     "built-in"
-  ],
-  "categories": [
-    "Core System",
-    "Plugin Management"
   ],
   "default_locale": "zh-CN",
   "locales_path": "_locales",

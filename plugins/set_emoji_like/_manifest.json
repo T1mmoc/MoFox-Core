@@ -4,16 +4,14 @@
   "version": "1.0.0",
   "description": "通过大模型判断或指令，为特定的聊天消息设置QQ表情回应。需要NapCat服务支持。",
   "author": {
-    "name": "yishan",
-    "url": "https://github.com/MaiM-with-u"
+    "name": "MoFox-Studio",
+    "url": "https://github.com/MoFox-Studio"
   },
   "license": "GPL-v3.0-or-later",
   
   "host_application": {
-    "min_version": "0.8.0"
+    "min_version": "0.10.0"
   },
-  "homepage_url": "https://github.com/MaiM-with-u/maibot",
-  "repository_url": "https://github.com/MaiM-with-u/maibot",
   "keywords": ["emoji", "reaction", "like", "表情", "回应", "点赞"],
   "categories": ["Chat", "Integration"],
   
@@ -32,9 +30,7 @@
     ],
     "features": [
       "通过LLM理解并为消息添加表情回应",
-      "支持通过表情名称或ID指定表情",
-      "需要连接到NapCat服务",
-      "可配置NapCat服务器地址"
+      "支持通过表情名称或ID指定表情"
     ]
   }
 }

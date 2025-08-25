@@ -4,16 +4,14 @@
   "version": "1.0.0",
   "description": "一个用于在互联网上搜索信息的工具",
   "author": {
-    "name": "MaiBot-Plus开发团队",
-    "url": "https://github.com/MaiBot-Plus"
+    "name": "MoFox-Studio",
+    "url": "https://github.com/MoFox-Studio"
   },
   "license": "GPL-v3.0-or-later",
   
   "host_application": {
     "min_version": "0.10.0"
   },
-  "homepage_url": "https://github.com/MaiBot-Plus/MaiMbot-Pro-Max",
-  "repository_url": "https://github.com/MaiBot-Plus/MaiMbot-Pro-Max",
   "keywords": ["web_search", "url_parser"],
   "categories": ["web_search", "url_parser"],
   
