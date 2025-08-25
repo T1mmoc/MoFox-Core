@@ -170,13 +170,13 @@ class EventManager:
         return True
     
     def get_event_handler(self, handler_name: str) -> Optional[Type[BaseEventHandler]]:
-        """获取指定事件处理器类
+        """获取指定事件处理器实例
         
         Args:
             handler_name (str): 处理器名称
             
         Returns:
-            Type[BaseEventHandler]: 处理器类，不存在返回None
+            Type[BaseEventHandler]: 处理器实例，不存在返回None
         """
         return self._event_handlers.get(handler_name)
     

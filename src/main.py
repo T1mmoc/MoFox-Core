@@ -18,6 +18,8 @@ from src.mood.mood_manager import mood_manager
 from rich.traceback import install
 from src.manager.schedule_manager import schedule_manager
 from src.schedule.monthly_plan_manager import MonthlyPlanManager
+from src.plugin_system.core.event_manager import event_manager
+from src.plugin_system.base.component_types import EventType
 # from src.api.main import start_api_server
 
 # 导入新的插件管理器和热重载管理器
@@ -144,6 +146,9 @@ MaiMbot-Pro-Max(第三方修改版)
         # 添加统计信息输出任务
         await async_task_manager.add_task(StatisticOutputTask())
 
+        # 注册默认事件
+        event_manager.init_default_events()
+
         # 初始化权限管理器
         from src.plugin_system.core.permission_manager import PermissionManager
         from src.plugin_system.apis.permission_api import permission_api
@@ -158,8 +163,10 @@ MaiMbot-Pro-Max(第三方修改版)
         # 加载所有actions，包括默认的和插件的
         plugin_manager.load_all_plugins()
 
-        # 启动插件热重载系统
+        # 处理所有缓存的事件订阅（插件加载完成后）
+        event_manager.process_all_pending_subscriptions()
 
+        # 启动插件热重载系统
         hot_reload_manager.start()
 
         # 初始化表情管理器
@@ -217,6 +224,7 @@ MaiMbot-Pro-Max(第三方修改版)
 
 
         try:
+            await event_manager.trigger_event(EventType.ON_START)
             init_time = int(1000 * (time.time() - init_start_time))
             logger.info(f"初始化完成，神经元放电{init_time}次")
         except Exception as e:
