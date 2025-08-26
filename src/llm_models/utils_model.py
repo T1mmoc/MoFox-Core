@@ -642,6 +642,7 @@ class LLMRequest:
         retry_interval: int = 10,
         messages: tuple[list[Message], bool] | None = None,
     ):
+        model_name = model_info.name
         """
         处理响应错误异常
         Args:
