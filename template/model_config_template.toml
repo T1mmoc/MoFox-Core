@@ -1,5 +1,5 @@
 [inner]
-version = "1.2.7"
+version = "1.2.8"
 
 # 配置文件版本号迭代规则同bot_config.toml
 
@@ -25,7 +25,7 @@ retry_interval = 10
 name = "Google"
 base_url = "https://api.google.com/v1"
 api_key = "your-google-api-key-1"
-client_type = "gemini"
+client_type = "aiohttp_gemini" # 官方的gemini客户端现在已经死了
 max_retry = 2
 timeout = 30
 retry_interval = 10
