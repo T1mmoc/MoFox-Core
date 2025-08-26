@@ -1,5 +1,5 @@
 [inner]
-version = "6.4.8"
+version = "6.4.9"
 
 #----以下是给开发人员阅读的，如果你只是部署了麦麦，不需要阅读----
 #如果你想要修改配置文件，请递增version的值
@@ -436,19 +436,28 @@ search_strategy = "single" # 搜索策略: "single"(使用第一个可用引擎)
 centralized_config = true # 是否启用插件配置集中化管理
 
 # ----------------------------------------------------------------
-# 月层计划系统设置 (Monthly Plan System Settings)
+# 月度计划系统设置 (Monthly Plan System Settings)
 # ----------------------------------------------------------------
 [monthly_plan_system]
 # 是否启用本功能
 enable = true
-# 启动时，如果当月计划少于此数量，则触发LLM生成
-generation_threshold = 20
-# 每次调用LLM期望生成的计划数量
-plans_per_generation = 4
-# 计划被使用后，被删除的概率 (0.0 到 1.0)
-deletion_probability_on_use = 0.5
-#每个月允许存在的最大计划数量
-max_plans_per_month = 30
+
+# 每个月允许存在的最大计划数量
+max_plans_per_month = 20
+
+# 计划使用多少次后自动标记为已完成
+completion_threshold = 3
+
+# 多少天内不重复抽取同一个计划
+avoid_repetition_days = 7
+
+# 月度计划生成的指导原则（可选，如果不设置则使用默认原则）
+guidelines = """
+我希望你能为自己制定一些有意义的月度小目标和计划。
+这些计划应该涵盖学习、娱乐、社交、个人成长等各个方面。
+每个计划都应该是具体可行的，能够在一个月内通过日常活动逐步实现。
+请确保计划既有挑战性又不会过于繁重，保持生活的平衡和乐趣。
+"""
 
 [wakeup_system]
 enable = true #"是否启用唤醒度系统"

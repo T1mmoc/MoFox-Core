@@ -680,13 +680,13 @@ class WakeUpSystemConfig(ValidatedConfigBase):
 
 
 class MonthlyPlanSystemConfig(ValidatedConfigBase):
-    """月层计划系统配置类"""
+    """月度计划系统配置类"""
 
     enable: bool = Field(default=True, description="是否启用本功能")
-    generation_threshold: int = Field(default=10, ge=0, description="启动时，如果当月计划少于此数量，则触发LLM生成")
-    plans_per_generation: int = Field(default=5, ge=1, description="每次调用LLM期望生成的计划数量")
-    deletion_probability_on_use: float = Field(default=0.5, ge=0.0, le=1.0, description="计划被使用后，被删除的概率")
     max_plans_per_month: int = Field(default=20, ge=1, description="每个月允许存在的最大计划数量")
+    completion_threshold: int = Field(default=3, ge=1, description="计划使用多少次后自动标记为已完成")
+    avoid_repetition_days: int = Field(default=7, ge=1, description="多少天内不重复抽取同一个计划")
+    guidelines: Optional[str] = Field(default=None, description="月度计划生成的指导原则")
 
 
 class ContextGroup(ValidatedConfigBase):

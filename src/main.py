@@ -17,7 +17,7 @@ from src.common.server import get_global_server, Server
 from src.mood.mood_manager import mood_manager
 from rich.traceback import install
 from src.manager.schedule_manager import schedule_manager
-from src.schedule.monthly_plan_manager import MonthlyPlanManager
+from src.manager.monthly_plan_manager import monthly_plan_manager
 from src.plugin_system.core.event_manager import event_manager
 from src.plugin_system.base.component_types import EventType
 # from src.api.main import start_api_server
@@ -227,14 +227,18 @@ MaiMbot-Pro-Max(第三方修改版)
 
         # 初始化个体特征
         await self.individuality.initialize()
+        
+        # 初始化月度计划管理器
+        if global_config.monthly_plan_system.enable:
+            logger.info("正在初始化月度计划管理器...")
+            try:
+                await monthly_plan_manager.start_monthly_plan_generation()
+                logger.info("月度计划管理器初始化成功")
+            except Exception as e:
+                logger.error(f"月度计划管理器初始化失败: {e}")
+
         # 初始化日程管理器
         if global_config.schedule.enable:
-            logger.info("正在初始化月度计划...")
-            try:
-                await MonthlyPlanManager.initialize_monthly_plans()
-                logger.info("月度计划初始化完成")
-            except Exception as e:
-                logger.error(f"月度计划初始化失败: {e}")
             logger.info("日程表功能已启用，正在初始化管理器...")
             await schedule_manager.load_or_generate_today_schedule()
             await schedule_manager.start_daily_schedule_generation()
@@ -297,6 +301,10 @@ MaiMbot-Pro-Max(第三方修改版)
                 
                 def sync_build_memory():
                     """在线程池中执行同步记忆构建"""
+                    if not self.hippocampus_manager:
+                        logger.error("尝试在禁用记忆系统时构建记忆，操作已取消。")
+                        return
+
                     try:
                         loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(loop)

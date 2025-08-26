@@ -7,7 +7,11 @@ from lunar_python import Lunar
 from pydantic import BaseModel, ValidationError, validator
 
 from src.common.database.sqlalchemy_models import Schedule, get_db_session
-from src.common.database.monthly_plan_db import get_active_plans_for_month, soft_delete_plans
+from src.common.database.monthly_plan_db import (
+    get_smart_plans_for_daily_schedule,
+    update_plan_usage,
+    soft_delete_plans  # 保留兼容性
+)
 from src.config.config import global_config, model_config
 from src.llm_models.utils_model import LLMRequest
 from src.common.logger import get_logger
@@ -211,14 +215,35 @@ class ScheduleManager:
             monthly_plans_block = ""
             used_plan_ids = []
             if global_config.monthly_plan_system and global_config.monthly_plan_system.enable:
-                active_plans = get_active_plans_for_month(current_month_str)
-                if active_plans:
-                    # 随机抽取最多3个计划
-                    num_to_sample = min(len(active_plans), 3)
-                    sampled_plans = random.sample(active_plans, num_to_sample)
-                    used_plan_ids = [p.id for p in sampled_plans]  # type: ignore
+                # 使用新的智能抽取逻辑
+                avoid_days = getattr(global_config.monthly_plan_system, 'avoid_repetition_days', 7)
+                # 使用新的智能抽取逻辑
+                avoid_days = getattr(global_config.monthly_plan_system, 'avoid_repetition_days', 7)
+                sampled_plans = get_smart_plans_for_daily_schedule(
+                    current_month_str,
+                    max_count=3,
+                    avoid_days=avoid_days
+                )
+
+                # 如果计划耗尽，则触发补充生成
+                if not sampled_plans:
+                    logger.info("可用的月度计划已耗尽或不足，尝试进行补充生成...")
+                    from src.manager.monthly_plan_manager import monthly_plan_manager
+                    success = await monthly_plan_manager.generate_monthly_plans(current_month_str)
+                    if success:
+                        logger.info("补充生成完成，重新抽取月度计划...")
+                        sampled_plans = get_smart_plans_for_daily_schedule(
+                            current_month_str,
+                            max_count=3,
+                            avoid_days=avoid_days
+                        )
+                    else:
+                        logger.warning("月度计划补充生成失败。")
+                
+                if sampled_plans:
+                    used_plan_ids = [plan.id for plan in sampled_plans]  # SQLAlchemy 对象的 id 属性会自动返回实际值
                     
-                    plan_texts = "\n".join([f"- {p.plan_text}" for p in sampled_plans])
+                    plan_texts = "\n".join([f"- {plan.plan_text}" for plan in sampled_plans])
                     monthly_plans_block = f"""
 **我这个月的一些小目标/计划 (请在今天的日程中适当体现)**:
 {plan_texts}
@@ -313,11 +338,10 @@ class ScheduleManager:
                         
                         self.today_schedule = schedule_data
                         
-                        # 成功生成日程后，根据概率软删除使用过的月度计划
+                        # 成功生成日程后，更新使用过的月度计划的统计信息
                         if used_plan_ids and global_config.monthly_plan_system:
-                            if random.random() < global_config.monthly_plan_system.deletion_probability_on_use:
-                                logger.info(f"根据概率，将使用过的月度计划 {used_plan_ids} 标记为已完成。")
-                                soft_delete_plans(used_plan_ids)
+                            logger.info(f"更新使用过的月度计划 {used_plan_ids} 的统计信息。")
+                            update_plan_usage(used_plan_ids, today_str)  # type: ignore
                                 
                         # 成功生成，退出无限循环
                         break

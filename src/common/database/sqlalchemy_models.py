@@ -5,11 +5,12 @@
 
 from sqlalchemy import Column, String, Float, Integer, Boolean, Text, Index, create_engine, DateTime
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool
 import os
 import datetime
 import time
+from typing import Iterator, Optional
 from src.common.logger import get_logger
 from contextlib import contextmanager
 
@@ -508,16 +509,25 @@ class CacheEntries(Base):
     )
 
 class MonthlyPlan(Base):
-    """月层计划模型"""
+    """月度计划模型"""
     __tablename__ = 'monthly_plans'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     plan_text = Column(Text, nullable=False)
     target_month = Column(String(7), nullable=False, index=True)  # "YYYY-MM"
-    is_deleted = Column(Boolean, nullable=False, default=False, index=True)
+    status = Column(get_string_field(20), nullable=False, default='active', index=True)  # 'active', 'completed', 'archived'
+    usage_count = Column(Integer, nullable=False, default=0)
+    last_used_date = Column(String(10), nullable=True, index=True)  # "YYYY-MM-DD" format
     created_at = Column(DateTime, nullable=False, default=datetime.datetime.now)
+    
+    # 保留 is_deleted 字段以兼容现有数据，但标记为已弃用
+    is_deleted = Column(Boolean, nullable=False, default=False)
 
     __table_args__ = (
+        Index('idx_monthlyplan_target_month_status', 'target_month', 'status'),
+        Index('idx_monthlyplan_last_used_date', 'last_used_date'),
+        Index('idx_monthlyplan_usage_count', 'usage_count'),
+        # 保留旧索引以兼容
         Index('idx_monthlyplan_target_month_is_deleted', 'target_month', 'is_deleted'),
     )
 
@@ -628,9 +638,9 @@ def initialize_database():
 
 
 @contextmanager
-def get_db_session():
+def get_db_session() -> Iterator[Session]:
     """数据库会话上下文管理器 - 推荐使用这个而不是get_session()"""
-    session = None
+    session: Optional[Session] = None
     try:
         _, SessionLocal = initialize_database()
         session = SessionLocal()
