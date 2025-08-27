@@ -114,16 +114,27 @@ class ExpressionSelector:
             return None
 
     def get_related_chat_ids(self, chat_id: str) -> List[str]:
-        """根据expression_groups配置，获取与当前chat_id相关的所有chat_id（包括自身）"""
-        groups = global_config.expression.expression_groups
-        for group in groups:
-            group_chat_ids = []
-            for stream_config_str in group:
-                if chat_id_candidate := self._parse_stream_config_to_chat_id(stream_config_str):
-                    group_chat_ids.append(chat_id_candidate)
-            if chat_id in group_chat_ids:
-                return group_chat_ids
-        return [chat_id]
+        """根据expression.rules配置，获取与当前chat_id相关的所有chat_id（包括自身）"""
+        rules = global_config.expression.rules
+        current_group = None
+
+        # 找到当前chat_id所在的组
+        for rule in rules:
+            if rule.chat_stream_id and self._parse_stream_config_to_chat_id(rule.chat_stream_id) == chat_id:
+                current_group = rule.group
+                break
+
+        if not current_group:
+            return [chat_id]
+
+        # 找出同一组的所有chat_id
+        related_chat_ids = []
+        for rule in rules:
+            if rule.group == current_group and rule.chat_stream_id:
+                if chat_id_candidate := self._parse_stream_config_to_chat_id(rule.chat_stream_id):
+                    related_chat_ids.append(chat_id_candidate)
+
+        return related_chat_ids if related_chat_ids else [chat_id]
 
     def get_random_expressions(
         self, chat_id: str, total_num: int

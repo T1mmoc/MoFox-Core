@@ -5,12 +5,12 @@
 
 from sqlalchemy import Column, String, Float, Integer, Boolean, Text, Index, create_engine, DateTime
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import sessionmaker, Session, Mapped, mapped_column
 from sqlalchemy.pool import QueuePool
 import os
 import datetime
 import time
-from typing import Iterator, Optional
+from typing import Iterator, Optional, Any, Dict
 from src.common.logger import get_logger
 from contextlib import contextmanager
 
@@ -306,14 +306,14 @@ class Expression(Base):
     """表达风格模型"""
     __tablename__ = 'expression'
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    situation = Column(Text, nullable=False)
-    style = Column(Text, nullable=False)
-    count = Column(Float, nullable=False)
-    last_active_time = Column(Float, nullable=False)
-    chat_id = Column(get_string_field(64), nullable=False, index=True)
-    type = Column(Text, nullable=False)
-    create_date = Column(Float, nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    situation: Mapped[str] = mapped_column(Text, nullable=False)
+    style: Mapped[str] = mapped_column(Text, nullable=False)
+    count: Mapped[float] = mapped_column(Float, nullable=False)
+    last_active_time: Mapped[float] = mapped_column(Float, nullable=False)
+    chat_id: Mapped[str] = mapped_column(get_string_field(64), nullable=False, index=True)
+    type: Mapped[str] = mapped_column(Text, nullable=False)
+    create_date: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     __table_args__ = (
         Index('idx_expression_chat_id', 'chat_id'),
@@ -589,7 +589,7 @@ def initialize_database():
     config = global_config.database
 
     # 配置引擎参数
-    engine_kwargs = {
+    engine_kwargs: Dict[str, Any] = {
         'echo': False,  # 生产环境关闭SQL日志
         'future': True,
     }
@@ -642,7 +642,9 @@ def get_db_session() -> Iterator[Session]:
     """数据库会话上下文管理器 - 推荐使用这个而不是get_session()"""
     session: Optional[Session] = None
     try:
-        _, SessionLocal = initialize_database()
+        engine, SessionLocal = initialize_database()
+        if not SessionLocal:
+            raise RuntimeError("Database session not initialized")
         session = SessionLocal()
         yield session
         #session.commit()

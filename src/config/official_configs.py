@@ -263,11 +263,20 @@ class NormalChatConfig(ValidatedConfigBase):
 
 
 
+class ExpressionRule(ValidatedConfigBase):
+    """表达学习规则"""
+
+    chat_stream_id: str = Field(..., description="聊天流ID，空字符串表示全局")
+    use_expression: bool = Field(default=True, description="是否使用学到的表达")
+    learn_expression: bool = Field(default=True, description="是否学习表达")
+    learning_strength: float = Field(default=1.0, description="学习强度")
+    group: Optional[str] = Field(default=None, description="表达共享组")
+
+
 class ExpressionConfig(ValidatedConfigBase):
     """表达配置类"""
 
-    expression_learning: list[list] = Field(default_factory=lambda: [], description="表达学习")
-    expression_groups: list[list[str]] = Field(default_factory=list, description="表达组")
+    rules: List[ExpressionRule] = Field(default_factory=list, description="表达学习规则")
 
     def _parse_stream_config_to_chat_id(self, stream_config_str: str) -> Optional[str]:
         """
@@ -314,86 +323,23 @@ class ExpressionConfig(ValidatedConfigBase):
         Returns:
             tuple: (是否使用表达, 是否学习表达, 学习间隔)
         """
-        if not self.expression_learning:
-            # 如果没有配置，使用默认值：启用表达，启用学习，300秒间隔
-            return True, True, 300
+        if not self.rules:
+            # 如果没有配置，使用默认值：启用表达，启用学习，强度1.0
+            return True, True, 1.0
 
         # 优先检查聊天流特定的配置
         if chat_stream_id:
-            specific_config = self._get_stream_specific_config(chat_stream_id)
-            if specific_config is not None:
-                return specific_config
+            for rule in self.rules:
+                if rule.chat_stream_id and self._parse_stream_config_to_chat_id(rule.chat_stream_id) == chat_stream_id:
+                    return rule.use_expression, rule.learn_expression, rule.learning_strength
 
-        # 检查全局配置（第一个元素为空字符串的配置）
-        global_config = self._get_global_config()
-        if global_config is not None:
-            return global_config
+        # 检查全局配置（chat_stream_id为空字符串的配置）
+        for rule in self.rules:
+            if rule.chat_stream_id == "":
+                return rule.use_expression, rule.learn_expression, rule.learning_strength
 
         # 如果都没有匹配，返回默认值
-        return True, True, 300
-
-    def _get_stream_specific_config(self, chat_stream_id: str) -> Optional[tuple[bool, bool, float]]:
-        """
-        获取特定聊天流的表达配置
-
-        Args:
-            chat_stream_id: 聊天流ID（哈希值）
-
-        Returns:
-            tuple: (是否使用表达, 是否学习表达, 学习间隔)，如果没有配置则返回 None
-        """
-        for config_item in self.expression_learning:
-            if not config_item or len(config_item) < 4:
-                continue
-
-            stream_config_str = config_item[0]  # 例如 "qq:1026294844:group"
-
-            # 如果是空字符串，跳过（这是全局配置）
-            if stream_config_str == "":
-                continue
-
-            # 解析配置字符串并生成对应的 chat_id
-            config_chat_id = self._parse_stream_config_to_chat_id(stream_config_str)
-            if config_chat_id is None:
-                continue
-
-            # 比较生成的 chat_id
-            if config_chat_id != chat_stream_id:
-                continue
-
-            # 解析配置
-            try:
-                use_expression = config_item[1].lower() == "enable"
-                enable_learning = config_item[2].lower() == "enable"
-                learning_intensity = float(config_item[3])
-                return use_expression, enable_learning, learning_intensity
-            except (ValueError, IndexError):
-                continue
-
-        return None
-
-    def _get_global_config(self) -> Optional[tuple[bool, bool, float]]:
-        """
-        获取全局表达配置
-
-        Returns:
-            tuple: (是否使用表达, 是否学习表达, 学习间隔)，如果没有配置则返回 None
-        """
-        for config_item in self.expression_learning:
-            if not config_item or len(config_item) < 4:
-                continue
-
-            # 检查是否为全局配置（第一个元素为空字符串）
-            if config_item[0] == "":
-                try:
-                    use_expression = config_item[1].lower() == "enable"
-                    enable_learning = config_item[2].lower() == "enable"
-                    learning_intensity = float(config_item[3])
-                    return use_expression, enable_learning, learning_intensity
-                except (ValueError, IndexError):
-                    continue
-
-        return None
+        return True, True, 1.0
 
 
 class ToolHistoryConfig(ValidatedConfigBase):
