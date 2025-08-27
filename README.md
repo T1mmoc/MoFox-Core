@@ -11,8 +11,8 @@
 [![Python](https://img.shields.io/badge/Python-3.10+-3776ab?logo=python&logoColor=white&style=for-the-badge)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-GPLv3-d73a49?logo=gnu&logoColor=white&style=for-the-badge)](https://github.com/MoFox-Studio/MoFox_Bot/blob/master/LICENSE)
 [![Contributors](https://img.shields.io/badge/Contributors-Welcome-brightgreen?logo=github&logoColor=white&style=for-the-badge)](https://github.com/MoFox-Studio/MoFox_Bot/graphs/contributors)
-[![Stars](https://img.shields.io/github/stars/MaiBot-Plus/MaiMbot-Pro-Max?style=for-the-badge&logo=star&logoColor=white&color=yellow&label=Stars)](https://github.com/MoFox-Studio/MoFox_Bot/stargazers)
-[![Release](https://img.shields.io/github/v/release/MaiBot-Plus/MaiMbot-Pro-Max?style=for-the-badge&logo=github&logoColor=white&color=orange)](https://github.com/MaiBot-Plus/MaiMbot-Pro-Max/releases)
+[![Stars](https://img.shields.io/github/stars/MoFox-Studio/MoFox_Bot?style=for-the-badge&logo=star&logoColor=white&color=yellow&label=Stars)](https://github.com/MoFox-Studio/MoFox_Bot/stargazers)
+[![Release](https://img.shields.io/github/v/release/MoFox-Studio/MoFox_Bot?style=for-the-badge&logo=github&logoColor=white&color=orange)](https://github.com/MoFox-Studio/MoFox_Bot/releases)
 [![QQ](https://img.shields.io/badge/QQ-Bot-blue?style=for-the-badge&logo=tencentqq&logoColor=white)](https://github.com/NapNeko/NapCatQQ)
 
 </div>
@@ -114,8 +114,8 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/MaiBot-Plus/MaiMbot-Pro-Max.git
-cd MaiMbot-Pro-Max
+git clone https://github.com/MoFox-Studio/MoFox_Bot.git
+cd MoFox_Bot
 
 # 安装依赖
 pip install -r requirements.txt
