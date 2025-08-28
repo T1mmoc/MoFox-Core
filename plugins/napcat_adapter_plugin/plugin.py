@@ -127,6 +127,5 @@ class NapcatAdapterPlugin(BasePlugin):
     
     def get_plugin_components(self):
         components = []
-        if self.get_config("plugin.enabled",""):
-            components.append((LauchNapcatAdapterHandler.get_handler_info(), LauchNapcatAdapterHandler))
+        components.append((LauchNapcatAdapterHandler.get_handler_info(), LauchNapcatAdapterHandler))
         return components
