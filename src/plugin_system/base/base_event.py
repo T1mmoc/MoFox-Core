@@ -1,3 +1,4 @@
+import asyncio
 from typing import List, Dict, Any, Optional
 from src.common.logger import get_logger
 
@@ -73,6 +74,8 @@ class BaseEvent:
         from src.plugin_system.base.base_events_handler import BaseEventHandler
         self.subscribers: List["BaseEventHandler"] = [] # 订阅该事件的事件处理器列表
 
+        self.event_handle_lock = asyncio.Lock()
+
     def __name__(self):
         return self.name
     
@@ -88,22 +91,45 @@ class BaseEvent:
         if not self.enabled:
             return HandlerResultsCollection([])
         
-        # 按权重从高到低排序订阅者
-        # 使用直接属性访问，-1代表自动权重
-        sorted_subscribers = sorted(self.subscribers, key=lambda h: h.weight if hasattr(h, 'weight') and h.weight != -1 else 0, reverse=True)
-        
-        results = []
-        for subscriber in sorted_subscribers:
-            try:
-                result = await subscriber.execute(params)
-                if not result.handler_name:
-                    # 补充handler_name
-                    result.handler_name = subscriber.handler_name if hasattr(subscriber, 'handler_name') else subscriber.__class__.__name__
-                results.append(result)
-            except Exception as e:
-                # 处理执行异常
+        # 使用锁确保同一个事件不能同时激活多次
+        async with self.event_handle_lock:
+            # 按权重从高到低排序订阅者
+            # 使用直接属性访问，-1代表自动权重
+            sorted_subscribers = sorted(self.subscribers, key=lambda h: h.weight if hasattr(h, 'weight') and h.weight != -1 else 0, reverse=True)
+            
+            # 并行执行所有订阅者
+            tasks = []
+            for subscriber in sorted_subscribers:
+                # 为每个订阅者创建执行任务
+                task = self._execute_subscriber(subscriber, params)
+                tasks.append(task)
+            
+            # 等待所有任务完成
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # 处理执行结果
+            processed_results = []
+            for i, result in enumerate(results):
+                subscriber = sorted_subscribers[i]
                 handler_name = subscriber.handler_name if hasattr(subscriber, 'handler_name') else subscriber.__class__.__name__
-                logger.error(f"事件处理器 {handler_name} 执行失败: {e}")
-                results.append(HandlerResult(False, True, str(e), handler_name))
-        
-        return HandlerResultsCollection(results)
+                
+                if isinstance(result, Exception):
+                    # 处理执行异常
+                    logger.error(f"事件处理器 {handler_name} 执行失败: {result}")
+                    processed_results.append(HandlerResult(False, True, str(result), handler_name))
+                else:
+                    # 正常执行结果
+                    if not result.handler_name:
+                        # 补充handler_name
+                        result.handler_name = handler_name
+                    processed_results.append(result)
+            
+            return HandlerResultsCollection(processed_results)
+    
+    async def _execute_subscriber(self, subscriber, params: dict) -> HandlerResult:
+        """执行单个订阅者处理器"""
+        try:
+            return await subscriber.execute(params)
+        except Exception as e:
+            # 异常会在 gather 中捕获，这里直接抛出让 gather 处理
+            raise e
