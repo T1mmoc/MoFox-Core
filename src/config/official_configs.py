@@ -621,6 +621,7 @@ class WakeUpSystemConfig(ValidatedConfigBase):
     decay_interval: float = Field(default=30.0, ge=1.0, description="唤醒度衰减间隔(秒)")
     angry_duration: float = Field(default=300.0, ge=10.0, description="愤怒状态持续时间(秒)")
     angry_prompt: str = Field(default="你被人吵醒了非常生气，说话带着怒气", description="被吵醒后的愤怒提示词")
+    re_sleep_delay_minutes: int = Field(default=5, ge=1, description="被唤醒后，如果多久没有新消息则尝试重新入睡（分钟）")
 
     # --- 失眠机制相关参数 ---
     enable_insomnia_system: bool = Field(default=True, description="是否启用失眠系统")
