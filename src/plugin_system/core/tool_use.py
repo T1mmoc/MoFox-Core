@@ -7,8 +7,10 @@ from src.llm_models.utils_model import LLMRequest
 from src.llm_models.payload_content import ToolCall
 from src.config.config import global_config, model_config
 from src.chat.utils.prompt_builder import Prompt, global_prompt_manager
+import inspect
 from src.chat.message_receive.chat_stream import get_chat_manager
 from src.common.logger import get_logger
+from src.common.cache_manager import tool_cache
 
 logger = get_logger("tool_use")
 
@@ -184,28 +186,71 @@ class ToolExecutor:
         return tool_results, used_tools
 
     async def execute_tool_call(self, tool_call: ToolCall, tool_instance: Optional[BaseTool] = None) -> Optional[Dict[str, Any]]:
-        # sourcery skip: use-assigned-variable
-        """执行单个工具调用
+        """执行单个工具调用，并处理缓存"""
+        
+        function_args = tool_call.args or {}
+        tool_instance = tool_instance or get_tool_instance(tool_call.func_name)
 
-        Args:
-            tool_call: 工具调用对象
+        # 如果工具不存在或未启用缓存，则直接执行
+        if not tool_instance or not tool_instance.enable_cache:
+            return await self._original_execute_tool_call(tool_call, tool_instance)
 
-        Returns:
-            Optional[Dict]: 工具调用结果，如果失败则返回None
-        """
+        # --- 缓存逻辑开始 ---
+        try:
+            tool_file_path = inspect.getfile(tool_instance.__class__)
+            semantic_query = None
+            if tool_instance.semantic_cache_query_key:
+                semantic_query = function_args.get(tool_instance.semantic_cache_query_key)
+
+            cached_result = await tool_cache.get(
+                tool_name=tool_call.func_name,
+                function_args=function_args,
+                tool_file_path=tool_file_path,
+                semantic_query=semantic_query
+            )
+            if cached_result:
+                logger.info(f"{self.log_prefix}使用缓存结果，跳过工具 {tool_call.func_name} 执行")
+                return cached_result
+        except Exception as e:
+            logger.error(f"{self.log_prefix}检查工具缓存时出错: {e}")
+
+        # 缓存未命中，执行原始工具调用
+        result = await self._original_execute_tool_call(tool_call, tool_instance)
+
+        # 将结果存入缓存
+        try:
+            tool_file_path = inspect.getfile(tool_instance.__class__)
+            semantic_query = None
+            if tool_instance.semantic_cache_query_key:
+                semantic_query = function_args.get(tool_instance.semantic_cache_query_key)
+            
+            await tool_cache.set(
+                tool_name=tool_call.func_name,
+                function_args=function_args,
+                tool_file_path=tool_file_path,
+                data=result,
+                ttl=tool_instance.cache_ttl,
+                semantic_query=semantic_query
+            )
+        except Exception as e:
+            logger.error(f"{self.log_prefix}设置工具缓存时出错: {e}")
+        # --- 缓存逻辑结束 ---
+
+        return result
+
+    async def _original_execute_tool_call(self, tool_call: ToolCall, tool_instance: Optional[BaseTool] = None) -> Optional[Dict[str, Any]]:
+        """执行单个工具调用的原始逻辑"""
         try:
             function_name = tool_call.func_name
             function_args = tool_call.args or {}
-            logger.info(f"🤖 {self.log_prefix} 正在执行工具: [bold green]{function_name}[/bold green] | 参数: {function_args}")
-            function_args["llm_called"] = True  # 标记为LLM调用
+            logger.info(f"{self.log_prefix} 正在执行工具: [bold green]{function_name}[/bold green] | 参数: {function_args}")
+            function_args["llm_called"] = True
 
-            # 获取对应工具实例
             tool_instance = tool_instance or get_tool_instance(function_name)
             if not tool_instance:
                 logger.warning(f"未知工具名称: {function_name}")
                 return None
 
-            # 执行工具并记录日志
             logger.debug(f"{self.log_prefix}执行工具 {function_name}，参数: {function_args}")
             result = await tool_instance.execute(function_args)
             if result:

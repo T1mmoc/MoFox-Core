@@ -311,82 +311,94 @@ class LLMRequest:
                 message_builder.add_text_content(processed_prompt)
                 messages = [message_builder.build()]
                 tool_built = self._build_tool_options(tools)
-                
-                response = await self._execute_request(
-                    api_provider=api_provider,
-                    client=client,
-                    request_type=RequestType.RESPONSE,
-                    model_info=model_info,
-                    message_list=messages,
-                    tool_options=tool_built,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                )
 
-                content = response.content or ""
-                reasoning_content = response.reasoning_content or ""
-                tool_calls = response.tool_calls
+                # 针对当前模型的空回复/截断重试逻辑
+                empty_retry_count = 0
+                max_empty_retry = api_provider.max_retry
+                empty_retry_interval = api_provider.retry_interval
 
-                if not reasoning_content and content:
-                    content, extracted_reasoning = self._extract_reasoning(content)
-                    reasoning_content = extracted_reasoning
-
-                is_empty_reply = not tool_calls and (not content or content.strip() == "")
-                is_truncated = False
-                if use_anti_truncation:
-                    if content.endswith("[done]"):
-                        content = content[:-6].strip()
-                    else:
-                        is_truncated = True
-
-                if is_empty_reply or is_truncated:
-                    # 空回复或截断不进行模型切换，仅记录错误后抛出或返回
-                    reason = "空回复" if is_empty_reply else "截断"
-                    msg = f"模型 '{model_name}' 生成了{reason}的回复"
-                    logger.error(msg)
-                    if raise_when_empty:
-                        raise RuntimeError(msg)
-                    return msg, (reasoning_content, model_name, tool_calls)
-
-
-                # 成功获取响应
-                if usage := response.usage:
-                    llm_usage_recorder.record_usage_to_database(
-                        model_info=model_info, model_usage=usage, time_cost=time.time() - start_time,
-                        user_id="system", request_type=self.request_type, endpoint="/chat/completions",
+                while empty_retry_count <= max_empty_retry:
+                    response = await self._execute_request(
+                        api_provider=api_provider,
+                        client=client,
+                        request_type=RequestType.RESPONSE,
+                        model_info=model_info,
+                        message_list=messages,
+                        tool_options=tool_built,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
                     )
 
-                if not content and not tool_calls:
-                    if raise_when_empty:
-                        raise RuntimeError("生成空回复")
-                    content = "生成的响应为空"
-                
-                logger.info(f"模型 '{model_name}' 成功生成回复。")
-                return content, (reasoning_content, model_name, tool_calls)
+                    content = response.content or ""
+                    reasoning_content = response.reasoning_content or ""
+                    tool_calls = response.tool_calls
+
+                    if not reasoning_content and content:
+                        content, extracted_reasoning = self._extract_reasoning(content)
+                        reasoning_content = extracted_reasoning
+
+                    is_empty_reply = not tool_calls and (not content or content.strip() == "")
+                    is_truncated = False
+                    if use_anti_truncation:
+                        if content.endswith("[done]"):
+                            content = content[:-6].strip()
+                        else:
+                            is_truncated = True
+
+                    if is_empty_reply or is_truncated:
+                        empty_retry_count += 1
+                        if empty_retry_count <= max_empty_retry:
+                            reason = "空回复" if is_empty_reply else "截断"
+                            logger.warning(f"模型 '{model_name}' 检测到{reason}，正在进行第 {empty_retry_count}/{max_empty_retry} 次重新生成...")
+                            if empty_retry_interval > 0:
+                                await asyncio.sleep(empty_retry_interval)
+                            continue  # 继续使用当前模型重试
+                        else:
+                            # 当前模型重试次数用尽，跳出内层循环，触发外层循环切换模型
+                            reason = "空回复" if is_empty_reply else "截断"
+                            logger.error(f"模型 '{model_name}' 经过 {max_empty_retry} 次重试后仍然是{reason}的回复。")
+                            raise RuntimeError(f"模型 '{model_name}' 达到最大空回复/截断重试次数")
+
+                    # 成功获取响应
+                    if usage := response.usage:
+                        llm_usage_recorder.record_usage_to_database(
+                            model_info=model_info, model_usage=usage, time_cost=time.time() - start_time,
+                            user_id="system", request_type=self.request_type, endpoint="/chat/completions",
+                        )
+
+                    if not content and not tool_calls:
+                        if raise_when_empty:
+                            raise RuntimeError("生成空回复")
+                        content = "生成的响应为空"
+                    
+                    logger.info(f"模型 '{model_name}' 成功生成回复。")
+                    return content, (reasoning_content, model_name, tool_calls)
 
             except RespNotOkException as e:
                 if e.status_code in [401, 403]:
                     logger.error(f"模型 '{model_name}' 遇到认证/权限错误 (Code: {e.status_code})，将尝试下一个模型。")
                     failed_models.add(model_name)
                     last_exception = e
-                    continue
+                    continue # 切换到下一个模型
                 else:
-                    # 对于其他HTTP错误，不切换模型，直接抛出
                     logger.error(f"模型 '{model_name}' 请求失败，HTTP状态码: {e.status_code}")
-                    last_exception = e
                     if raise_when_empty:
                         raise
-                    break
+                    # 对于其他HTTP错误，直接抛出，不再尝试其他模型
+                    return f"请求失败: {e}", ("", model_name, None)
+
             except RuntimeError as e:
+                # 捕获所有重试失败（包括空回复和网络问题）
                 logger.error(f"模型 '{model_name}' 在所有重试后仍然失败: {e}，将尝试下一个模型。")
                 failed_models.add(model_name)
                 last_exception = e
-                continue
+                continue # 切换到下一个模型
+
             except Exception as e:
                 logger.error(f"使用模型 '{model_name}' 时发生未知异常: {e}")
                 failed_models.add(model_name)
                 last_exception = e
-                continue
+                continue # 切换到下一个模型
 
         # 所有模型都尝试失败
         logger.error("所有可用模型都已尝试失败。")

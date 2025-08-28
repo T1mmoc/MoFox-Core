@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Type
+from typing import Optional, Type
 from src.plugin_system.base.base_tool import BaseTool
 from src.plugin_system.base.component_types import ComponentType
 

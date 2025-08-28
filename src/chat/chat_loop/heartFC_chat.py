@@ -10,7 +10,6 @@ from src.chat.express.expression_learner import expression_learner_manager
 from src.plugin_system.base.component_types import ChatMode
 from src.schedule.schedule_manager import schedule_manager
 from src.plugin_system.apis import message_api
-from src.mood.mood_manager import mood_manager
 
 from .hfc_context import HfcContext
 from .energy_manager import EnergyManager

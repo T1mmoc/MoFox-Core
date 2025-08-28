@@ -9,7 +9,7 @@
 ## 组件功能详解
 
 - [🧱 Action组件详解](action-components.md) - 掌握最核心的Action组件
-- [💻 Command组件详解](command-components.md) - 学习直接响应命令的组件
+- [💻 Command组件详解](PLUS_COMMAND_GUIDE.md) - 学习直接响应命令的组件
 - [🔧 Tool组件详解](tool-components.md) - 了解如何扩展信息获取能力
 - [⚙️ 配置文件系统指南](configuration-guide.md) - 学会使用自动生成的插件配置文件
 - [📄 Manifest系统指南](manifest-guide.md) - 了解插件元数据管理和配置架构

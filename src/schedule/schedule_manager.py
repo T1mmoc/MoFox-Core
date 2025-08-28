@@ -411,7 +411,6 @@ class ScheduleManager:
         通过关键词匹配、唤醒度、睡眠压力等综合判断是否处于休眠时间。
         新增弹性睡眠机制，允许在压力低时延迟入睡，并在入睡前发送通知。
         """
-        from src.chat.chat_loop.wakeup_manager import WakeUpManager
         # --- 基础检查 ---
         if not global_config.schedule.enable_is_sleep:
             return False

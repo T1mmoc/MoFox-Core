@@ -16,7 +16,7 @@ from src.plugin_system.apis.permission_api import permission_api
 from src.plugin_system.apis.logging_api import get_logger
 from src.plugin_system.base.component_types import PlusCommandInfo, ChatType
 from src.plugin_system.base.config_types import ConfigField
-from src.plugin_system.utils.permission_decorators import require_permission, require_master, PermissionChecker
+from src.plugin_system.utils.permission_decorators import require_permission
 
 
 logger = get_logger("Permission")

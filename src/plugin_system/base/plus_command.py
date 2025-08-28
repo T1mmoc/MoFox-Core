@@ -4,7 +4,7 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Tuple, Optional, List
+from typing import Tuple, Optional, List
 import re
 
 from src.common.logger import get_logger

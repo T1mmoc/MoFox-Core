@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import List, Type, Tuple, Union, TYPE_CHECKING
+from typing import List, Type, Tuple, Union
 from .plugin_base import PluginBase
 
 from src.common.logger import get_logger

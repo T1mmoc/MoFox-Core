@@ -9,12 +9,9 @@ import datetime
 import base64
 import aiohttp
 from src.common.logger import get_logger
-import base64
-import aiohttp
 import imghdr
 import asyncio
-from src.common.logger import get_logger
-from src.plugin_system.apis import llm_api, config_api, generator_api, person_api
+from src.plugin_system.apis import llm_api, config_api, generator_api
 from src.chat.message_receive.chat_stream import get_chat_manager
 from maim_message import UserInfo
 from src.llm_models.utils_model import LLMRequest
