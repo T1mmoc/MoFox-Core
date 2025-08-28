@@ -31,7 +31,6 @@ from src.manager.async_task_manager import async_task_manager  # noqa
 from src.config.config import global_config  # noqa
 from src.common.database.database import initialize_sql_database  # noqa
 from src.common.database.sqlalchemy_models import initialize_database as init_db  # noqa
-from src.common.tool_history import wrap_tool_executor #noqa
 
 logger = get_logger("main")
 
@@ -240,8 +239,7 @@ class MaiBotMain(BaseMain):
         self.setup_timezone()
         self.check_and_confirm_eula()
         self.initialize_database()
-        # 初始化工具历史记录
-        wrap_tool_executor()  
+
         return self.create_main_system()
 
 
