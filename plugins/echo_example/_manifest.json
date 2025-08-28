@@ -1,0 +1,53 @@
+{
+    "manifest_version": 1,
+    "format_version": "1.0.0",
+    "name": "Echo 示例插件",
+    "description": "展示增强命令系统的Echo命令示例插件",
+    "version": "1.0.0",
+    "author": {
+        "name": "MoFox"
+    },
+    "license": "MIT",
+    "keywords": ["echo", "example", "command"],
+    "categories": ["utility", "example"],
+    "host_application": {
+        "name": "MaiBot",
+        "min_version": "0.10.0"
+    },
+    "entry_points": {
+        "main": "plugin.py"
+    },
+    "plugin_info": {
+        "is_built_in": false,
+        "plugin_type": "example",
+        "components": [
+            {
+                "type": "command",
+                "name": "echo",
+                "description": "回显命令，支持别名 say, repeat"
+            },
+            {
+                "type": "command", 
+                "name": "hello",
+                "description": "问候命令，支持别名 hi, greet"
+            },
+            {
+                "type": "command",
+                "name": "info", 
+                "description": "显示插件信息，支持别名 about"
+            },
+            {
+                "type": "command",
+                "name": "test",
+                "description": "测试命令，展示参数解析功能"
+            }
+        ],
+        "features": [
+            "增强命令系统示例",
+            "无需正则表达式的命令定义",
+            "命令别名支持",
+            "参数解析功能",
+            "聊天类型限制"
+        ]
+    }
+}

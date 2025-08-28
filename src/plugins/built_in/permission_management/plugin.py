@@ -2,6 +2,7 @@
 权限管理插件
 
 提供权限系统的管理命令，包括权限授权、撤销、查询等功能。
+使用新的PlusCommand系统重构。
 """
 
 import re
@@ -9,23 +10,25 @@ from typing import List, Optional, Tuple, Type
 
 from src.plugin_system.apis.plugin_register_api import register_plugin
 from src.plugin_system.base.base_plugin import BasePlugin
-from src.plugin_system.base.base_command import BaseCommand
+from src.plugin_system.base.plus_command import PlusCommand
+from src.plugin_system.base.command_args import CommandArgs
 from src.plugin_system.apis.permission_api import permission_api
 from src.plugin_system.apis.logging_api import get_logger
-from src.plugin_system.base.component_types import CommandInfo
+from src.plugin_system.base.component_types import PlusCommandInfo, ChatType
 from src.plugin_system.base.config_types import ConfigField
 
 
 logger = get_logger("Permission")
 
 
-class PermissionCommand(BaseCommand):
-    """权限管理命令"""
+class PermissionCommand(PlusCommand):
+    """权限管理命令 - 使用PlusCommand系统"""
     
     command_name = "permission"
-    command_description = "权限管理命令"
-    command_pattern = r"^/permission(?:\s|$)"
-    command_help = "/permission <子命令> [参数...]"
+    command_description = "权限管理命令，支持授权、撤销、查询等功能"
+    command_aliases = ["perm", "权限"]
+    priority = 10
+    chat_type_allow = ChatType.ALL
     intercept_message = True
         
     def __init__(self, *args, **kwargs):
@@ -44,26 +47,16 @@ class PermissionCommand(BaseCommand):
             True
         )
     
-    def can_execute(self) -> bool:
-        """检查命令是否可以执行"""
-        # 基本权限检查由权限系统处理
-        return True
-    
-    async def execute(self) -> Tuple[bool, Optional[str], bool]:
+    async def execute(self, args: CommandArgs) -> Tuple[bool, Optional[str], bool]:
         """执行权限管理命令"""
-        # 从消息中解析命令和参数
-        message_text = self.message.processed_plain_text.strip()
-        # 移除 /permission 前缀，获取后续参数
-        args_text = message_text[11:].strip()  # "/permission" 是11个字符
-        
-        if not args_text:
+        if args.is_empty():
             await self._show_help()
             return True, "显示帮助信息", True
         
-        args = args_text.split()
-        subcommand = args[0].lower()
-        remaining_args = args[1:]
+        subcommand = args.get_first().lower()
+        remaining_args = args.get_args()[1:]  # 获取除第一个参数外的所有参数
         chat_stream = self.message.chat_stream
+        
         # 检查基本查看权限
         can_view = permission_api.check_permission(
             chat_stream.platform,
@@ -149,7 +142,9 @@ class PermissionCommand(BaseCommand):
 • /permission grant @张三 plugin.example.command
 • /permission list 123456789
 • /permission nodes example_plugin
-• /permission allnodes"""
+• /permission allnodes
+
+🔄 别名：可以使用 /perm 或 /权限 代替 /permission"""
         
         await self.send_text(help_text)
     
@@ -166,7 +161,7 @@ class PermissionCommand(BaseCommand):
         
         return None
 
-    async def _grant_permission(self, chat_stream , args: List[str]):
+    async def _grant_permission(self, chat_stream, args: List[str]):
         """授权用户权限"""
         if len(args) < 2:
             await self.send_text("❌ 用法: /permission grant <@用户|QQ号> <权限节点>")
@@ -387,5 +382,6 @@ class PermissionManagerPlugin(BasePlugin):
         }
     }
 
-    def get_plugin_components(self) -> List[Tuple[CommandInfo, Type[BaseCommand]]]:
-        return [(PermissionCommand.get_command_info(), PermissionCommand)]
+    def get_plugin_components(self) -> List[Tuple[PlusCommandInfo, Type[PlusCommand]]]:
+        """返回插件的PlusCommand组件"""
+        return [(PermissionCommand.get_plus_command_info(), PermissionCommand)]

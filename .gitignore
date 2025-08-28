@@ -327,7 +327,7 @@ run_pet.bat
 !/plugins/set_emoji_like
 !/plugins/permission_example
 !/plugins/hello_world_plugin
-!/plugins/take_picture_plugin
+!/plugins/echo_example
 
 config.toml
 
