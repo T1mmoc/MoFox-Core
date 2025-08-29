@@ -342,8 +342,6 @@ auto_install_timeout = 300
 # 是否使用PyPI镜像源（推荐，可加速下载）
 use_mirror = true
 mirror_url = "https://pypi.tuna.tsinghua.edu.cn/simple" # PyPI镜像源URL，如: "https://pypi.tuna.tsinghua.edu.cn/simple" 
-# 安装前是否提示用户（暂未实现）
-prompt_before_install = false
 # 依赖安装日志级别
 install_log_level = "INFO"
 
