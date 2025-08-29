@@ -98,7 +98,7 @@ class EnergyManager:
 
             if is_sleeping:
                 # 睡眠中：减少睡眠压力
-                decay_per_10s = global_config.wakeup_system.sleep_pressure_decay_rate / 6
+                decay_per_10s = global_config.sleep_system.sleep_pressure_decay_rate / 6
                 self.context.sleep_pressure -= decay_per_10s
                 self.context.sleep_pressure = max(self.context.sleep_pressure, 0)
                 self._log_sleep_pressure_change("睡眠压力释放")
@@ -145,7 +145,7 @@ class EnergyManager:
         """
         在执行动作后增加睡眠压力
         """
-        increment = global_config.wakeup_system.sleep_pressure_increment
+        increment = global_config.sleep_system.sleep_pressure_increment
         self.context.sleep_pressure += increment
         self.context.sleep_pressure = min(self.context.sleep_pressure, 100.0) # 设置一个100的上限
         self._log_sleep_pressure_change("执行动作，睡眠压力累积")

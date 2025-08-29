@@ -530,15 +530,6 @@ class ScheduleConfig(ValidatedConfigBase):
     enable: bool = Field(default=True, description="启用")
     guidelines: Optional[str] = Field(default=None, description="指导方针")
     enable_is_sleep: bool = Field(default=True, description="让AI会根据日程表睡觉和苏醒")
-    
-    enable_flexible_sleep: bool = Field(default=True, description="是否启用弹性睡眠")
-    flexible_sleep_pressure_threshold: float = Field(default=40.0, description="触发弹性睡眠的睡眠压力阈值，低于该值可能延迟入睡")
-    max_sleep_delay_minutes: int = Field(default=60, description="单日最大延迟入睡分钟数")
-    
-    enable_pre_sleep_notification: bool = Field(default=True, description="是否启用睡前消息")
-    pre_sleep_notification_groups: List[str] = Field(default_factory=list, description="接收睡前消息的群号列表, 格式: [\"platform:group_id1\", \"platform:group_id2\"]")
-    pre_sleep_prompt: str = Field(default="我准备睡觉了，请生成一句简短自然的晚安问候。", description="用于生成睡前消息的提示")
-
 
 
 class DependencyManagementConfig(ValidatedConfigBase):
@@ -617,10 +608,10 @@ class PluginsConfig(ValidatedConfigBase):
     centralized_config: bool = Field(default=True, description="是否启用插件配置集中化管理")
 
 
-class WakeUpSystemConfig(ValidatedConfigBase):
-    """唤醒度与失眠系统配置类"""
+class SleepSystemConfig(ValidatedConfigBase):
+    """睡眠系统配置类"""
 
-    enable: bool = Field(default=True, description="是否启用唤醒度系统")
+    enable: bool = Field(default=True, description="是否启用睡眠系统")
     wakeup_threshold: float = Field(default=15.0, ge=1.0, description="唤醒阈值，达到此值时会被唤醒")
     private_message_increment: float = Field(default=3.0, ge=0.1, description="私聊消息增加的唤醒度")
     group_mention_increment: float = Field(default=2.0, ge=0.1, description="群聊艾特增加的唤醒度")
@@ -639,6 +630,14 @@ class WakeUpSystemConfig(ValidatedConfigBase):
     insomnia_chance_normal_pressure: float = Field(default=0.1, ge=0.0, le=1.0, description="压力正常时的失眠基础概率")
     sleep_pressure_increment: float = Field(default=1.5, ge=0.0, description="每次AI执行动作后，增加的睡眠压力值")
     sleep_pressure_decay_rate: float = Field(default=1.5, ge=0.0, description="睡眠时，每分钟衰减的睡眠压力值")
+
+    # --- 弹性睡眠与睡前消息 ---
+    enable_flexible_sleep: bool = Field(default=True, description="是否启用弹性睡眠")
+    flexible_sleep_pressure_threshold: float = Field(default=40.0, description="触发弹性睡眠的睡眠压力阈值，低于该值可能延迟入睡")
+    max_sleep_delay_minutes: int = Field(default=60, description="单日最大延迟入睡分钟数")
+    enable_pre_sleep_notification: bool = Field(default=True, description="是否启用睡前消息")
+    pre_sleep_notification_groups: List[str] = Field(default_factory=list, description="接收睡前消息的群号列表, 格式: [\"platform:group_id1\", \"platform:group_id2\"]")
+    pre_sleep_prompt: str = Field(default="我准备睡觉了，请生成一句简短自然的晚安问候。", description="用于生成睡前消息的提示")
 
 
 class MonthlyPlanSystemConfig(ValidatedConfigBase):

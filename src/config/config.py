@@ -40,7 +40,7 @@ from src.config.official_configs import (
     WebSearchConfig,
     AntiPromptInjectionConfig,
     PluginsConfig,
-    WakeUpSystemConfig,
+    SleepSystemConfig,
     MonthlyPlanSystemConfig,
     CrossContextConfig,
     PermissionConfig,
@@ -404,7 +404,7 @@ class Config(ValidatedConfigBase):
     dependency_management: DependencyManagementConfig = Field(default_factory=lambda: DependencyManagementConfig(), description="依赖管理配置")
     web_search: WebSearchConfig = Field(default_factory=lambda: WebSearchConfig(), description="网络搜索配置")
     plugins: PluginsConfig = Field(default_factory=lambda: PluginsConfig(), description="插件配置")
-    wakeup_system: WakeUpSystemConfig = Field(default_factory=lambda: WakeUpSystemConfig(), description="唤醒度系统配置")
+    sleep_system: SleepSystemConfig = Field(default_factory=lambda: SleepSystemConfig(), description="睡眠系统配置")
     monthly_plan_system: MonthlyPlanSystemConfig = Field(default_factory=lambda: MonthlyPlanSystemConfig(), description="月层计划系统配置")
     cross_context: CrossContextConfig = Field(default_factory=lambda: CrossContextConfig(), description="跨群聊上下文共享配置")
     maizone_intercom: MaizoneIntercomConfig = Field(default_factory=lambda: MaizoneIntercomConfig(), description="Maizone互通组配置")

@@ -209,12 +209,12 @@ class HeartFChatting:
             if self.wakeup_manager and self.wakeup_manager.check_for_insomnia():
                 # 触发失眠
                 self.context.is_in_insomnia = True
-                duration = global_config.wakeup_system.insomnia_duration_minutes * 60
+                duration = global_config.sleep_system.insomnia_duration_minutes * 60
                 self.context.insomnia_end_time = time.time() + duration
                 
                 # 判断失眠原因并触发思考
                 reason = "random"
-                if self.context.sleep_pressure < global_config.wakeup_system.sleep_pressure_threshold:
+                if self.context.sleep_pressure < global_config.sleep_system.sleep_pressure_threshold:
                     reason = "low_pressure"
                 await self.proactive_thinker.trigger_insomnia_thinking(reason)
 
@@ -274,7 +274,7 @@ class HeartFChatting:
         # --- 重新入睡逻辑 ---
         # 如果被吵醒了，并且在一定时间内没有新消息，则尝试重新入睡
         if schedule_manager._is_woken_up and not has_new_messages:
-            re_sleep_delay = global_config.wakeup_system.re_sleep_delay_minutes * 60
+            re_sleep_delay = global_config.sleep_system.re_sleep_delay_minutes * 60
             # 使用 last_message_time 来判断空闲时间
             if time.time() - self.context.last_message_time > re_sleep_delay:
                 logger.info(f"{self.context.log_prefix} 已被唤醒且超过 {re_sleep_delay / 60} 分钟无新消息，尝试重新入睡。")

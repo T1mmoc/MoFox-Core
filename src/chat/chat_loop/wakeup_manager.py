@@ -31,22 +31,22 @@ class WakeUpManager:
         self.log_interval = 30
         
         # 从配置文件获取参数
-        wakeup_config = global_config.wakeup_system
-        self.wakeup_threshold = wakeup_config.wakeup_threshold
-        self.private_message_increment = wakeup_config.private_message_increment
-        self.group_mention_increment = wakeup_config.group_mention_increment
-        self.decay_rate = wakeup_config.decay_rate
-        self.decay_interval = wakeup_config.decay_interval
-        self.angry_duration = wakeup_config.angry_duration
-        self.enabled = wakeup_config.enable
-        self.angry_prompt = wakeup_config.angry_prompt
+        sleep_config = global_config.sleep_system
+        self.wakeup_threshold = sleep_config.wakeup_threshold
+        self.private_message_increment = sleep_config.private_message_increment
+        self.group_mention_increment = sleep_config.group_mention_increment
+        self.decay_rate = sleep_config.decay_rate
+        self.decay_interval = sleep_config.decay_interval
+        self.angry_duration = sleep_config.angry_duration
+        self.enabled = sleep_config.enable
+        self.angry_prompt = sleep_config.angry_prompt
         
         # 失眠系统参数
-        self.insomnia_enabled = wakeup_config.enable_insomnia_system
-        self.sleep_pressure_threshold = wakeup_config.sleep_pressure_threshold
-        self.deep_sleep_threshold = wakeup_config.deep_sleep_threshold
-        self.insomnia_chance_low_pressure = wakeup_config.insomnia_chance_low_pressure
-        self.insomnia_chance_normal_pressure = wakeup_config.insomnia_chance_normal_pressure
+        self.insomnia_enabled = sleep_config.enable_insomnia_system
+        self.sleep_pressure_threshold = sleep_config.sleep_pressure_threshold
+        self.deep_sleep_threshold = sleep_config.deep_sleep_threshold
+        self.insomnia_chance_low_pressure = sleep_config.insomnia_chance_low_pressure
+        self.insomnia_chance_normal_pressure = sleep_config.insomnia_chance_normal_pressure
         
         self._load_wakeup_state()
 

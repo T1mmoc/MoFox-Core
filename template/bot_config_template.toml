@@ -89,6 +89,7 @@ learning_strength = 1.0
 
 [[expression.rules]]
 chat_stream_id = "qq:1919810:group"
+group = "group_A"
 use_expression = true
 learn_expression = true
 learning_strength = 1.5
@@ -100,28 +101,17 @@ use_expression = true
 learn_expression = false
 learning_strength = 0.5
 
-[[expression.rules]]
-chat_stream_id = "qq:1919810:private"
-group = "group_A"
-use_expression = true
-learn_expression = true
-learning_strength = 1.0
-
-
-
 [chat] #MoFox-Bot的聊天通用设置
+# 群聊聊天模式设置
+group_chat_mode = "auto" # 群聊聊天模式：auto-自动切换，normal-强制普通模式，focus-强制专注模式
 focus_value = 1 
-# MoFox-Bot的专注思考能力，越高越容易专注，可能消耗更多token
+# MoFox-Bot的专注思考能力，越高越容易专注，可能消耗更多token,仅限自动切换模式下使用哦
 # 专注时能更好把握发言时机，能够进行持久的连续对话
 
-talk_frequency = 1 # MoFox-Bot活跃度，越高，MoFox-Bot回复越频繁
+talk_frequency = 1 # MoFox-Bot活跃度，越高，MoFox-Bot回复越频繁,仅限normal/或者自动切换的normal模式下使用哦
 
 # 强制私聊专注模式
 force_focus_private = false # 是否强制私聊进入专注模式，开启后私聊将始终保持专注状态
-
-# 群聊聊天模式设置
-group_chat_mode = "auto" # 群聊聊天模式：auto-自动切换，normal-强制普通模式，focus-强制专注模式
-
 
 max_context_size = 25 # 上下文长度
 thinking_timeout = 40 # MoFox-Bot一次回复最长思考规划时间，超过这个时间的思考会放弃（往往是api反应太慢）
@@ -278,7 +268,7 @@ enable_vector_instant_memory = true # 是否启用基于向量的瞬时记忆
 memory_ban_words = [ "表情包", "图片", "回复", "聊天记录" ]
 
 [voice]
-enable_asr = false # 是否启用语音识别，启用后MoFox-Bot可以识别语音消息，启用该功能需要配置语音识别模型[model.voice]s
+enable_asr = false # 是否启用语音识别，启用后MoFox-Bot可以识别语音消息，启用该功能需要配置语音识别模型[model.voice]
 
 [lpmm_knowledge] # lpmm知识库配置
 enable = false # 是否启用lpmm知识库
@@ -381,23 +371,6 @@ guidelines = """
 晚上我希望你能多和朋友们交流，维系好彼此的关系。
 另外，请保证充足的休眠时间来处理和整合一天的数据。
 """
-enable_is_sleep = false
-
-# --- 弹性睡眠与睡前消息 ---
-# 是否启用弹性睡眠。启用后，AI不会到点立刻入睡，而是会根据睡眠压力增加5-10分钟的缓冲，并可能因为压力不足而推迟睡眠。
-enable_flexible_sleep = true
-# 触发弹性睡眠的睡眠压力阈值。当AI的睡眠压力低于此值时，可能会推迟入睡。
-flexible_sleep_pressure_threshold = 40.0
-# 每日最大可推迟入睡的总分钟数。
-max_sleep_delay_minutes = 60
-
-# 是否在进入“准备入睡”状态时发送一条消息通知。
-enable_pre_sleep_notification = true
-# 接收睡前消息的群组列表。格式为: ["platform:group_id1", "platform:group_id2"]，例如 ["qq:12345678"]
-pre_sleep_notification_groups = []
-# 用于生成睡前消息的提示。AI会根据这个提示生成一句晚安问候。
-pre_sleep_prompt = "我准备睡觉了，请生成一句简短自然的晚安问候。"
-
 [video_analysis] # 视频分析配置
 enable = true # 是否启用视频分析功能
 analysis_mode = "batch_frames" # 分析模式："frame_by_frame"（逐帧分析，非常慢）、"batch_frames"（批量分析，推荐）或 "auto"（自动选择）
@@ -468,8 +441,8 @@ guidelines = """
 请确保计划既有挑战性又不会过于繁重，保持生活的平衡和乐趣。
 """
 
-[wakeup_system]
-enable = false #"是否启用唤醒度系统"
+[sleep_system]
+enable = false #"是否启用睡眠系统"
 wakeup_threshold = 15.0 #唤醒阈值，达到此值时会被唤醒"
 private_message_increment = 3.0 #"私聊消息增加的唤醒度"
 group_mention_increment = 2.0 #"群聊艾特增加的唤醒度"
@@ -493,6 +466,21 @@ sleep_pressure_increment = 1.5
 # 睡眠时，每分钟衰减的睡眠压力值
 sleep_pressure_decay_rate = 1.5
 insomnia_duration_minutes = 30 # 单次失眠状态的持续时间（分钟）
+
+# --- 弹性睡眠与睡前消息 ---
+# 是否启用弹性睡眠。启用后，AI不会到点立刻入睡，而是会根据睡眠压力增加5-10分钟的缓冲，并可能因为压力不足而推迟睡眠。
+enable_flexible_sleep = false
+# 触发弹性睡眠的睡眠压力阈值。当AI的睡眠压力低于此值时，可能会推迟入睡。
+flexible_sleep_pressure_threshold = 40.0
+# 每日最大可推迟入睡的总分钟数。
+max_sleep_delay_minutes = 60
+
+# 是否在进入“准备入睡”状态时发送一条消息通知。
+enable_pre_sleep_notification = false
+# 接收睡前消息的群组列表。格式为: ["platform:group_id1", "platform:group_id2"]，例如 ["qq:12345678"]
+pre_sleep_notification_groups = []
+# 用于生成睡前消息的提示。AI会根据这个提示生成一句晚安问候。
+pre_sleep_prompt = "我准备睡觉了，请生成一句简短自然的晚安问候。"
 
 [cross_context] # 跨群聊上下文共享配置
 # 这是总开关，用于一键启用或禁用此功能
