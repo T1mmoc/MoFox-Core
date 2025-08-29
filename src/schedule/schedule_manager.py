@@ -2,7 +2,8 @@ import orjson
 import asyncio
 import random
 from datetime import datetime, time, timedelta
-from typing import Optional, List, Dict, Any
+from enum import Enum, auto
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from lunar_python import Lunar
 from pydantic import BaseModel, ValidationError, validator
 
@@ -18,6 +19,9 @@ from json_repair import repair_json
 from src.manager.async_task_manager import AsyncTask, async_task_manager
 from src.manager.local_store_manager import local_storage
 from src.plugin_system.apis import send_api, generator_api
+
+if TYPE_CHECKING:
+    from src.chat.chat_loop.wakeup_manager import WakeUpManager
 
 
 logger = get_logger("schedule_manager")
@@ -121,6 +125,14 @@ class ScheduleData(BaseModel):
         # 检查是否所有分钟都被覆盖
         return all(covered)
 
+class SleepState(Enum):
+    """睡眠状态枚举"""
+    AWAKE = auto()           # 完全清醒
+    INSOMNIA = auto()        # 失眠（在理论睡眠时间内保持清醒）
+    PREPARING_SLEEP = auto() # 准备入睡（缓冲期）
+    SLEEPING = auto()        # 正在休眠
+    WOKEN_UP = auto()        # 被吵醒
+
 class ScheduleManager:
     def __init__(self):
         self.today_schedule: Optional[List[Dict[str, Any]]] = None
@@ -131,14 +143,12 @@ class ScheduleManager:
         self.sleep_log_interval = 35  # 日志记录间隔，单位秒
         self.schedule_generation_running = False  # 防止重复生成任务
 
-        # 弹性睡眠相关状态
-        self._is_preparing_sleep: bool = False
+        # --- 统一睡眠状态管理 ---
+        self._current_state: SleepState = SleepState.AWAKE
         self._sleep_buffer_end_time: Optional[datetime] = None
         self._total_delayed_minutes_today: int = 0
         self._last_sleep_check_date: Optional[datetime.date] = None
         self._last_fully_slept_log_time: float = 0
-        self._is_in_voluntary_delay: bool = False # 新增：标记是否处于主动延迟睡眠状态
-        self._is_woken_up: bool = False # 新增：标记是否被吵醒
         
         self._load_sleep_state()
 
@@ -406,147 +416,162 @@ class ScheduleManager:
                 continue
         return None
 
-    def is_sleeping(self, wakeup_manager: Optional["WakeUpManager"] = None) -> bool:
+    def get_current_sleep_state(self) -> SleepState:
+        """获取当前的睡眠状态"""
+        return self._current_state
+
+    def is_sleeping(self) -> bool:
+        """检查当前是否处于正式休眠状态"""
+        return self._current_state == SleepState.SLEEPING
+
+    async def _update_sleep_state(self, wakeup_manager: Optional["WakeUpManager"] = None):
         """
-        通过关键词匹配、唤醒度、睡眠压力等综合判断是否处于休眠时间。
-        新增弹性睡眠机制，允许在压力低时延迟入睡，并在入睡前发送通知。
+        核心状态机：根据当前情况更新睡眠状态
         """
         # --- 基础检查 ---
-        if not global_config.schedule.enable_is_sleep:
-            return False
-        if not self.today_schedule:
-            return False
+        if not global_config.sleep_system.enable or not self.today_schedule:
+            if self._current_state != SleepState.AWAKE:
+                logger.debug("睡眠系统禁用或无日程，强制设为 AWAKE")
+                self._current_state = SleepState.AWAKE
+            return
 
         now = datetime.now()
         today = now.date()
 
         # --- 每日状态重置 ---
         if self._last_sleep_check_date != today:
-            logger.info(f"新的一天 ({today})，重置弹性睡眠状态。")
+            logger.info(f"新的一天 ({today})，重置睡眠状态为 AWAKE。")
             self._total_delayed_minutes_today = 0
-            self._is_preparing_sleep = False
+            self._current_state = SleepState.AWAKE
             self._sleep_buffer_end_time = None
             self._last_sleep_check_date = today
-            self._is_in_voluntary_delay = False
             self._save_sleep_state()
-
-        # --- 检查是否在“准备入睡”的缓冲期 ---
-        if self._is_preparing_sleep and self._sleep_buffer_end_time:
-            if now >= self._sleep_buffer_end_time:
-                current_timestamp = now.timestamp()
-                if current_timestamp - self._last_fully_slept_log_time > 45:
-                    logger.info("睡眠缓冲期结束，正式进入休眠状态。")
-                    self._last_fully_slept_log_time = current_timestamp
-                return True
-            else:
-                remaining_seconds = (self._sleep_buffer_end_time - now).total_seconds()
-                logger.debug(f"处于入睡缓冲期，剩余 {remaining_seconds:.1f} 秒。")
-                return False
 
         # --- 判断当前是否为理论上的睡眠时间 ---
         is_in_theoretical_sleep, activity = self._is_in_theoretical_sleep_time(now.time())
 
-        if not is_in_theoretical_sleep:
-            # 如果不在理论睡眠时间，确保重置准备状态
-            if self._is_preparing_sleep:
-                logger.info("已离开理论休眠时间，取消“准备入睡”状态。")
-                self._is_preparing_sleep = False
-                self._sleep_buffer_end_time = None
-                self._is_in_voluntary_delay = False
-                self._is_woken_up = False # 离开睡眠时间，重置唤醒状态
+        # ===================================
+        #  状态机核心逻辑
+        # ===================================
+
+        # 状态：清醒 (AWAKE)
+        if self._current_state == SleepState.AWAKE:
+            if is_in_theoretical_sleep:
+                logger.info(f"进入理论休眠时间 '{activity}'，开始进行睡眠决策...")
+                
+                # --- 合并后的失眠与弹性睡眠决策逻辑 ---
+                sleep_pressure = wakeup_manager.context.sleep_pressure if wakeup_manager else 999
+                pressure_threshold = global_config.sleep_system.flexible_sleep_pressure_threshold
+                
+                # 决策1：因睡眠压力低而延迟入睡（原弹性睡眠）
+                if sleep_pressure < pressure_threshold and self._total_delayed_minutes_today < global_config.sleep_system.max_sleep_delay_minutes:
+                    delay_minutes = 15
+                    self._total_delayed_minutes_today += delay_minutes
+                    self._sleep_buffer_end_time = now + timedelta(minutes=delay_minutes)
+                    self._current_state = SleepState.INSOMNIA
+                    logger.info(f"睡眠压力 ({sleep_pressure:.1f}) 低于阈值 ({pressure_threshold})，进入失眠状态，延迟入睡 {delay_minutes} 分钟。")
+                    
+                    # 发送睡前通知
+                    if global_config.sleep_system.enable_pre_sleep_notification:
+                        asyncio.create_task(self._send_pre_sleep_notification())
+                        
+                # 决策2：进入正常的入睡准备流程
+                else:
+                    buffer_seconds = random.randint(5 * 60, 10 * 60)
+                    self._sleep_buffer_end_time = now + timedelta(seconds=buffer_seconds)
+                    self._current_state = SleepState.PREPARING_SLEEP
+                    logger.info(f"睡眠压力正常或已达今日最大延迟，进入准备入睡状态，将在 {buffer_seconds / 60:.1f} 分钟内入睡。")
+                    
+                    # 发送睡前通知
+                    if global_config.sleep_system.enable_pre_sleep_notification:
+                        asyncio.create_task(self._send_pre_sleep_notification())
+
                 self._save_sleep_state()
-            return False
 
-        # --- 处理唤醒状态 ---
-        if self._is_woken_up:
-            current_timestamp = now.timestamp()
-            if current_timestamp - self.last_sleep_log_time > self.sleep_log_interval:
-                logger.info(f"在休眠活动 '{activity}' 期间，但已被唤醒，保持清醒状态。")
-                self.last_sleep_log_time = current_timestamp
-            return False
+        # 状态：失眠 (INSOMNIA)
+        elif self._current_state == SleepState.INSOMNIA:
+            if not is_in_theoretical_sleep:
+                logger.info("已离开理论休眠时间，失眠结束，恢复清醒。")
+                self._current_state = SleepState.AWAKE
+                self._save_sleep_state()
+            # TODO: 添加从失眠到准备入睡的转换逻辑
 
-        # --- 核心：弹性睡眠逻辑 ---
-        if global_config.schedule.enable_flexible_sleep and not self._is_preparing_sleep:
-            # 首次进入理论睡眠时间，触发弹性判断
-            logger.info(f"进入理论休眠时间 '{activity}'，开始弹性睡眠判断...")
-            
-            # 1. 获取睡眠压力
-            sleep_pressure = wakeup_manager.context.sleep_pressure if wakeup_manager else 999
-            pressure_threshold = global_config.schedule.flexible_sleep_pressure_threshold
-            
-            # 2. 判断是否延迟
-            if sleep_pressure < pressure_threshold and self._total_delayed_minutes_today < global_config.schedule.max_sleep_delay_minutes:
-                delay_minutes = 15  # 每次延迟15分钟
-                self._total_delayed_minutes_today += delay_minutes
-                self._sleep_buffer_end_time = now + timedelta(minutes=delay_minutes)
-                self._is_in_voluntary_delay = True # 标记进入主动延迟
-                logger.info(f"睡眠压力 ({sleep_pressure:.1f}) 低于阈值 ({pressure_threshold})，延迟入睡 {delay_minutes} 分钟。今日已累计延迟 {self._total_delayed_minutes_today} 分钟。")
+        # 状态：准备入睡 (PREPARING_SLEEP)
+        elif self._current_state == SleepState.PREPARING_SLEEP:
+            if not is_in_theoretical_sleep:
+                logger.info("准备入睡期间离开理论休眠时间，取消入睡，恢复清醒。")
+                self._current_state = SleepState.AWAKE
+                self._sleep_buffer_end_time = None
+                self._save_sleep_state()
+            elif self._sleep_buffer_end_time and now >= self._sleep_buffer_end_time:
+                logger.info("睡眠缓冲期结束，正式进入休眠状态。")
+                self._current_state = SleepState.SLEEPING
+                self._last_fully_slept_log_time = now.timestamp()
+                self._save_sleep_state()
+
+        # 状态：休眠中 (SLEEPING)
+        elif self._current_state == SleepState.SLEEPING:
+            if not is_in_theoretical_sleep:
+                logger.info("理论休眠时间结束，自然醒来。")
+                self._current_state = SleepState.AWAKE
+                self._save_sleep_state()
             else:
-                # 3. 计算5-10分钟的入睡缓冲
-                self._is_in_voluntary_delay = False # 非主动延迟
-                buffer_seconds = random.randint(5 * 60, 10 * 60)
-                self._sleep_buffer_end_time = now + timedelta(seconds=buffer_seconds)
-                logger.info(f"睡眠压力正常或已达今日最大延迟，将在 {buffer_seconds / 60:.1f} 分钟内入睡。")
+                # 记录日志
+                current_timestamp = now.timestamp()
+                if current_timestamp - self.last_sleep_log_time > self.sleep_log_interval:
+                    logger.info(f"当前处于休眠活动 '{activity}' 中。")
+                    self.last_sleep_log_time = current_timestamp
 
-            # 4. 发送睡前通知
-            if global_config.schedule.enable_pre_sleep_notification:
-                asyncio.create_task(self._send_pre_sleep_notification())
-
-            self._is_preparing_sleep = True
-            self._save_sleep_state()
-            return False  # 进入准备阶段，但尚未正式入睡
-
-        # --- 经典模式或已在弹性睡眠流程中 ---
-        current_timestamp = now.timestamp()
-        if current_timestamp - self.last_sleep_log_time > self.sleep_log_interval:
-            logger.info(f"当前处于休眠活动 '{activity}' 中 (经典模式)。")
-            self.last_sleep_log_time = current_timestamp
-        return True
+        # 状态：被吵醒 (WOKEN_UP)
+        elif self._current_state == SleepState.WOKEN_UP:
+            if not is_in_theoretical_sleep:
+                logger.info("理论休眠时间结束，被吵醒的状态自动结束。")
+                self._current_state = SleepState.AWAKE
+                self._save_sleep_state()
+            # TODO: 添加重新入睡的逻辑
 
     def reset_sleep_state_after_wakeup(self):
-        """被唤醒后重置睡眠状态"""
-        if self._is_preparing_sleep or self.is_sleeping():
-            logger.info("被唤醒，重置所有睡眠准备状态，恢复清醒！")
-            self._is_preparing_sleep = False
+        """被唤醒后，将状态切换到 WOKEN_UP"""
+        if self._current_state in [SleepState.PREPARING_SLEEP, SleepState.SLEEPING, SleepState.INSOMNIA]:
+            logger.info("被唤醒，进入 WOKEN_UP 状态！")
+            self._current_state = SleepState.WOKEN_UP
             self._sleep_buffer_end_time = None
-            self._is_in_voluntary_delay = False
-            self._is_woken_up = True  # 标记为已被唤醒
             self._save_sleep_state()
 
     def _is_in_theoretical_sleep_time(self, now_time: time) -> (bool, Optional[str]):
         """检查当前时间是否落在日程表的任何一个睡眠活动中"""
         sleep_keywords = ["休眠", "睡觉", "梦乡"]
-        
-        for event in self.today_schedule:
-            try:
-                activity = event.get("activity", "").strip()
-                time_range = event.get("time_range")
+        if self.today_schedule:
+            for event in self.today_schedule:
+                try:
+                    activity = event.get("activity", "").strip()
+                    time_range = event.get("time_range")
 
-                if not activity or not time_range:
+                    if not activity or not time_range:
+                        continue
+
+                    if any(keyword in activity for keyword in sleep_keywords):
+                        start_str, end_str = time_range.split('-')
+                        start_time = datetime.strptime(start_str.strip(), "%H:%M").time()
+                        end_time = datetime.strptime(end_str.strip(), "%H:%M").time()
+
+                        if start_time <= end_time:  # 同一天
+                            if start_time <= now_time < end_time:
+                                return True, activity
+                        else:  # 跨天
+                            if now_time >= start_time or now_time < end_time:
+                                return True, activity
+                except (ValueError, KeyError, AttributeError) as e:
+                    logger.warning(f"解析日程事件时出错: {event}, 错误: {e}")
                     continue
-
-                if any(keyword in activity for keyword in sleep_keywords):
-                    start_str, end_str = time_range.split('-')
-                    start_time = datetime.strptime(start_str.strip(), "%H:%M").time()
-                    end_time = datetime.strptime(end_str.strip(), "%H:%M").time()
-
-                    if start_time <= end_time:  # 同一天
-                        if start_time <= now_time < end_time:
-                            return True, activity
-                    else:  # 跨天
-                        if now_time >= start_time or now_time < end_time:
-                            return True, activity
-            except (ValueError, KeyError, AttributeError) as e:
-                logger.warning(f"解析日程事件时出错: {event}, 错误: {e}")
-                continue
-        
+            
         return False, None
 
     async def _send_pre_sleep_notification(self):
         """异步生成并发送睡前通知"""
         try:
-            groups = global_config.schedule.pre_sleep_notification_groups
-            prompt = global_config.schedule.pre_sleep_prompt
+            groups = global_config.sleep_system.pre_sleep_notification_groups
+            prompt = global_config.sleep_system.pre_sleep_prompt
 
             if not groups:
                 logger.info("未配置睡前通知的群组，跳过发送。")

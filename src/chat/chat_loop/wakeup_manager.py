@@ -41,13 +41,6 @@ class WakeUpManager:
         self.enabled = sleep_config.enable
         self.angry_prompt = sleep_config.angry_prompt
         
-        # 失眠系统参数
-        self.insomnia_enabled = sleep_config.enable_insomnia_system
-        self.sleep_pressure_threshold = sleep_config.sleep_pressure_threshold
-        self.deep_sleep_threshold = sleep_config.deep_sleep_threshold
-        self.insomnia_chance_low_pressure = sleep_config.insomnia_chance_low_pressure
-        self.insomnia_chance_normal_pressure = sleep_config.insomnia_chance_normal_pressure
-        
         self._load_wakeup_state()
 
     def _get_storage_key(self) -> str:
@@ -221,38 +214,3 @@ class WakeUpManager:
             "is_angry": self.is_angry,
             "angry_remaining_time": max(0, self.angry_duration - (time.time() - self.angry_start_time)) if self.is_angry else 0
         }
-
-    def check_for_insomnia(self) -> bool:
-        """
-        在尝试入睡时检查是否会失眠
-        
-        Returns:
-            bool: 如果失眠则返回 True，否则返回 False
-        """
-        if not self.insomnia_enabled:
-            return False
-
-        import random
-        
-        pressure = self.context.sleep_pressure
-        
-        # 压力过高，深度睡眠，极难失眠
-        if pressure > self.deep_sleep_threshold:
-            return False
-            
-        # 根据睡眠压力决定失眠概率
-        from src.schedule.schedule_manager import schedule_manager
-        if pressure < self.sleep_pressure_threshold:
-            # 压力不足型失眠
-            if schedule_manager._is_in_voluntary_delay:
-                logger.debug(f"{self.context.log_prefix} 处于主动延迟睡眠期间，跳过压力不足型失眠判断。")
-            elif random.random() < self.insomnia_chance_low_pressure:
-                logger.info(f"{self.context.log_prefix} 睡眠压力不足 ({pressure:.1f})，触发失眠！")
-                return True
-        else:
-            # 压力正常，随机失眠
-            if random.random() < self.insomnia_chance_normal_pressure:
-                logger.info(f"{self.context.log_prefix} 睡眠压力正常 ({pressure:.1f})，触发随机失眠！")
-                return True
-        
-        return False
