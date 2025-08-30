@@ -77,7 +77,7 @@ class MonthlyPlanManager:
             if len(plans) > max_plans:
                 logger.warning(f"当前月度计划数量 ({len(plans)}) 超出上限 ({max_plans})，将自动删除多余的计划。")
                 # 按创建时间升序排序（旧的在前），然后删除超出上限的部分（新的）
-                plans_to_delete = sorted(plans, key=lambda p: p.created_at)[max_plans:]
+                plans_to_delete = sorted(plans, key=lambda p: p.created_at, reverse=True)[:len(plans)-max_plans]
                 delete_ids = [p.id for p in plans_to_delete]
                 delete_plans_by_ids(delete_ids)
                 # 重新获取计划列表
@@ -137,6 +137,14 @@ class MonthlyPlanManager:
             return False
         finally:
             self.generation_running = False
+
+    def trigger_generate_monthly_plans(self, target_month: Optional[str] = None):
+        """
+        以非阻塞的方式启动月度计划生成任务。
+        这允许其他模块（如ScheduleManager）触发计划生成，而无需等待其完成。
+        """
+        logger.info(f"已触发 {target_month or '当前月份'} 的非阻塞月度计划生成任务。")
+        asyncio.create_task(self.generate_monthly_plans(target_month))
 
     def _get_previous_month(self, current_month: str) -> str:
         """获取上个月的月份字符串"""

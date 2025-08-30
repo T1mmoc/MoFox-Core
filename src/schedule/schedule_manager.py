@@ -231,17 +231,15 @@ class ScheduleManager:
 
                 # 如果计划耗尽，则触发补充生成
                 if not sampled_plans:
-                    logger.info("可用的月度计划已耗尽或不足，尝试进行补充生成...")
+                    logger.info("可用的月度计划已耗尽或不足，触发后台补充生成...")
                     from mmc.src.schedule.monthly_plan_manager import monthly_plan_manager
-
-                    success = await monthly_plan_manager.generate_monthly_plans(current_month_str)
-                    if success:
-                        logger.info("补充生成完成，重新抽取月度计划...")
-                        sampled_plans = get_smart_plans_for_daily_schedule(
-                            current_month_str, max_count=3, avoid_days=avoid_days
-                        )
-                    else:
-                        logger.warning("月度计划补充生成失败。")
+                    
+                    # 以非阻塞方式触发月度计划生成
+                    monthly_plan_manager.trigger_generate_monthly_plans(current_month_str)
+                    
+                    # 注意：这里不再等待生成结果，因此后续代码不会立即获得新计划。
+                    # 日程将基于当前可用的信息生成，新计划将在下一次日程生成时可用。
+                    logger.info("月度计划的后台生成任务已启动，本次日程将不包含新计划。")
 
                 if sampled_plans:
                     plan_texts = "\n".join([f"- {plan.plan_text}" for plan in sampled_plans])
