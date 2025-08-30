@@ -139,14 +139,15 @@ class LLMRequest:
 """
         
         # 反截断指令
-        self.anti_truncation_instruction = """
+        self.end_marker = "###MAI_RESPONSE_END###"
+        self.anti_truncation_instruction = f"""
 **【输出完成信令】**
-这是一个非常重要的指令,请务必遵守。在你的回复内容完全结束后,请务必在最后另起一行,只写 `[done]` 作为结束标志。
+这是一个非常重要的指令,请务必遵守。在你的回复内容完全结束后,请务必在最后另起一行,只写 `{self.end_marker}` 作为结束标志。
 例如:
 <你的回复内容>
-[done]
+{self.end_marker}
 
-这有助于我判断你的输出是否被截断。请不要在 `[done]` 前后添加任何其他文字或标点。
+这有助于我判断你的输出是否被截断。请不要在 `{self.end_marker}` 前后添加任何其他文字或标点。
 """
 
     async def generate_response_for_image(
@@ -300,11 +301,12 @@ class LLMRequest:
 
             try:
                 # 检查是否启用反截断
-                use_anti_truncation = getattr(api_provider, "anti_truncation", False)
+                # 检查是否为该模型启用反截断
+                use_anti_truncation = getattr(model_info, "use_anti_truncation", False)
                 processed_prompt = prompt
                 if use_anti_truncation:
                     processed_prompt += self.anti_truncation_instruction
-                    logger.info(f"'{model_name}' for task '{self.task_name}' 已启用反截断功能")
+                    logger.info(f"模型 '{model_name}' (任务: '{self.task_name}') 已启用反截断功能。")
                 
                 processed_prompt = self._apply_content_obfuscation(processed_prompt, api_provider)
 
@@ -341,8 +343,8 @@ class LLMRequest:
                     is_empty_reply = not tool_calls and (not content or content.strip() == "")
                     is_truncated = False
                     if use_anti_truncation:
-                        if content.endswith("[done]"):
-                            content = content[:-6].strip()
+                        if content.endswith(self.end_marker):
+                            content = content[: -len(self.end_marker)].strip()
                         else:
                             is_truncated = True
 

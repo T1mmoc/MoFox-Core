@@ -1,5 +1,5 @@
 [inner]
-version = "1.2.8"
+version = "1.2.9"
 
 # 配置文件版本号迭代规则同bot_config.toml
 
@@ -41,7 +41,6 @@ timeout = 30
 retry_interval = 10
 enable_content_obfuscation = true                 # 启用内容混淆功能
 obfuscation_intensity = 2                         # 混淆强度（1-3级，1=低强度，2=中强度，3=高强度）
-anti_truncation_instruction = true                # 防阶段移到了模型配置里
 
 
 [[models]] # 模型（可以配置多个）
@@ -51,6 +50,7 @@ api_provider = "DeepSeek"          # API服务商名称（对应在api_providers
 price_in = 2.0                     # 输入价格（用于API调用统计，单位：元/ M token）（可选，若无该字段，默认值为0）
 price_out = 8.0                    # 输出价格（用于API调用统计，单位：元/ M token）（可选，若无该字段，默认值为0）
 #force_stream_mode = true          # 强制流式输出模式（若模型不支持非流式输出，请取消该注释，启用强制流式输出，若无该字段，默认值为false）
+#use_anti_truncation = true        # [可选] 启用反截断功能。当模型输出不完整时，系统会自动重试。建议只为有需要的模型（如Gemini）开启。
 
 [[models]]
 model_identifier = "Pro/deepseek-ai/DeepSeek-V3"
