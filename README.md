@@ -124,22 +124,10 @@
 
 </div>
 
-```bash
-# 1. 克隆项目到本地
-git clone https://github.com/MoFox-Studio/MoFox_Bot.git
-cd MoFox_Bot
-
-# 2. 安装依赖
-pip install -r requirements.txt
-
-# 3. 配置机器人
-# 首先，复制配置文件模板
-cp config/bot_config.toml.example config/bot_config.toml
-# 然后，根据你的需求编辑 config/bot_config.toml 文件
-
-# 4. 启动机器人
-python bot.py
-```
+> [!NOTE]
+> 详细的安装和配置步骤，请务必参考我们的官方文档：
+> *   **Windows 用户部署指南**: [https://mofox-studio.github.io/MoFox-Bot-Docs/docs/deployment_guide.html](https://mofox-studio.github.io/MoFox-Bot-Docs/docs/deployment_guide.html)
+> *   **`bot_config.toml` 究极详细教程**: [https://mofox-studio.github.io/MoFox-Bot-Docs/docs/guides/bot_config_guide.html](https://mofox-studio.github.io/MoFox-Bot-Docs/docs/guides/bot_config_guide.html)
 
 <div align="center">
 

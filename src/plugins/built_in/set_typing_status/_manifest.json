@@ -1,0 +1,16 @@
+{
+    "name": "Set Typing Status",
+    "description": "一个在LLM生成回复时设置私聊输入状态的插件。",
+    "version": "1.0.0",
+    "author": {
+        "name": "Kilo Code"
+    },
+    "license": "MIT",
+    "homepage_url": "",
+    "repository_url": "",
+    "keywords": ["typing", "status", "private chat"],
+    "categories": ["utility"],
+    "host_application": {
+        "min_version": "1.0.0"
+    }
+}
