@@ -26,12 +26,6 @@ class NoReplyAction(BaseAction):
     # 最近三次no_reply的新消息兴趣度记录
     _recent_interest_records: deque = deque(maxlen=3)
 
-    # 兴趣值退出阈值
-    _interest_exit_threshold = 3.0
-    # 消息数量退出阈值
-    _min_exit_message_count = 3
-    _max_exit_message_count = 6
-
     # 动作参数定义
     action_parameters = {}
 

@@ -85,6 +85,7 @@ class CycleProcessor:
 
         # 检查是否在normal模式下没有可用动作（除了reply相关动作）
         skip_planner = False
+        gen_task = None
         if self.context.loop_mode == ChatMode.NORMAL:
             non_reply_actions = {
                 k: v for k, v in available_actions.items() if k not in ["reply", "no_reply", "no_action"]
@@ -95,7 +96,6 @@ class CycleProcessor:
                 plan_result = self._get_direct_reply_plan(loop_start_time)
                 target_message = message_data
 
-            gen_task = None
             # 如果normal模式且不跳过规划器，开始一个回复生成进程，先准备好回复（其实是和planer同时进行的）
             if not skip_planner:
                 reply_to_str = await self._build_reply_to_str(message_data)
@@ -156,6 +156,28 @@ class CycleProcessor:
                 loop_start_time,
             )
 
+        self.context.last_action = action_type
+        
+        # 处理no_reply相关的逻辑
+        if action_type != "no_reply" and action_type != "no_action":
+            # 导入NoReplyAction并重置计数器
+            from src.plugins.built_in.core_actions.no_reply import NoReplyAction
+            NoReplyAction.reset_consecutive_count()
+            self.context.no_reply_consecutive = 0
+            logger.info(f"{self.context.log_prefix} 执行了{action_type}动作，重置no_reply计数器")
+        elif action_type == "no_action":
+            # 当执行回复动作时，也重置no_reply计数
+            from src.plugins.built_in.core_actions.no_reply import NoReplyAction
+            NoReplyAction.reset_consecutive_count()
+            self.context.no_reply_consecutive = 0
+            logger.info(f"{self.context.log_prefix} 执行了回复动作，重置no_reply计数器")
+            
+        if action_type == "no_reply":
+            self.context.no_reply_consecutive += 1
+            # 调用HeartFChatting中的_determine_form_type方法
+            if hasattr(self.context, 'chat_instance') and self.context.chat_instance:
+                self.context.chat_instance._determine_form_type()
+        
         if ENABLE_S4U:
             await stop_typing()
 

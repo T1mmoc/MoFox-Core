@@ -1,7 +1,8 @@
 import asyncio
 import time
 import traceback
-from typing import Optional
+import random
+from typing import Optional, List, Dict, Any, Tuple
 
 from src.common.logger import get_logger
 from src.config.config import global_config
@@ -50,6 +51,8 @@ class HeartFChatting:
         # 将唤醒度管理器设置到上下文中
         self.context.wakeup_manager = self.wakeup_manager
         self.context.energy_manager = self.energy_manager
+        # 将HeartFChatting实例设置到上下文中，以便其他组件可以调用其方法
+        self.context.chat_instance = self
 
         self._loop_task: Optional[asyncio.Task] = None
 
@@ -217,6 +220,7 @@ class HeartFChatting:
         )
 
         has_new_messages = bool(recent_messages)
+        new_message_count = len(recent_messages)
 
         # 只有在有新消息时才进行思考循环处理
         if has_new_messages:
@@ -239,13 +243,31 @@ class HeartFChatting:
 
             # 根据聊天模式处理新消息
             if self.context.loop_mode == ChatMode.FOCUS:
+                # 如果上一个动作是no_reply，则执行no_reply逻辑
+                if self.context.last_action == "no_reply":
+                    if not await self._execute_no_reply(recent_messages):
+                        self.context.energy_value -= 0.3 / global_config.chat.focus_value
+                        logger.info(f"{self.context.log_prefix} 能量值减少，当前能量值：{self.context.energy_value:.1f}")
+                        return has_new_messages
+                
+                # 处理新消息
                 for message in recent_messages:
                     await self.cycle_processor.observe(message)
+                    
+                # 如果成功观察，增加能量值
+                if has_new_messages:
+                    self.context.energy_value += 1 / global_config.chat.focus_value
+                    logger.info(f"{self.context.log_prefix} 能量值增加，当前能量值：{self.context.energy_value:.1f}")
+                    
                 self._check_focus_exit()
             elif self.context.loop_mode == ChatMode.NORMAL:
                 self._check_focus_entry(len(recent_messages))
-                for message in recent_messages:
-                    await self.normal_mode_handler.handle_message(message)
+                # 检查是否有足够的新消息触发处理
+                if new_message_count >= self.context.focus_energy:
+                    earliest_messages_data = recent_messages[0]
+                    self.context.last_read_time = earliest_messages_data.get("time")
+                    for message in recent_messages:
+                        await self.normal_mode_handler.handle_message(message)
         else:
             # 无新消息时，只进行模式检查，不进行思考循环
             if self.context.loop_mode == ChatMode.FOCUS:
@@ -369,3 +391,85 @@ class HeartFChatting:
             if woke_up:
                 logger.info(f"{self.context.log_prefix} 被消息吵醒，进入愤怒状态！")
                 break
+
+    def _determine_form_type(self) -> str:
+        """判断使用哪种形式的no_reply"""
+        # 如果连续no_reply次数少于3次，使用waiting形式
+        if self.context.no_reply_consecutive <= 3:
+            self.context.focus_energy = 1
+        else:
+            # 计算最近三次记录的兴趣度总和
+            from src.plugins.built_in.core_actions.no_reply import NoReplyAction
+            total_recent_interest = sum(NoReplyAction._recent_interest_records)
+        
+            # 获取当前聊天频率和意愿系数
+            talk_frequency = global_config.chat.get_current_talk_frequency(self.context.stream_id)
+    
+            # 计算调整后的阈值
+            adjusted_threshold = 3 / talk_frequency
+            
+            logger.info(f"{self.context.log_prefix} 最近三次兴趣度总和: {total_recent_interest:.2f}, 调整后阈值: {adjusted_threshold:.2f}")
+        
+            # 如果兴趣度总和小于阈值，进入breaking形式
+            if total_recent_interest < adjusted_threshold:
+                logger.info(f"{self.context.log_prefix} 兴趣度不足，进入breaking形式")
+                self.context.focus_energy = random.randint(3, 6)
+            else:
+                logger.info(f"{self.context.log_prefix} 兴趣度充足")
+                self.context.focus_energy = 1
+            
+    async def _execute_no_reply(self, new_message: List[Dict[str, Any]]) -> bool:
+        """执行breaking形式的no_reply（原有逻辑）"""
+        new_message_count = len(new_message)
+        # 检查消息数量是否达到阈值
+        talk_frequency = global_config.chat.get_current_talk_frequency(self.context.stream_id)
+        modified_exit_count_threshold = self.context.focus_energy / talk_frequency
+        
+        if new_message_count >= modified_exit_count_threshold:
+            # 记录兴趣度到列表
+            from src.plugins.built_in.core_actions.no_reply import NoReplyAction
+            total_interest = 0.0
+            for msg_dict in new_message:
+                interest_value = msg_dict.get("interest_value", 0.0)
+                if msg_dict.get("processed_plain_text", ""):
+                    total_interest += interest_value
+            
+            NoReplyAction._recent_interest_records.append(total_interest)
+            
+            logger.info(
+                f"{self.context.log_prefix} 累计消息数量达到{new_message_count}条(>{modified_exit_count_threshold})，结束等待"
+            )
+
+            return True
+
+        # 检查累计兴趣值
+        if new_message_count > 0:
+            accumulated_interest = 0.0
+            for msg_dict in new_message:
+                text = msg_dict.get("processed_plain_text", "")
+                interest_value = msg_dict.get("interest_value", 0.0)
+                if text:
+                    accumulated_interest += interest_value
+            
+            # 只在兴趣值变化时输出log
+            if not hasattr(self, "_last_accumulated_interest") or accumulated_interest != self._last_accumulated_interest:
+                logger.info(f"{self.context.log_prefix} breaking形式当前累计兴趣值: {accumulated_interest:.2f}, 当前聊天频率: {talk_frequency:.2f}")
+                self._last_accumulated_interest = accumulated_interest
+            
+            if accumulated_interest >= 3 / talk_frequency:
+                # 记录兴趣度到列表
+                from src.plugins.built_in.core_actions.no_reply import NoReplyAction
+                NoReplyAction._recent_interest_records.append(accumulated_interest)
+                
+                logger.info(
+                    f"{self.context.log_prefix} 累计兴趣值达到{accumulated_interest:.2f}(>{5 / talk_frequency})，结束等待"
+                )
+                return True
+
+        # 每10秒输出一次等待状态
+        if int(time.time() - self.context.last_read_time) > 0 and int(time.time() - self.context.last_read_time) % 10 == 0:
+            logger.info(
+                f"{self.context.log_prefix} 已等待{time.time() - self.context.last_read_time:.0f}秒，累计{new_message_count}条消息，继续等待..."
+            )
+        
+        return False

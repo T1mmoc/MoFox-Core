@@ -83,6 +83,8 @@ class ChatStream:
         self.sleep_pressure = data.get("sleep_pressure", 0.0) if data else 0.0
         self.saved = False
         self.context: ChatMessageContext = None  # type: ignore # 用于存储该聊天的上下文信息
+        self.focus_energy = 1
+        self.no_reply_consecutive = 0
 
     def to_dict(self) -> dict:
         """转换为字典格式"""

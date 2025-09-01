@@ -42,6 +42,9 @@ class HfcContext:
         self.expression_learner: Optional[ExpressionLearner] = None
 
         self.loop_mode = ChatMode.NORMAL
+
+        self.last_action = "no_action"
+
         self.energy_value = self.chat_stream.energy_value
         self.sleep_pressure = self.chat_stream.sleep_pressure
         self.was_sleeping = False # 用于检测睡眠状态的切换
@@ -61,8 +64,16 @@ class HfcContext:
         self.wakeup_manager: Optional["WakeUpManager"] = None
         self.energy_manager: Optional["EnergyManager"] = None
 
+        self.focus_energy = 1
+        self.no_reply_consecutive = 0
+        
+        # 引用HeartFChatting实例，以便其他组件可以调用其方法
+        self.chat_instance = None
+
     def save_context_state(self):
         """将当前状态保存到聊天流"""
         if self.chat_stream:
             self.chat_stream.energy_value = self.energy_value
             self.chat_stream.sleep_pressure = self.sleep_pressure
+            self.chat_stream.focus_energy = self.focus_energy
+            self.chat_stream.no_reply_consecutive = self.no_reply_consecutive
