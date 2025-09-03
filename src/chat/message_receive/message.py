@@ -149,6 +149,15 @@ class MessageRecv(Message):
                 self.is_emoji = False
                 self.is_video = False
                 return segment.data  # type: ignore
+            elif segment.type == "at":
+                self.is_picid = False
+                self.is_emoji = False
+                self.is_video = False
+                # 处理at消息，格式为"昵称:QQ号"
+                if segment.data and ":" in segment.data:
+                    nickname, qq_id = segment.data.split(":", 1)
+                    return f"@{nickname}"
+                return f"@{segment.data}" if segment.data else "@未知用户"
             elif segment.type == "image":
                 # 如果是base64图片数据
                 if isinstance(segment.data, str):
@@ -503,12 +512,16 @@ class MessageProcessBase(Message):
                     return await get_voice_text(seg.data)
                 return "[发了一段语音，网卡了加载不出来]"
             elif seg.type == "at":
-                return f"[@{seg.data}]"
+                # 处理at消息，格式为"昵称:QQ号"
+                if seg.data and ":" in seg.data:
+                    nickname, qq_id = seg.data.split(":", 1)
+                    return f"@{nickname}"
+                return f"@{seg.data}" if seg.data else "@未知用户"
             elif seg.type == "reply":
                 if self.reply and hasattr(self.reply, "processed_plain_text"):
                     # print(f"self.reply.processed_plain_text: {self.reply.processed_plain_text}")
                     # print(f"reply: {self.reply}")
-                    return f"[回复<{self.reply.message_info.user_info.user_nickname}:{self.reply.message_info.user_info.user_id}> 的消息：{self.reply.processed_plain_text}]"  # type: ignore
+                    return f"[回复<{self.reply.message_info.user_info.user_nickname}> 的消息：{self.reply.processed_plain_text}]"  # type: ignore
                 return None
             else:
                 return f"[{seg.type}:{str(seg.data)}]"

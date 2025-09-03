@@ -536,7 +536,8 @@ class MessageHandler:
                 logger.debug("机器人被at")
                 self_info: dict = await get_self_info(self.get_server_connection())
                 if self_info:
-                    return Seg(type="text", data=f"@<{self_info.get('nickname')}:{self_info.get('user_id')}>")
+                    # 返回包含昵称和用户ID的at格式，便于后续处理
+                    return Seg(type="at", data=f"{self_info.get('nickname')}:{self_info.get('user_id')}")
                 else:
                     return None
             else:
@@ -544,7 +545,8 @@ class MessageHandler:
                     self.get_server_connection(), group_id=group_id, user_id=qq_id
                 )
                 if member_info:
-                    return Seg(type="text", data=f"@<{member_info.get('nickname')}:{member_info.get('user_id')}>")
+                    # 返回包含昵称和用户ID的at格式，便于后续处理
+                    return Seg(type="at", data=f"{member_info.get('nickname')}:{member_info.get('user_id')}")
                 else:
                     return None
 
@@ -688,7 +690,7 @@ class MessageHandler:
             logger.warning("无法获取被引用的人的昵称，返回默认值")
             seg_message.append(Seg(type="text", data="[回复 未知用户："))
         else:
-            seg_message.append(Seg(type="text", data=f"[回复<{sender_nickname}:{sender_id}>："))
+            seg_message.append(Seg(type="text", data=f"[回复<{sender_nickname}>："))
         seg_message += reply_message
         seg_message.append(Seg(type="text", data="]，说："))
         return seg_message
