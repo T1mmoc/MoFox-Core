@@ -128,7 +128,7 @@ class CycleProcessor:
             x0 = 1.0  # 控制曲线中心点
             return 1.0 / (1.0 + math.exp(-k * (interest_val - x0)))
         
-        normal_mode_probability = calculate_normal_mode_probability(interest_value) / global_config.chat.get_current_talk_frequency(self.context.stream_id)
+        normal_mode_probability = calculate_normal_mode_probability(interest_value) * 0.5 / global_config.chat.get_current_talk_frequency(self.context.stream_id)
         
         # 根据概率决定使用哪种模式
         if random.random() < normal_mode_probability:

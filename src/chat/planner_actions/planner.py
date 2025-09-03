@@ -481,10 +481,18 @@ class ActionPlanner:
                 mentioned_bonus = "\n- 有人提到你，或者at你"
 
             if mode == ChatMode.FOCUS:
-                no_action_block = """重要说明：
+                no_action_block = """
 - 'no_reply' 表示不进行回复，等待合适的回复时机
 - 当你刚刚发送了消息，没有人回复时，选择no_reply
 - 当你一次发送了太多消息，为了避免打扰聊天节奏，选择no_reply
+动作：no_reply
+动作描述：不进行回复，等待合适的回复时机
+- 当你刚刚发送了消息，没有人回复时，选择no_reply
+- 当你一次发送了太多消息，为了避免打扰聊天节奏，选择no_reply
+{{
+    "action": "no_reply",
+    "reason":"不回复的原因"
+}}
 """
             else:  # NORMAL Mode
                 no_action_block = """重要说明：

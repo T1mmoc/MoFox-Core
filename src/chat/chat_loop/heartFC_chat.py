@@ -255,10 +255,12 @@ class HeartFChatting:
             for message in recent_messages:
                 await self.cycle_processor.observe(interest_value = interest_value)
                     
-            # 如果成功观察，增加能量值
+            # 如果成功观察，增加能量值并重置累积兴趣值
             if has_new_messages:
                 self.context.energy_value += 1 / global_config.chat.focus_value
-                logger.info(f"{self.context.log_prefix} 能量值增加，当前能量值：{self.context.energy_value:.1f}")
+                # 重置累积兴趣值，因为消息已经被成功处理
+                self.context.breaking_accumulated_interest = 0.0
+                logger.info(f"{self.context.log_prefix} 能量值增加，当前能量值：{self.context.energy_value:.1f}，重置累积兴趣值")
                     
             self._check_focus_exit()
 
@@ -384,61 +386,70 @@ class HeartFChatting:
         if self.context.no_reply_consecutive <= 3:
             self.context.focus_energy = 1
         else:
-            # 计算最近三次记录的兴趣度总和
-            total_recent_interest = sum(self.recent_interest_records)
-         
-            # 获取当前聊天频率和意愿系数
-            talk_frequency = global_config.chat.get_current_talk_frequency(self.context.stream_id)
-    
+            # 使用累积兴趣值而不是最近3次的记录
+            total_interest = self.context.breaking_accumulated_interest
+          
             # 计算调整后的阈值
-            adjusted_threshold = 3 / talk_frequency
+            adjusted_threshold = 1 / global_config.chat.get_current_talk_frequency(self.context.stream_id)
             
-            logger.info(f"{self.context.log_prefix} 最近三次兴趣度总和: {total_recent_interest:.2f}, 调整后阈值: {adjusted_threshold:.2f}")
+            logger.info(f"{self.context.log_prefix} 累积兴趣值: {total_interest:.2f}, 调整后阈值: {adjusted_threshold:.2f}")
         
-            # 如果兴趣度总和小于阈值，进入breaking形式
-            if total_recent_interest < adjusted_threshold:
-                logger.info(f"{self.context.log_prefix} 兴趣度不足，进入breaking形式")
+            # 如果累积兴趣值小于阈值，进入breaking形式
+            if total_interest < adjusted_threshold:
+                logger.info(f"{self.context.log_prefix} 累积兴趣度不足，进入breaking形式")
                 self.context.focus_energy = random.randint(3, 6)
             else:
-                logger.info(f"{self.context.log_prefix} 兴趣度充足")
+                logger.info(f"{self.context.log_prefix} 累积兴趣度充足，使用waiting形式")
                 self.context.focus_energy = 1
 
     async def _should_process_messages(self, new_message: List[Dict[str, Any]]) -> tuple[bool,float]:
         """
         统一判断是否应该处理消息的函数
         根据当前循环模式和消息内容决定是否继续处理
-        """   
+        """
         new_message_count = len(new_message)
-        # talk_frequency = global_config.chat.get_current_talk_frequency(self.context.chat_stream.stream_id)
-        modified_exit_count_threshold = self.context.focus_energy / global_config.chat.focus_value
 
-        modified_exit_interest_threshold = 3 / global_config.chat.focus_value
-        total_interest = 0.0
+        talk_frequency = global_config.chat.get_current_talk_frequency(self.context.chat_stream.stream_id)
+
+        modified_exit_count_threshold = self.context.focus_energy * 0.5 / talk_frequency
+        modified_exit_interest_threshold = 1.5 / talk_frequency
+        
+        # 计算当前批次消息的兴趣值
+        batch_interest = 0.0
         for msg_dict in new_message:
             interest_value = msg_dict.get("interest_value", 0.0)
             if msg_dict.get("processed_plain_text", ""):
-                total_interest += interest_value
+                batch_interest += interest_value
+        
+        # 在breaking形式下累积所有消息的兴趣值
+        if new_message_count > 0:
+            self.context.breaking_accumulated_interest += batch_interest
+            total_interest = self.context.breaking_accumulated_interest
+        else:
+            total_interest = self.context.breaking_accumulated_interest
         
         if new_message_count >= modified_exit_count_threshold:
-            # 记录兴趣度到列表           
+            # 记录兴趣度到列表
             self.recent_interest_records.append(total_interest)
+            # 重置累积兴趣值，因为已经达到了消息数量阈值
+            self.context.breaking_accumulated_interest = 0.0
             
             logger.info(
-                f"{self.context.log_prefix} 累计消息数量达到{new_message_count}条(>{modified_exit_count_threshold:.1f})，结束等待"
+                f"{self.context.log_prefix} 累计消息数量达到{new_message_count}条(>{modified_exit_count_threshold:.1f})，结束等待，累积兴趣值: {total_interest:.2f}"
             )
-            # logger.info(self.context.last_read_time)
-            # logger.info(new_message)
             return True,total_interest/new_message_count
 
         # 检查累计兴趣值
         if new_message_count > 0:
             # 只在兴趣值变化时输出log
             if not hasattr(self, "_last_accumulated_interest") or total_interest != self._last_accumulated_interest:
-                logger.info(f"{self.context.log_prefix} breaking形式当前累计兴趣值: {total_interest:.2f}, 专注度: {global_config.chat.focus_value:.1f}")
+                logger.info(f"{self.context.log_prefix} breaking形式当前累积兴趣值: {total_interest:.2f}, 专注度: {global_config.chat.focus_value:.1f}")
                 self._last_accumulated_interest = total_interest
             if total_interest >= modified_exit_interest_threshold:
-                # 记录兴趣度到列表      
+                # 记录兴趣度到列表
                 self.recent_interest_records.append(total_interest)
+                # 重置累积兴趣值，因为已经达到了兴趣值阈值
+                self.context.breaking_accumulated_interest = 0.0
                 logger.info(
                     f"{self.context.log_prefix} 累计兴趣值达到{total_interest:.2f}(>{modified_exit_interest_threshold:.1f})，结束等待"
                 )
@@ -447,7 +458,7 @@ class HeartFChatting:
         # 每10秒输出一次等待状态
         if int(time.time() - self.context.last_read_time) > 0 and int(time.time() - self.context.last_read_time) % 10 == 0:
             logger.info(
-                f"{self.context.log_prefix} 已等待{time.time() - self.last_read_time:.0f}秒，累计{new_message_count}条消息，累计兴趣{total_interest:.1f}，继续等待..."
+                f"{self.context.log_prefix} 已等待{time.time() - self.last_read_time:.0f}秒，累计{new_message_count}条消息，累积兴趣{total_interest:.1f}，继续等待..."
             )
             await asyncio.sleep(0.5)
         

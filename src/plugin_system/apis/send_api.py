@@ -51,6 +51,55 @@ logger = get_logger("send_api")
 # 适配器命令响应等待池
 _adapter_response_pool: Dict[str, asyncio.Future] = {}
 
+def message_dict_to_message_recv(message_dict: Dict[str, Any]) -> Optional[MessageRecv]:
+    """查找要回复的消息
+
+    Args:
+        message_dict: 消息字典
+
+    Returns:
+        Optional[MessageRecv]: 找到的消息，如果没找到则返回None
+    """
+    # 构建MessageRecv对象
+    user_info = {
+        "platform": message_dict.get("user_platform", ""),
+        "user_id": message_dict.get("user_id", ""),
+        "user_nickname": message_dict.get("user_nickname", ""),
+        "user_cardname": message_dict.get("user_cardname", ""),
+    }
+
+    group_info = {}
+    if message_dict.get("chat_info_group_id"):
+        group_info = {
+            "platform": message_dict.get("chat_info_group_platform", ""),
+            "group_id": message_dict.get("chat_info_group_id", ""),
+            "group_name": message_dict.get("chat_info_group_name", ""),
+        }
+
+    format_info = {"content_format": "", "accept_format": ""}
+    template_info = {"template_items": {}}
+
+    message_info = {
+        "platform": message_dict.get("chat_info_platform", ""),
+        "message_id": message_dict.get("message_id"),
+        "time": message_dict.get("time"),
+        "group_info": group_info,
+        "user_info": user_info,
+        "additional_config": message_dict.get("additional_config"),
+        "format_info": format_info,
+        "template_info": template_info,
+    }
+
+    message_dict = {
+        "message_info": message_info,
+        "raw_message": message_dict.get("processed_plain_text"),
+        "processed_plain_text": message_dict.get("processed_plain_text"),
+    }
+
+    message_recv = MessageRecv(message_dict)
+    
+    logger.info(f"[SendAPI] 找到匹配的回复消息，发送者: {message_dict.get('user_nickname', '')}")
+    return message_recv
 
 def put_adapter_response(request_id: str, response_data: dict) -> None:
     """将适配器响应放入响应池"""
@@ -140,7 +189,7 @@ async def _send_to_target(
         message_segment = Seg(type=message_type, data=content)  # type: ignore
 
         if reply_to_message:
-            anchor_message = MessageRecv(message_dict=reply_to_message)
+            anchor_message = message_dict_to_message_recv(message_dict=reply_to_message)
             anchor_message.update_chat_stream(target_stream)
             reply_to_platform_id = (
                 f"{anchor_message.message_info.platform}:{anchor_message.message_info.user_info.user_id}"
@@ -184,56 +233,6 @@ async def _send_to_target(
         logger.error(f"[SendAPI] 发送消息时出错: {e}")
         traceback.print_exc()
         return False
-
-
-def message_dict_to_message_recv(message_dict: Dict[str, Any]) -> Optional[MessageRecv]:
-    """将数据库dict重建为MessageRecv对象
-    Args:
-        message_dict: 消息字典
-
-    Returns:
-        Optional[MessageRecv]: 找到的消息，如果没找到则返回None
-    """
-    # 构建MessageRecv对象
-    user_info = {
-        "platform": message_dict.get("user_platform", ""),
-        "user_id": message_dict.get("user_id", ""),
-        "user_nickname": message_dict.get("user_nickname", ""),
-        "user_cardname": message_dict.get("user_cardname", ""),
-    }
-
-    group_info = {}
-    if message_dict.get("chat_info_group_id"):
-        group_info = {
-            "platform": message_dict.get("chat_info_group_platform", ""),
-            "group_id": message_dict.get("chat_info_group_id", ""),
-            "group_name": message_dict.get("chat_info_group_name", ""),
-        }
-
-    format_info = {"content_format": "", "accept_format": ""}
-    template_info = {"template_items": {}}
-
-    message_info = {
-        "platform": message_dict.get("chat_info_platform", ""),
-        "message_id": message_dict.get("message_id"),
-        "time": message_dict.get("time"),
-        "group_info": group_info,
-        "user_info": user_info,
-        "additional_config": message_dict.get("additional_config"),
-        "format_info": format_info,
-        "template_info": template_info,
-    }
-
-    message_dict_recv = {
-        "message_info": message_info,
-        "raw_message": message_dict.get("processed_plain_text"),
-        "processed_plain_text": message_dict.get("processed_plain_text"),
-    }
-
-    message_recv = MessageRecv(message_dict_recv)
-    
-    logger.info(f"[SendAPI] 找到匹配的回复消息，发送者: {message_dict.get('user_nickname', '')}")
-    return message_recv
 
 
 

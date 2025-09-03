@@ -47,6 +47,9 @@ class HfcContext:
         
         self.last_message_time = time.time()
         self.last_read_time = time.time() - 10
+        
+        # 从聊天流恢复breaking累积兴趣值
+        self.breaking_accumulated_interest = getattr(self.chat_stream, 'breaking_accumulated_interest', 0.0)
 
         self.action_manager = ActionManager()
 
@@ -63,6 +66,8 @@ class HfcContext:
         self.focus_energy = 1
         self.no_reply_consecutive = 0
         self.total_interest = 0.0
+        # breaking形式下的累积兴趣值
+        self.breaking_accumulated_interest = 0.0
         # 引用HeartFChatting实例，以便其他组件可以调用其方法
         self.chat_instance = None
 
@@ -73,3 +78,4 @@ class HfcContext:
             self.chat_stream.sleep_pressure = self.sleep_pressure
             self.chat_stream.focus_energy = self.focus_energy
             self.chat_stream.no_reply_consecutive = self.no_reply_consecutive
+            self.chat_stream.breaking_accumulated_interest = self.breaking_accumulated_interest
