@@ -157,6 +157,16 @@ class HeartFChatting:
             logger.info(f"{self.context.log_prefix} HeartFChatting: 结束了聊天")
 
     def _handle_proactive_monitor_completion(self, task: asyncio.Task):
+        """
+        处理主动思考监视器任务完成
+
+        Args:
+            task: 完成的异步任务对象
+
+        功能说明:
+        - 处理任务异常完成的情况
+        - 记录任务正常结束或被取消的日志
+        """
         try:
             if exception := task.exception():
                 logger.error(f"{self.context.log_prefix} 主动思考监视器异常: {exception}")
@@ -166,6 +176,15 @@ class HeartFChatting:
             logger.info(f"{self.context.log_prefix} 主动思考监视器被取消")
 
     async def _proactive_monitor_loop(self):
+        """
+        主动思考监视器循环
+
+        功能说明:
+        - 定期检查是否需要进行主动思考
+        - 计算聊天沉默时间，并与动态思考间隔比较
+        - 当沉默时间超过阈值时，触发主动思考
+        - 处理思考过程中的异常
+        """
         while self.context.running:
             await asyncio.sleep(15)
 
@@ -191,6 +210,17 @@ class HeartFChatting:
                     logger.error(traceback.format_exc())
 
     def _should_enable_proactive_thinking(self) -> bool:
+        """
+        判断是否应启用主动思考
+
+        Returns:
+            bool: 如果应启用主动思考则返回True，否则返回False
+
+        功能说明:
+        - 检查全局配置和特定聊天设置
+        - 支持按群聊和私聊分别配置
+        - 支持白名单模式，只在特定聊天中启用
+        """
         if not self.context.chat_stream:
             return False
 
@@ -212,6 +242,17 @@ class HeartFChatting:
         return not enable_list or current_chat_identifier in enable_list
 
     def _get_dynamic_thinking_interval(self) -> float:
+        """
+        获取动态思考间隔时间
+
+        Returns:
+            float: 思考间隔秒数
+
+        功能说明:
+        - 尝试从timing_utils导入正态分布间隔函数
+        - 根据配置计算动态间隔，增加随机性
+        - 在无法导入或计算出错时，回退到固定的间隔
+        """
         try:
             from src.utils.timing_utils import get_normal_distributed_interval
 
@@ -239,6 +280,15 @@ class HeartFChatting:
             return max(300, abs(global_config.chat.proactive_thinking_interval))
 
     def _format_duration(self, seconds: float) -> str:
+        """
+        格式化时长为可读字符串
+
+        Args:
+            seconds: 时长秒数
+
+        Returns:
+            str: 格式化后的字符串 (例如 "1小时2分3秒")
+        """
         hours = int(seconds // 3600)
         minutes = int((seconds % 3600) // 60)
         secs = int(seconds % 60)
