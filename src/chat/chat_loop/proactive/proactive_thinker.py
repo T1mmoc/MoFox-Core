@@ -6,6 +6,7 @@ from src.common.logger import get_logger
 from src.plugin_system.base.component_types import ChatMode
 from ..hfc_context import HfcContext
 from .events import ProactiveTriggerEvent
+from src.plugin_system.apis import generator_api
 
 if TYPE_CHECKING:
     from ..cycle_processor import CycleProcessor
@@ -103,23 +104,19 @@ class ProactiveThinker:
 
             # 如果决策不是 do_nothing，则执行
             if action_result and action_result.get("action_type") != "do_nothing":
-                # 在主动思考时，如果 target_message 为 None，则默认选取最新 message 作为 target_message
-                if target_message is None and self.context.chat_stream and self.context.chat_stream.context:
-                    from src.chat.message_receive.message import MessageRecv
-
-                    latest_message = self.context.chat_stream.context.get_last_message()
-                    if isinstance(latest_message, MessageRecv):
-                        user_info = latest_message.message_info.user_info
-                        target_message = {
-                            "chat_info_platform": latest_message.message_info.platform,
-                            "user_platform": user_info.platform if user_info else None,
-                            "user_id": user_info.user_id if user_info else None,
-                            "processed_plain_text": latest_message.processed_plain_text,
-                            "is_mentioned": latest_message.is_mentioned,
-                        }
-
-                # 将决策结果交给 cycle_processor 的后续流程处理
-                await self.cycle_processor.execute_plan(action_result, target_message)
+                if action_result.get("action_type") == "reply":
+                    success, response_set, _ = await generator_api.generate_reply(
+                        chat_stream=self.context.chat_stream,
+                        reply_message=action_result["action_message"],
+                        available_actions={},
+                        enable_tool=False,
+                        request_type="chat.replyer.proactive",
+                        from_plugin=False,
+                    )
+                    if success and response_set:
+                        await self.cycle_processor.response_handler.send_response(
+                            response_set, time.time(), action_result["action_message"]
+                        )
             else:
                 logger.info(f"{self.context.log_prefix} 主动思考决策: 保持沉默")
 

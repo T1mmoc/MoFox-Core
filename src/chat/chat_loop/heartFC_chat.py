@@ -342,31 +342,36 @@ class HeartFChatting:
                     logger.info(f"{self.context.log_prefix} 从睡眠中被唤醒，将处理积压的消息。")
 
             # 根据聊天模式处理新消息
-            # 统一使用 _should_process_messages 判断是否应该处理
             should_process, interest_value = await self._should_process_messages(recent_messages)
-            if should_process:
-                self.context.last_read_time = time.time()
-                await self.cycle_processor.observe(interest_value=interest_value)
-            else:
-                # Normal模式：消息数量不足，等待
+            if not should_process:
+                # 消息数量不足或兴趣不够，等待
                 await asyncio.sleep(0.5)
-                return True
+                return True  # Skip rest of the logic for this iteration
 
-            if not await self._should_process_messages(recent_messages):
-                return has_new_messages
+            # Messages should be processed
+            action_type = await self.cycle_processor.observe(interest_value=interest_value)
 
-            # 处理新消息
-            for message in recent_messages:
-                await self.cycle_processor.observe(interest_value=interest_value)
+            # 管理no_reply计数器
+            if action_type != "no_reply":
+                self.recent_interest_records.clear()
+                self.context.no_reply_consecutive = 0
+                logger.debug(f"{self.context.log_prefix} 执行了{action_type}动作，重置no_reply计数器")
+            else:  # action_type == "no_reply"
+                self.context.no_reply_consecutive += 1
+                self._determine_form_type()
+
+            # 在一轮动作执行完毕后，增加睡眠压力
+            if self.context.energy_manager and global_config.sleep_system.enable_insomnia_system:
+                if action_type not in ["no_reply", "no_action"]:
+                    self.context.energy_manager.increase_sleep_pressure()
 
             # 如果成功观察，增加能量值并重置累积兴趣值
-            if has_new_messages:
-                self.context.energy_value += 1 / global_config.chat.focus_value
-                # 重置累积兴趣值，因为消息已经被成功处理
-                self.context.breaking_accumulated_interest = 0.0
-                logger.info(
-                    f"{self.context.log_prefix} 能量值增加，当前能量值：{self.context.energy_value:.1f}，重置累积兴趣值"
-                )
+            self.context.energy_value += 1 / global_config.chat.focus_value
+            # 重置累积兴趣值，因为消息已经被成功处理
+            self.context.breaking_accumulated_interest = 0.0
+            logger.info(
+                f"{self.context.log_prefix} 能量值增加，当前能量值：{self.context.energy_value:.1f}，重置累积兴趣值"
+            )
 
         # 更新上一帧的睡眠状态
         self.context.was_sleeping = is_sleeping
