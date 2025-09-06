@@ -236,17 +236,6 @@ class ActionPlanner:
         构建动作选项
         """
         action_options_block = ""
-
-        if mode == ChatMode.PROACTIVE:
-            action_options_block += """动作：do_nothing
-动作描述：保持沉默，不主动发起任何动作或对话。
-- 当你分析了所有信息后，觉得当前不是一个发起互动的好时机时
-{{
-    "action": "do_nothing",
-    "reason":"决定保持沉默的具体原因"
-}}
-
-"""
         for action_name, action_info in current_available_actions.items():
             # TODO: 增加一个字段来判断action是否支持在PROACTIVE模式下使用
 
