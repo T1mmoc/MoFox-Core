@@ -6,7 +6,7 @@ from typing import Tuple, Optional, Dict, Any
 
 from src.common.logger import get_logger
 from src.chat.message_receive.chat_stream import ChatStream
-from src.plugin_system.base.component_types import ActionActivationType, ChatMode, ActionInfo, ComponentType, ChatType
+from src.plugin_system.base.component_types import ActionActivationType, ChatMode, ActionInfo, ComponentType, ChatType,PlannerType
 from src.plugin_system.apis import send_api, database_api, message_api
 
 
@@ -92,6 +92,8 @@ class BaseAction(ABC):
         self.parallel_action: bool = getattr(self.__class__, "parallel_action", True)
         self.associated_types: list[str] = getattr(self.__class__, "associated_types", []).copy()
         self.chat_type_allow: ChatType = getattr(self.__class__, "chat_type_allow", ChatType.ALL)
+        self.planner_type: PlannerType =  getattr(self.__class__, "planner_type", ChatType.ALL)
+
 
         # =============================================================================
         # 便捷属性 - 直接在初始化时获取常用聊天信息（带类型注解）

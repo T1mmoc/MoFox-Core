@@ -51,6 +51,17 @@ class ChatMode(Enum):
 
 
 # 聊天类型枚举
+class PlannerType(Enum):
+    """规划器类型枚举"""
+
+    BIG_BRAIN = "big_brain"  # 大脑，负责宏观决策
+    SMALL_BRAIN = "small_brain"  # 小脑，负责具体动作
+    ALL = "all"  # 通用
+
+    def __str__(self):
+        return self.value
+
+
 class ChatType(Enum):
     """聊天类型枚举，用于限制插件在不同聊天环境中的使用"""
 
@@ -140,6 +151,7 @@ class ActionInfo(ComponentInfo):
     mode_enable: ChatMode = ChatMode.ALL
     parallel_action: bool = False
     chat_type_allow: ChatType = ChatType.ALL  # 允许的聊天类型
+    planner_type: PlannerType = PlannerType.ALL
 
     def __post_init__(self):
         super().__post_init__()
@@ -215,27 +227,7 @@ class EventInfo(ComponentInfo):
 
     def __post_init__(self):
         super().__post_init__()
-        self.component_type = ComponentType.EVENT
-
-
-# 事件类型枚举
-class EventType(Enum):
-    """
-    事件类型枚举类
-    """
-
-    ON_START = "on_start"  # 启动事件，用于调用按时任务
-    ON_STOP = "on_stop"  # 停止事件，用于调用按时任务
-    ON_MESSAGE = "on_message"
-    ON_PLAN = "on_plan"
-    POST_LLM = "post_llm"
-    AFTER_LLM = "after_llm"
-    POST_SEND = "post_send"
-    AFTER_SEND = "after_send"
-    UNKNOWN = "unknown"  # 未知事件类型
-
-    def __str__(self) -> str:
-        return self.value
+        self.component_type = ComponentType.EVENT_HANDLER
 
 
 @dataclass

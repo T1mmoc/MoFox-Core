@@ -10,7 +10,7 @@ from src.plugin_system import (
 )
 from src.person_info.person_info import get_person_info_manager
 from src.common.logger import get_logger
-from src.plugin_system.base.component_types import ChatType
+from src.plugin_system.base.component_types import ChatType,PlannerType
 
 logger = get_logger(__name__)
 
@@ -24,6 +24,7 @@ class AtAction(BaseAction):
     activation_type = ActionActivationType.LLM_JUDGE  # 消息接收时激活(?)
     parallel_action = False
     chat_type_allow = ChatType.GROUP
+    planner_type = PlannerType.BIG_BRAIN
 
     # === 功能描述（必须填写）===
     action_parameters = {"user_name": "需要艾特用户的名字", "at_message": "艾特用户时要发送的消,注意消息里不要有@"}

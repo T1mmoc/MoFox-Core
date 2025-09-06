@@ -228,6 +228,8 @@ class CycleProcessor:
         async def execute_action(action_info):
             """执行单个动作的通用函数"""
             try:
+                if action_info["action_type"] == "no_action":
+                    return {"action_type": "no_action", "success": True, "reply_text": "", "command": ""}            
                 if action_info["action_type"] == "no_reply":
                     # 直接处理no_reply逻辑，不再通过动作系统
                     reason = action_info.get("reasoning", "选择不回复")
@@ -245,7 +247,7 @@ class CycleProcessor:
                     )
 
                     return {"action_type": "no_reply", "success": True, "reply_text": "", "command": ""}
-                elif action_info["action_type"] != "reply":
+                elif action_info["action_type"] != "reply" and action_info["action_type"] != "no_action":
                     # 执行普通动作
                     with Timer("动作执行", cycle_timers):
                         success, reply_text, command = await self._handle_action(
@@ -420,7 +422,7 @@ class CycleProcessor:
                 if "reply" in available_actions:
                     fallback_action = "reply"
                 elif available_actions:
-                    fallback_action = list(available_actions.keys())
+                    fallback_action = list(available_actions.keys())[0]
 
                 if fallback_action and fallback_action != action:
                     logger.info(f"{self.context.log_prefix} 使用回退动作: {fallback_action}")
