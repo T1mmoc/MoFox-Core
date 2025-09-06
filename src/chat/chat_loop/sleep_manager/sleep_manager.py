@@ -10,7 +10,7 @@ from .time_checker import TimeChecker
 from .notification_sender import NotificationSender
 
 if TYPE_CHECKING:
-    from mmc.src.chat.chat_loop.sleep_manager.wakeup_manager import WakeUpManager
+    from .wakeup_manager import WakeUpManager
 
 logger = get_logger("sleep_manager")
 

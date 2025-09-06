@@ -138,7 +138,7 @@ class WakeUpManager:
             return False
 
         # 只有在休眠且非失眠状态下才累积唤醒度
-        from mmc.src.chat.chat_loop.sleep_manager.sleep_manager import SleepState
+        from .sleep_state import SleepState
 
         sleep_manager = self.context.sleep_manager
         if not sleep_manager:
