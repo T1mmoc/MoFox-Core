@@ -478,6 +478,18 @@ class PersonInfoManager:
 
         # Ensure person_id is correctly set from the argument
         final_data["person_id"] = person_id
+        # 你们的英文注释是何意味？
+        
+        # 检查并修复关键字段为None的情况喵
+        if final_data.get("user_id") is None:
+            logger.warning(f"user_id为None，使用'unknown'作为默认值 person_id={person_id}")
+            final_data["user_id"] = "unknown"
+        
+        if final_data.get("platform") is None:
+            logger.warning(f"platform为None，使用'unknown'作为默认值 person_id={person_id}")
+            final_data["platform"] = "unknown"
+        
+        # 这里的目的是为了防止在识别出错的情况下有一个最小回退，不只是针对@消息识别成视频后的报错问题
 
         # Serialize JSON fields
         for key in JSON_SERIALIZED_FIELDS:
@@ -527,6 +539,15 @@ class PersonInfoManager:
 
         # Ensure person_id is correctly set from the argument
         final_data["person_id"] = person_id
+        
+        # 检查并修复关键字段为None的情况
+        if final_data.get("user_id") is None:
+            logger.warning(f"user_id为None，使用'unknown'作为默认值 person_id={person_id}")
+            final_data["user_id"] = "unknown"
+        
+        if final_data.get("platform") is None:
+            logger.warning(f"platform为None，使用'unknown'作为默认值 person_id={person_id}")
+            final_data["platform"] = "unknown"
 
         # Serialize JSON fields
         for key in JSON_SERIALIZED_FIELDS:
@@ -623,6 +644,15 @@ class PersonInfoManager:
                 creation_data["platform"] = data["platform"]
             if data and "user_id" in data:
                 creation_data["user_id"] = data["user_id"]
+            
+            # 额外检查关键字段，如果为None则使用默认值
+            if creation_data.get("user_id") is None:
+                logger.warning(f"创建用户时user_id为None，使用'unknown'作为默认值 person_id={person_id}")
+                creation_data["user_id"] = "unknown"
+            
+            if creation_data.get("platform") is None:
+                logger.warning(f"创建用户时platform为None，使用'unknown'作为默认值 person_id={person_id}")
+                creation_data["platform"] = "unknown"
 
             # 使用安全的创建方法，处理竞态条件
             await self._safe_create_person_info(person_id, creation_data)
