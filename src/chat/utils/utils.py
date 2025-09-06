@@ -371,7 +371,7 @@ def process_llm_response(
             if isinstance(s, dict) and s.get("type") == "typo":
                 s["original"] = recover_kaomoji([s["original"]], kaomoji_mapping)
                 s["typo"] = recover_kaomoji([s["typo"]], kaomoji_mapping)
-                s["correction"] = recover_kaomoji([s["correction"]], kaomoji_mapping)
+                s["correction"] = recover_kaomoji(s["correction"], kaomoji_mapping)
                 recovered_sentences.append(s)
             elif isinstance(s, dict) and s.get("type") == "text":
                 s["content"] = recover_kaomoji([s["content"]], kaomoji_mapping)
