@@ -1,0 +1,25 @@
+{
+  "manifest_version": 1,
+  "name": "web_search_tool",
+  "version": "1.0.0",
+  "description": "一个用于在互联网上搜索信息的工具",
+  "author": {
+    "name": "MoFox-Studio",
+    "url": "https://github.com/MoFox-Studio"
+  },
+  "license": "GPL-v3.0-or-later",
+  
+  "host_application": {
+    "min_version": "0.10.0"
+  },
+  "keywords": ["web_search", "url_parser"],
+  "categories": ["web_search", "url_parser"],
+  
+  "default_locale": "zh-CN",
+  "locales_path": "_locales",
+  
+  "plugin_info": {
+    "is_built_in": false,
+    "plugin_type": "web_search"
+  }
+}

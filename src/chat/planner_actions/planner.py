@@ -90,12 +90,31 @@ def init_prompt():
 ## 长期记忆摘要
 {long_term_memory_block}
 
+## 最近的聊天内容
+{chat_content_block}
+
 ## 任务
-基于以上所有信息，分析当前情况，决定是否需要主动做些什么。
-如果你认为不需要，就选择 'do_nothing'。
+基于以上所有信息（特别是最近的聊天内容），分析当前情况，决定是否适合主动开启一个**新的、但又与当前氛围相关**的话题。
 
 ## 可用动作
-{action_options_text}
+动作：proactive_reply
+动作描述：在当前对话的基础上，主动发起一个新的对话，分享一个有趣的想法、见闻或者对未来的计划。
+- 当你觉得可以说些什么来活跃气氛，并且内容与当前聊天氛围不冲突时
+- 当你有一些新的想法或计划想要分享，并且可以自然地衔接当前话题时
+{{
+    "action": "proactive_reply",
+    "reason": "决定主动发起对话的具体原因",
+    "topic": "你想要发起对话的主题或内容（需要简洁）"
+}}
+
+动作：do_nothing
+动作描述：保持沉默，不主动发起任何动作或对话。
+- 当你分析了所有信息后，觉得当前不是一个发起互动的好时机时
+- 当最近的聊天内容很连贯，你的插入会打断别人时
+{{
+    "action": "do_nothing",
+    "reason":"决定保持沉默的具体原因"
+}}
 
 你必须从上面列出的可用action中选择一个。
 请以严格的 JSON 格式输出，且仅包含 JSON 内容：
@@ -643,7 +662,19 @@ class ActionPlanner:
             # --- 根据模式构建不同的Prompt ---
             if mode == ChatMode.PROACTIVE:
                 long_term_memory_block = await self._get_long_term_memory_context()
-                action_options_text = await self._build_action_options(current_available_actions, mode)
+                
+                # 获取最近的聊天记录用于主动思考决策
+                message_list_short = get_raw_msg_before_timestamp_with_chat(
+                    chat_id=self.chat_id,
+                    timestamp=time.time(),
+                    limit=int(global_config.chat.max_context_size * 0.2), # 主动思考时只看少量最近消息
+                )
+                chat_content_block, _ = build_readable_messages_with_id(
+                    messages=message_list_short,
+                    timestamp_mode="normal",
+                    truncate=False,
+                    show_actions=False,
+                )
 
                 prompt_template = await global_prompt_manager.get_prompt_async("proactive_planner_prompt")
                 prompt = prompt_template.format(
@@ -652,7 +683,7 @@ class ActionPlanner:
                     schedule_block=schedule_block,
                     mood_block=mood_block,
                     long_term_memory_block=long_term_memory_block,
-                    action_options_text=action_options_text,
+                    chat_content_block=chat_content_block or "最近没有聊天内容。",
                 )
                 return prompt, []
 

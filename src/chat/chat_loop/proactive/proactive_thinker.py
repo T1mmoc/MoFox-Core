@@ -1,12 +1,19 @@
 import time
 import traceback
-from typing import TYPE_CHECKING
+import orjson
+from typing import TYPE_CHECKING, Dict, Any
 
 from src.common.logger import get_logger
 from src.plugin_system.base.component_types import ChatMode
 from ..hfc_context import HfcContext
 from .events import ProactiveTriggerEvent
 from src.plugin_system.apis import generator_api
+from src.schedule.schedule_manager import schedule_manager
+from src.plugin_system import tool_api
+from src.plugin_system.base.component_types import ComponentType
+from src.config.config import global_config
+from src.chat.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat, build_readable_messages_with_id
+from src.mood.mood_manager import mood_manager
 
 if TYPE_CHECKING:
     from ..cycle_processor import CycleProcessor
@@ -20,6 +27,7 @@ class ProactiveThinker:
     当接收到 ProactiveTriggerEvent 时，它会根据事件内容进行一系列决策和操作，
     例如调整情绪、调用规划器生成行动，并最终可能产生一个主动的回复。
     """
+
     def __init__(self, context: HfcContext, cycle_processor: "CycleProcessor"):
         """
         初始化主动思考器。
@@ -75,9 +83,6 @@ class ProactiveThinker:
             return
 
         try:
-            # 动态导入情绪管理器，避免循环依赖
-            from src.mood.mood_manager import mood_manager
-
             # 获取当前聊天的情绪对象
             mood_obj = mood_manager.get_mood_by_chat_id(self.context.stream_id)
             new_mood = None
@@ -112,33 +117,116 @@ class ProactiveThinker:
         """
         try:
             # 调用规划器的 PROACTIVE 模式，让其决定下一步的行动
-            actions, target_message = await self.cycle_processor.action_planner.plan(mode=ChatMode.PROACTIVE)
+            actions, _ = await self.cycle_processor.action_planner.plan(mode=ChatMode.PROACTIVE)
 
             # 通常只关心规划出的第一个动作
             action_result = actions[0] if actions else {}
 
-            # 检查规划出的动作是否是“什么都不做”
-            if action_result and action_result.get("action_type") != "do_nothing":
-                # 如果动作是“回复”
-                if action_result.get("action_type") == "reply":
-                    # 调用生成器API来创建回复内容
-                    success, response_set, _ = await generator_api.generate_reply(
-                        chat_stream=self.context.chat_stream,
-                        reply_message=action_result["action_message"],
-                        available_actions={},  # 主动回复不考虑工具使用
-                        enable_tool=False,
-                        request_type="chat.replyer.proactive", # 标记请求类型
-                        from_plugin=False,
-                    )
-                    # 如果成功生成回复，则发送出去
-                    if success and response_set:
-                        await self.cycle_processor.response_handler.send_response(
-                            response_set, time.time(), action_result["action_message"]
-                        )
+            action_type = action_result.get("action_type")
+
+            if action_type == "proactive_reply":
+                await self._generate_proactive_content_and_send(action_result)
+            elif action_type != "do_nothing":
+                logger.warning(f"{self.context.log_prefix} 主动思考返回了未知的动作类型: {action_type}")
             else:
                 # 如果规划结果是“什么都不做”，则记录日志
                 logger.info(f"{self.context.log_prefix} 主动思考决策: 保持沉默")
 
         except Exception as e:
             logger.error(f"{self.context.log_prefix} 主动思考执行异常: {e}")
+            logger.error(traceback.format_exc())
+
+    async def _generate_proactive_content_and_send(self, action_result: Dict[str, Any]):
+        """
+        获取实时信息，构建最终的生成提示词，并生成和发送主动回复。
+
+        Args:
+            action_result (Dict[str, Any]): 规划器返回的动作结果。
+        """
+        try:
+            topic = action_result.get("action_data", {}).get("topic", "随便聊聊")
+            logger.info(f"{self.context.log_prefix} 主动思考确定主题: '{topic}'")
+
+            # 1. 获取日程信息
+            schedule_block = "你今天没有日程安排。"
+            if global_config.planning_system.schedule_enable:
+                if current_activity := schedule_manager.get_current_activity():
+                    schedule_block = f"你当前正在：{current_activity}。"
+
+            # 2. 网络搜索
+            news_block = "暂时没有获取到最新资讯。"
+            try:
+                web_search_tool = tool_api.get_tool_instance("web_search")
+                if web_search_tool:
+                    tool_args = {"query": topic, "max_results": 10}
+                    # 调用工具，并传递参数
+                    search_result_dict = await web_search_tool.execute(**tool_args)
+                    if search_result_dict and not search_result_dict.get("error"):
+                        news_block = search_result_dict.get("content", "未能提取有效资讯。")
+                    else:
+                        logger.warning(f"{self.context.log_prefix} 网络搜索返回错误: {search_result_dict.get('error')}")
+                else:
+                    logger.warning(f"{self.context.log_prefix} 未找到 web_search 工具实例。")
+            except Exception as e:
+                logger.error(f"{self.context.log_prefix} 主动思考时网络搜索失败: {e}")
+
+            # 3. 获取最新的聊天上下文
+            message_list = get_raw_msg_before_timestamp_with_chat(
+                chat_id=self.context.stream_id,
+                timestamp=time.time(),
+                limit=int(global_config.chat.max_context_size * 0.3),
+            )
+            chat_context_block, _ = build_readable_messages_with_id(messages=message_list)
+
+            # 4. 构建最终的生成提示词
+            bot_name = global_config.bot.nickname
+            identity_block = f"你的名字是{bot_name}，你{global_config.personality.personality_core}："
+            mood_block = f"你现在的心情是：{mood_manager.get_mood_by_chat_id(self.context.stream_id).mood_state}"
+
+            final_prompt = f"""
+# 主动对话生成
+
+## 你的角色
+{identity_block}
+
+## 你的心情
+{mood_block}
+
+## 你今天的日程安排
+{schedule_block}
+
+## 关于你准备讨论的话题“{topic}”的最新信息
+{news_block}
+
+## 最近的聊天内容
+{chat_context_block}
+
+## 任务
+你之前决定要发起一个关于“{topic}”的对话。现在，请结合以上所有信息，自然地开启这个话题。
+
+## 要求
+- 你的发言要听起来像是自发的，而不是在念报告。
+- 巧妙地将日程安排或最新信息融入到你的开场白中。
+- 风格要符合你的角色设定。
+- 直接输出你想要说的内容，不要包含其他额外信息。
+"""
+
+            # 5. 调用生成器API并发送
+            response_text = await generator_api.generate_response_custom(
+                chat_stream=self.context.chat_stream,
+                prompt=final_prompt,
+                request_type="chat.replyer.proactive",
+            )
+
+            if response_text:
+                # 将纯文本包装成 ResponseSet 格式
+                response_set = [{"type": "text", "data": {"text": response_text}}]
+                await self.cycle_processor.response_handler.send_response(
+                    response_set, time.time(), action_result.get("action_message")
+                )
+            else:
+                logger.error(f"{self.context.log_prefix} 主动思考生成回复失败。")
+
+        except Exception as e:
+            logger.error(f"{self.context.log_prefix} 生成主动回复内容时异常: {e}")
             logger.error(traceback.format_exc())
