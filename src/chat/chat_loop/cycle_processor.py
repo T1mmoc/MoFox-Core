@@ -206,7 +206,7 @@ class CycleProcessor:
 
             # 触发规划前事件
             result = await event_manager.trigger_event(
-                EventType.ON_PLAN, plugin_name="SYSTEM", stream_id=self.context.chat_stream
+                EventType.ON_PLAN, permission_group="SYSTEM", stream_id=self.context.chat_stream
             )
             if not result.all_continue_process():
                 raise UserWarning(f"插件{result.get_summary().get('stopped_handlers', '')}于规划前中断了内容生成")

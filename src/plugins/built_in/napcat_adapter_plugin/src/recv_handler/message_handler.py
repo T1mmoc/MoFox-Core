@@ -385,7 +385,7 @@ class MessageHandler:
                     ret_seg = await self.handle_text_message(sub_message)
                     if ret_seg:
                         await event_manager.trigger_event(
-                            NapcatEvent.ON_RECEIVED.TEXT, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                            NapcatEvent.ON_RECEIVED.TEXT, permission_group=PLUGIN_NAME, message_seg=ret_seg
                         )
                         seg_message.append(ret_seg)
                     else:
@@ -394,7 +394,7 @@ class MessageHandler:
                     ret_seg = await self.handle_face_message(sub_message)
                     if ret_seg:
                         await event_manager.trigger_event(
-                            NapcatEvent.ON_RECEIVED.FACE, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                            NapcatEvent.ON_RECEIVED.FACE, permission_group=PLUGIN_NAME, message_seg=ret_seg
                         )
                         seg_message.append(ret_seg)
                     else:
@@ -404,7 +404,7 @@ class MessageHandler:
                         ret_seg = await self.handle_reply_message(sub_message)
                         if ret_seg:
                             await event_manager.trigger_event(
-                                NapcatEvent.ON_RECEIVED.REPLY, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                                NapcatEvent.ON_RECEIVED.REPLY, permission_group=PLUGIN_NAME, message_seg=ret_seg
                             )
                             seg_message += ret_seg
                         else:
@@ -414,7 +414,7 @@ class MessageHandler:
                     ret_seg = await self.handle_image_message(sub_message)
                     if ret_seg:
                         await event_manager.trigger_event(
-                            NapcatEvent.ON_RECEIVED.IMAGE, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                            NapcatEvent.ON_RECEIVED.IMAGE, permission_group=PLUGIN_NAME, message_seg=ret_seg
                         )
                         seg_message.append(ret_seg)
                         logger.debug("图片处理成功，添加到消息段")
@@ -425,7 +425,7 @@ class MessageHandler:
                     ret_seg = await self.handle_record_message(sub_message)
                     if ret_seg:
                         await event_manager.trigger_event(
-                            NapcatEvent.ON_RECEIVED.RECORD, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                            NapcatEvent.ON_RECEIVED.RECORD, permission_group=PLUGIN_NAME, message_seg=ret_seg
                         )
                         seg_message.clear()
                         seg_message.append(ret_seg)
@@ -437,7 +437,7 @@ class MessageHandler:
                     ret_seg = await self.handle_video_message(sub_message)
                     if ret_seg:
                         await event_manager.trigger_event(
-                            NapcatEvent.ON_RECEIVED.VIDEO, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                            NapcatEvent.ON_RECEIVED.VIDEO, permission_group=PLUGIN_NAME, message_seg=ret_seg
                         )
                         seg_message.append(ret_seg)
                     else:
@@ -451,7 +451,7 @@ class MessageHandler:
                     )
                     if ret_seg:
                         await event_manager.trigger_event(
-                            NapcatEvent.ON_RECEIVED.AT, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                            NapcatEvent.ON_RECEIVED.AT, permission_group=PLUGIN_NAME, message_seg=ret_seg
                         )
                         seg_message.append(ret_seg)
                     else:
@@ -460,7 +460,7 @@ class MessageHandler:
                     ret_seg = await self.handle_rps_message(sub_message)
                     if ret_seg:
                         await event_manager.trigger_event(
-                            NapcatEvent.ON_RECEIVED.RPS, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                            NapcatEvent.ON_RECEIVED.RPS, permission_group=PLUGIN_NAME, message_seg=ret_seg
                         )
                         seg_message.append(ret_seg)
                     else:
@@ -469,7 +469,7 @@ class MessageHandler:
                     ret_seg = await self.handle_dice_message(sub_message)
                     if ret_seg:
                         await event_manager.trigger_event(
-                            NapcatEvent.ON_RECEIVED.DICE, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                            NapcatEvent.ON_RECEIVED.DICE, permission_group=PLUGIN_NAME, message_seg=ret_seg
                         )
                         seg_message.append(ret_seg)
                     else:
@@ -478,7 +478,7 @@ class MessageHandler:
                     ret_seg = await self.handle_shake_message(sub_message)
                     if ret_seg:
                         await event_manager.trigger_event(
-                            NapcatEvent.ON_RECEIVED.SHAKE, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                            NapcatEvent.ON_RECEIVED.SHAKE, permission_group=PLUGIN_NAME, message_seg=ret_seg
                         )
                         seg_message.append(ret_seg)
                     else:
@@ -507,7 +507,7 @@ class MessageHandler:
                     ret_seg = await self.handle_json_message(sub_message)
                     if ret_seg:
                         await event_manager.trigger_event(
-                            NapcatEvent.ON_RECEIVED.JSON, plugin_name=PLUGIN_NAME, message_seg=ret_seg
+                            NapcatEvent.ON_RECEIVED.JSON, permission_group=PLUGIN_NAME, message_seg=ret_seg
                         )
                         seg_message.append(ret_seg)
                     else:

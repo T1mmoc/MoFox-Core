@@ -289,7 +289,7 @@ class EventManager:
         return {handler.handler_name: handler for handler in event.subscribers}
 
     async def trigger_event(
-        self, event_name: Union[EventType, str], plugin_name: Optional[str] = "", **kwargs
+        self, event_name: Union[EventType, str], permission_group: Optional[str] = "", **kwargs
     ) -> Optional[HandlerResultsCollection]:
         """触发指定事件
 
@@ -309,11 +309,11 @@ class EventManager:
             return None
 
         # 插件白名单检查
-        if event.allowed_triggers and not plugin_name:
+        if event.allowed_triggers and not permission_group:
             logger.warning(f"事件 {event_name} 存在触发者白名单，缺少plugin_name无法验证权限，已拒绝触发！")
             return None
-        elif event.allowed_triggers and plugin_name not in event.allowed_triggers:
-            logger.warning(f"插件 {plugin_name} 没有权限触发事件 {event_name}，已拒绝触发！")
+        elif event.allowed_triggers and permission_group not in event.allowed_triggers:
+            logger.warning(f"插件 {permission_group} 没有权限触发事件 {event_name}，已拒绝触发！")
             return None
 
         return await event.activate(params)

@@ -83,7 +83,7 @@ class AtAction(BaseAction):
             from src.plugin_system.core.event_manager import event_manager
             from src.plugin_system import EventType
             # 触发post_llm
-            result = await event_manager.trigger_event(EventType.POST_LLM,plugin_name="SYSTEM")
+            result = await event_manager.trigger_event(EventType.POST_LLM, permission_group="SYSTEM")
             if not result.all_continue_process():
                 return False, f"被组件{result.get_summary().get("stopped_handlers","")}打断"
             

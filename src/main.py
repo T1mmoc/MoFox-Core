@@ -117,7 +117,7 @@ class MainSystem:
             # 停止消息重组器
             from src.plugin_system.core.event_manager import event_manager
             from src.plugin_system import EventType
-            asyncio.run(event_manager.trigger_event(EventType.ON_STOP,plugin_name="SYSTEM"))
+            asyncio.run(event_manager.trigger_event(EventType.ON_STOP,permission_group="SYSTEM"))
             from src.utils.message_chunker import reassembler
             import asyncio
 
@@ -291,7 +291,7 @@ MoFox_Bot(第三方修改版)
             logger.info("日程表管理器初始化成功。")
 
         try:
-            await event_manager.trigger_event(EventType.ON_START, plugin_name="SYSTEM")
+            await event_manager.trigger_event(EventType.ON_START, permission_group="SYSTEM")
             init_time = int(1000 * (time.time() - init_start_time))
             logger.info(f"初始化完成，神经元放电{init_time}次")
         except Exception as e:

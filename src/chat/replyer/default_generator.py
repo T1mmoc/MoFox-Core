@@ -290,7 +290,7 @@ class DefaultReplyer:
             # 触发 POST_LLM 事件（请求 LLM 之前）
             if not from_plugin:
                 result = await event_manager.trigger_event(
-                    EventType.POST_LLM, plugin_name="SYSTEM", prompt=prompt, stream_id=stream_id
+                    EventType.POST_LLM, permission_group="SYSTEM", prompt=prompt, stream_id=stream_id
                 )
                 if not result.all_continue_process():
                     raise UserWarning(f"插件{result.get_summary().get('stopped_handlers', '')}于请求前中断了内容生成")
@@ -314,7 +314,7 @@ class DefaultReplyer:
                 if not from_plugin:
                     result = await event_manager.trigger_event(
                         EventType.AFTER_LLM,
-                        plugin_name="SYSTEM",
+                        permission_group="SYSTEM",
                         prompt=prompt,
                         llm_response=llm_response,
                         stream_id=stream_id,
