@@ -1,5 +1,5 @@
 [inner]
-version = "6.7.9"
+version = "6.8.0"
 
 #----以下是给开发人员阅读的，如果你只是部署了MoFox-Bot，不需要阅读----
 #如果你想要修改配置文件，请递增version的值
@@ -178,10 +178,6 @@ delta_sigma = 120 # 正态分布的标准差，控制时间间隔的随机程度
 #   - 负数会自动转换为正数，不用担心配置错误以及极端边界情况
 # 实验建议：试试 proactive_thinking_interval=0 + delta_sigma 非常大 的纯随机模式！
 # 结果保证：生成的间隔永远为正数（负数会取绝对值），最小1秒，最大24小时
-
-# --- 大脑/小脑 Planner 配置 ---
-planner_size = 5.0 # 小脑（sub-planner）的尺寸，决定每个小脑处理多少个action。数值越小，并行度越高，但单个小脑的上下文越少。建议范围：3.0-8.0
-include_personality = false # 是否在小脑决策中包含角色人设信息（personality_core、personality_side）
 
 
 [relationship]

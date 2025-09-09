@@ -75,9 +75,9 @@ def init_prompt():
 
 {action_options_text}
 
-你必须从上面列出的可用action中选择一个，并说明触发action的消息id（不是消息原文）和选择该action的原因。消息id格式:m+数字
+你必须从上面列出的可用action中选择一个或多个，并说明触发action的消息id（不是消息原文）和选择该action的原因。消息id格式:m+数字
 
-请根据动作示例，以严格的 JSON 格式输出，不要输出markdown格式```json等内容，直接输出且仅包含 JSON 内容：
+请根据动作示例，以严格的 JSON 格式输出，返回一个包含所有选定动作的JSON列表。如果只选择一个动作，也请将其包含在列表中。如果没有任何合适的动作，返回一个空列表[]。不要输出markdown格式```json等内容，直接输出且仅包含 JSON 列表内容：
 """,
         "planner_prompt",
     )
@@ -153,37 +153,6 @@ def init_prompt():
         "action_prompt",
     )
 
-    Prompt(
-        """
-{name_block}
-{personality_block}
-
-{chat_context_description}，{time_block}，现在请你根据以下聊天内容，选择一个或多个合适的action。如果没有合适的action，请选择no_action。,
-{chat_content_block}
-
-**要求**
-1.action必须符合使用条件，如果符合条件，就选择
-2.如果聊天内容不适合使用action，即使符合条件，也不要使用
-3.{moderation_prompt}
-4.请注意如果相同的内容已经被执行，请不要重复执行
-这是你最近执行过的动作:
-{actions_before_now_block}
-
-**可用的action**
-
-no_action：不选择任何动作
-{{
-    "action": "no_action",
-    "reason":"不动作的原因"
-}}
-
-{action_options_text}
-
-请选择，并说明触发action的消息id和选择该action的原因。消息id格式:m+数字
-请根据动作示例，以严格的 JSON 格式输出，且仅包含 JSON 内容：
-""",
-        "sub_planner_prompt",
-    )
 
 
 class ActionPlanner:
@@ -195,10 +164,6 @@ class ActionPlanner:
         # --- 大脑 ---
         self.planner_llm = LLMRequest(
             model_set=model_config.model_task_config.planner, request_type="planner"
-        )
-        # --- 小脑 (新增) ---
-        self.planner_small_llm = LLMRequest(
-            model_set=model_config.model_task_config.planner_small, request_type="planner_small"
         )
 
         self.last_obs_time_mark = 0.0
@@ -319,7 +284,7 @@ class ActionPlanner:
             action_data = {k: v for k, v in action_json.items() if k not in ["action", "reason"]}
 
             target_message = None
-            if action != "no_action":
+            if action not in ["no_action", "no_reply"]:
                 if target_message_id := action_json.get("target_message_id"):
                     target_message = self.find_message_by_id(target_message_id, message_id_list)
                     if target_message is None:
@@ -329,7 +294,7 @@ class ActionPlanner:
                     logger.warning(f"{self.log_prefix}动作'{action}'缺少target_message_id")
 
             available_action_names = [name for name, _ in current_available_actions]
-            if action not in ["no_action", "reply"] and action not in available_action_names:
+            if action not in ["no_action", "no_reply", "reply"] and action not in available_action_names:
                 logger.warning(
                     f"{self.log_prefix}LLM 返回了当前不可用或无效的动作: '{action}' (可用: {available_action_names})，将强制使用 'no_action'"
                 )
@@ -371,113 +336,6 @@ class ActionPlanner:
         # 如果都是 no_action，则返回一个包含第一个 no_action 的列表，以保留 reason
         return action_list[:1] if action_list else []
 
-    async def sub_plan(
-        self,
-        action_list: list,  # 使用 planner.py 的 list of tuple
-        chat_content_block: str,
-        message_id_list: list,  # 使用 planner.py 的 list of dict
-        is_group_chat: bool = False,
-        chat_target_info: Optional[dict] = None,
-    ) -> List[Dict[str, Any]]:
-        """
-        [注释] "小脑"规划器。接收一小组actions，使用轻量级LLM判断其中哪些应该被触发。
-        这是一个独立的、并行的思考单元。返回一个包含action字典的列表。
-        """
-        try:
-            actions_before_now = get_actions_by_timestamp_with_chat(
-                chat_id=self.chat_id,
-                timestamp_start=time.time() - 1200,
-                timestamp_end=time.time(),
-                limit=20,
-            )
-            action_names_in_list = [name for name, _ in action_list]
-            filtered_actions = [
-                record for record in actions_before_now if record.get("action_name") in action_names_in_list
-            ]
-            actions_before_now_block = build_readable_actions(actions=filtered_actions)
-
-            chat_context_description = "你现在正在一个群聊中"
-            if not is_group_chat and chat_target_info:
-                chat_target_name = chat_target_info.get("person_name") or chat_target_info.get("user_nickname") or "对方"
-                chat_context_description = f"你正在和 {chat_target_name} 私聊"
-
-            action_options_block = ""
-            for using_actions_name, using_actions_info in action_list:
-                param_text = ""
-                if using_actions_info.action_parameters:
-                    param_text = "\n" + "\n".join(
-                        f'    "{p_name}":"{p_desc}"'
-                        for p_name, p_desc in using_actions_info.action_parameters.items()
-                    )
-                require_text = "\n".join(f"- {req}" for req in using_actions_info.action_require)
-                using_action_prompt = await global_prompt_manager.get_prompt_async("action_prompt")
-                action_options_block += using_action_prompt.format(
-                    action_name=using_actions_name,
-                    action_description=using_actions_info.description,
-                    action_parameters=param_text,
-                    action_require=require_text,
-                )
-
-            moderation_prompt_block = "请不要输出违法违规内容，不要输出色情，暴力，政治相关内容，如有敏感内容，请规避。"
-            time_block = f"当前时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-            bot_name = global_config.bot.nickname
-            bot_nickname = f",也有人叫你{','.join(global_config.bot.alias_names)}" if global_config.bot.alias_names else ""
-            name_block = f"你的名字是{bot_name}{bot_nickname}，请注意哪些是你自己的发言。"
-
-            # 构建人格信息块（仅在启用时）
-            personality_block = ""
-            if global_config.chat.include_personality:
-                personality_core = global_config.personality.personality_core
-                personality_side = global_config.personality.personality_side
-                if personality_core or personality_side:
-                    personality_parts = []
-                    if personality_core:
-                        personality_parts.append(f"核心人格：{personality_core}")
-                    if personality_side:
-                        personality_parts.append(f"人格侧面：{personality_side}")
-                    personality_block = "你的人格特征是：" + "；".join(personality_parts)
-
-            planner_prompt_template = await global_prompt_manager.get_prompt_async("sub_planner_prompt")
-            prompt = planner_prompt_template.format(
-                time_block=time_block,
-                chat_context_description=chat_context_description,
-                chat_content_block=chat_content_block,
-                actions_before_now_block=actions_before_now_block,
-                action_options_text=action_options_block,
-                moderation_prompt=moderation_prompt_block,
-                name_block=name_block,
-                personality_block=personality_block,
-            )
-        except Exception as e:
-            logger.error(f"构建小脑提示词时出错: {e}\n{traceback.format_exc()}")
-            return [{"action_type": "no_action", "reasoning": f"构建小脑Prompt时出错: {e}"}]
-
-        action_dicts: List[Dict[str, Any]] = []
-        try:
-            llm_content, (reasoning_content, _, _) = await self.planner_small_llm.generate_response_async(prompt=prompt)
-            if global_config.debug.show_prompt:
-                logger.info(f"{self.log_prefix}小脑原始提示词: {prompt}")
-                logger.info(f"{self.log_prefix}小脑原始响应: {llm_content}")
-            else:
-                logger.debug(f"{self.log_prefix}小脑原始响应: {llm_content}")
-
-            if llm_content:
-                parsed_json = orjson.loads(repair_json(llm_content))
-                if isinstance(parsed_json, list):
-                    for item in parsed_json:
-                        if isinstance(item, dict):
-                            action_dicts.extend(self._parse_single_action(item, message_id_list, action_list))
-                elif isinstance(parsed_json, dict):
-                    action_dicts.extend(self._parse_single_action(parsed_json, message_id_list, action_list))
-
-        except Exception as e:
-            logger.warning(f"{self.log_prefix}解析小脑响应JSON失败: {e}. LLM原始输出: '{llm_content}'")
-            action_dicts.append({"action_type": "no_action", "reasoning": f"解析小脑响应失败: {e}"})
-
-        if not action_dicts:
-            action_dicts.append({"action_type": "no_action", "reasoning": "小脑未返回有效action"})
-
-        return action_dicts
 
     async def plan(
         self,
@@ -488,9 +346,7 @@ class ActionPlanner:
     ) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, Any]]]:
         """
         [注释] "大脑"规划器。
-        1. 启动多个并行的"小脑"(sub_plan)来决定是否执行具体的actions。
-        2. 自己(大脑)则专注于决定是否进行聊天回复(reply)。
-        3. 整合大脑和小脑的决策，返回最终要执行的动作列表。
+        统一决策是否进行聊天回复(reply)以及执行哪些actions。
         """
         # --- 1. 准备上下文信息 ---
         message_list_before_now = get_raw_msg_before_timestamp_with_chat(
@@ -498,7 +354,6 @@ class ActionPlanner:
             timestamp=time.time(),
             limit=int(global_config.chat.max_context_size * 0.6),
         )
-        # 大脑使用较长的上下文
         chat_content_block, message_id_list = build_readable_messages_with_id(
             messages=message_list_before_now,
             timestamp_mode="normal",
@@ -506,85 +361,21 @@ class ActionPlanner:
             truncate=True,
             show_actions=True,
         )
-        # 小脑使用较短、较新的上下文
-        message_list_before_now_short = message_list_before_now[-int(global_config.chat.max_context_size * 0.3) :]
-        chat_content_block_short, message_id_list_short = build_readable_messages_with_id(
-            messages=message_list_before_now_short,
-            timestamp_mode="normal",
-            truncate=False,
-            show_actions=False,
-        )
         if pseudo_message:
-            chat_content_block_short += f"\n[m99] 刚刚, 用户: {pseudo_message}"
+            chat_content_block += f"\n[m99] 刚刚, 用户: {pseudo_message}"
         self.last_obs_time_mark = time.time()
 
         is_group_chat, chat_target_info, current_available_actions = self.get_necessary_info()
         if available_actions is None:
             available_actions = current_available_actions
 
-        # --- 2. 启动小脑并行思考 ---
-        all_sub_planner_results: List[Dict[str, Any]] = []
-        
-        # PROACTIVE模式下，只有在有伪消息（来自提醒）时才激活小脑
-        if mode != ChatMode.PROACTIVE or pseudo_message:
-            try:
-                sub_planner_actions: Dict[str, ActionInfo] = {}
-                for action_name, action_info in available_actions.items():
-
-                    if action_info.activation_type in [ActionActivationType.LLM_JUDGE, ActionActivationType.ALWAYS]:
-                        sub_planner_actions[action_name] = action_info
-                    elif action_info.activation_type == ActionActivationType.RANDOM:
-                        if random.random() < action_info.random_activation_probability:
-                            sub_planner_actions[action_name] = action_info
-                    elif action_info.activation_type == ActionActivationType.KEYWORD:
-                        if any(keyword in chat_content_block_short for keyword in action_info.activation_keywords):
-                            sub_planner_actions[action_name] = action_info
-
-                if sub_planner_actions:
-                    sub_planner_actions_num = len(sub_planner_actions)
-                    planner_size_config = global_config.chat.planner_size
-                    sub_planner_size = int(planner_size_config) + (
-                        1 if random.random() < planner_size_config - int(planner_size_config) else 0
-                    )
-                    sub_planner_num = math.ceil(sub_planner_actions_num / sub_planner_size)
-                    logger.info(f"{self.log_prefix}使用{sub_planner_num}个小脑进行思考 (尺寸: {sub_planner_size})")
-
-                    action_items = list(sub_planner_actions.items())
-                    random.shuffle(action_items)
-                    sub_planner_lists = [action_items[i::sub_planner_num] for i in range(sub_planner_num)]
-
-                    sub_plan_tasks = [
-                        self.sub_plan(
-                            action_list=action_group,
-                            chat_content_block=chat_content_block_short,
-                            message_id_list=message_id_list_short,
-                            is_group_chat=is_group_chat,
-                            chat_target_info=chat_target_info,
-                        )
-                        for action_group in sub_planner_lists
-                    ]
-                    sub_plan_results = await asyncio.gather(*sub_plan_tasks)
-                    for sub_result in sub_plan_results:
-                        all_sub_planner_results.extend(sub_result)
-                    
-                    sub_actions_str = ", ".join(
-                        a["action_type"] for a in all_sub_planner_results if a["action_type"] != "no_action"
-                    ) or "no_action"
-                    logger.info(f"{self.log_prefix}小脑决策: [{sub_actions_str}]")
-
-            except Exception as e:
-                logger.error(f"{self.log_prefix}小脑调度过程中出错: {e}\n{traceback.format_exc()}")
-        else:
-            # PROACTIVE模式下小脑保持沉默，让大脑专注于主动思考决策
-            logger.info(f"{self.log_prefix}PROACTIVE模式：小脑保持沉默，主动思考交给大脑决策")
-
-        # --- 3. 大脑独立思考是否回复 ---
-        action, reasoning, action_data, target_message = "no_reply", "大脑初始化默认", {}, None
+        # --- 2. 大脑统一决策 ---
+        final_actions: List[Dict[str, Any]] = []
         try:
-            prompt, _ = await self.build_planner_prompt(
+            prompt, used_message_id_list = await self.build_planner_prompt(
                 is_group_chat=is_group_chat,
                 chat_target_info=chat_target_info,
-                current_available_actions={},
+                current_available_actions=available_actions,
                 mode=mode,
                 chat_content_block_override=chat_content_block,
                 message_id_list_override=message_id_list,
@@ -593,77 +384,54 @@ class ActionPlanner:
 
             if llm_content:
                 parsed_json = orjson.loads(repair_json(llm_content))
-                parsed_json = parsed_json[-1] if isinstance(parsed_json, list) and parsed_json else parsed_json
+                
+                # 确保处理的是列表
                 if isinstance(parsed_json, dict):
-                    action = parsed_json.get("action", "no_reply")
-                    reasoning = parsed_json.get("reason", "未提供原因")
-                    action_data = {k: v for k, v in parsed_json.items() if k not in ["action", "reason"]}
-                    if action != "no_reply":
-                        if target_id := parsed_json.get("target_message_id"):
-                            target_message = self.find_message_by_id(target_id, message_id_list)
-                        if not target_message:
-                            target_message = self.get_latest_message(message_id_list)
-            logger.info(f"{self.log_prefix}大脑决策: [{action}]")
+                    parsed_json = [parsed_json]
+
+                if isinstance(parsed_json, list):
+                    for item in parsed_json:
+                        if isinstance(item, dict):
+                            final_actions.extend(self._parse_single_action(item, used_message_id_list, list(available_actions.items())))
+
+            # 如果是私聊且开启了强制回复，并且没有任何回复性action，则强制添加reply
+            if not is_group_chat and global_config.chat.force_reply_private:
+                has_reply_action = any(a.get("action_type") == "reply" for a in final_actions)
+                if not has_reply_action:
+                    final_actions.append({
+                        "action_type": "reply",
+                        "reasoning": "私聊强制回复",
+                        "action_data": {},
+                        "action_message": self.get_latest_message(message_id_list),
+                        "available_actions": available_actions,
+                    })
+                    logger.info(f"{self.log_prefix}私聊强制回复已触发，添加 'reply' 动作")
+
+            logger.info(f"{self.log_prefix}大脑决策: {[a.get('action_type') for a in final_actions]}")
 
         except Exception as e:
             logger.error(f"{self.log_prefix}大脑处理过程中发生意外错误: {e}\n{traceback.format_exc()}")
-            action, reasoning = "no_reply", f"大脑处理错误: {e}"
+            final_actions.append({"action_type": "no_action", "reasoning": f"大脑处理错误: {e}"})
 
-        # --- 4. 整合大脑和小脑的决策 ---
-        # 特殊规则：如果是提醒任务，且大脑决定do_nothing，则忽略大脑，采用小脑的决策
-        if mode == ChatMode.PROACTIVE and pseudo_message and action == "do_nothing":
-            logger.info(f"{self.log_prefix}提醒任务触发，大脑决策为do_nothing，忽略大脑并采用小脑决策")
-            final_actions = all_sub_planner_results
-        else:
-            # 如果是私聊且开启了强制回复，则将no_reply强制改为reply
-            if not is_group_chat and global_config.chat.force_reply_private and action == "no_reply":
-                action = "reply"
-                reasoning = "私聊强制回复"
-                logger.info(f"{self.log_prefix}私聊强制回复已触发，将动作从 'no_reply' 修改为 'reply'")
-                
-            is_parallel = True
-            for info in all_sub_planner_results:
-                action_type = info.get("action_type")
-                if action_type and action_type not in ["no_action", "no_reply"]:
-                    action_info = available_actions.get(action_type)
-                    if action_info and not action_info.parallel_action:
-                        is_parallel = False
-                        break
-
-            action_data["loop_start_time"] = loop_start_time
-            final_actions: List[Dict[str, Any]] = []
-
-            if is_parallel:
-                logger.info(f"{self.log_prefix}决策模式: 大脑与小脑并行")
-                if action not in ["no_action", "no_reply"]:
-                    final_actions.append(
-                        {
-                            "action_type": action,
-                            "reasoning": reasoning,
-                            "action_data": action_data,
-                            "action_message": target_message,
-                            "available_actions": available_actions,
-                        }
-                    )
-                final_actions.extend(all_sub_planner_results)
-            else:
-                logger.info(f"{self.log_prefix}决策模式: 小脑优先 (检测到非并行action)")
-                final_actions.extend(all_sub_planner_results)
-
+        # --- 3. 后处理 ---
         final_actions = self._filter_no_actions(final_actions)
 
         if not final_actions:
             final_actions = [
                 {
                     "action_type": "no_action",
-                    "reasoning": "所有规划器都选择不执行动作",
+                    "reasoning": "规划器选择不执行动作",
                     "action_data": {}, "action_message": None, "available_actions": available_actions
                 }
             ]
 
-        final_target_message = target_message
-        if not final_target_message and final_actions:
-            final_target_message = next((act.get("action_message") for act in final_actions if act.get("action_message")), None)
+        final_target_message = next((act.get("action_message") for act in final_actions if act.get("action_message")), None)
+
+        # 记录每个动作的原因
+        for action_info in final_actions:
+            action_type = action_info.get("action_type", "N/A")
+            reasoning = action_info.get("reasoning", "无")
+            logger.info(f"{self.log_prefix}决策: [{action_type}]，原因: {reasoning}")
 
         actions_str = ", ".join([a.get('action_type', 'N/A') for a in final_actions])
         logger.info(f"{self.log_prefix}最终执行动作 ({len(final_actions)}): [{actions_str}]")

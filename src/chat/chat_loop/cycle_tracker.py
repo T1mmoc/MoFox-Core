@@ -90,20 +90,20 @@ class CycleTracker:
             timer_strings.append(f"{name}: {formatted_time}")
 
         # 获取动作类型，兼容新旧格式
+        # 获取动作类型
         action_type = "未知动作"
-        if hasattr(self, "_current_cycle_detail") and self._current_cycle_detail:
-            loop_plan_info = self._current_cycle_detail.loop_plan_info
-            if isinstance(loop_plan_info, dict):
-                action_result = loop_plan_info.get("action_result", {})
-                if isinstance(action_result, dict):
-                    # 旧格式：action_result是字典
-                    action_type = action_result.get("action_type", "未知动作")
-                elif isinstance(action_result, list) and action_result:
-                    # 新格式：action_result是actions列表
-                    action_type = action_result[0].get("action_type", "未知动作")
-            elif isinstance(loop_plan_info, list) and loop_plan_info:
-                # 直接是actions列表的情况
-                action_type = loop_plan_info[0].get("action_type", "未知动作")
+        if self.context.current_cycle_detail:
+            loop_plan_info = self.context.current_cycle_detail.loop_plan_info
+            actions = loop_plan_info.get("action_result")
+            
+            if isinstance(actions, list) and actions:
+                # 从actions列表中提取所有action_type
+                action_types = [a.get("action_type", "未知") for a in actions]
+                action_type = ", ".join(action_types)
+            elif isinstance(actions, dict):
+                # 兼容旧格式
+                action_type = actions.get("action_type", "未知动作")
+
 
         if self.context.current_cycle_detail.end_time and self.context.current_cycle_detail.start_time:
             duration = self.context.current_cycle_detail.end_time - self.context.current_cycle_detail.start_time

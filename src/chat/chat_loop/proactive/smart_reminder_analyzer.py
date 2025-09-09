@@ -43,7 +43,7 @@ class SmartReminderAnalyzer:
         self.confidence_threshold = 0.7
         # 使用规划器模型进行分析
         self.analyzer_llm = LLMRequest(
-            model_set=model_config.model_task_config.planner_small,
+            model_set=model_config.model_task_config.utils_small,
             request_type="reminder_analyzer"
         )
         
