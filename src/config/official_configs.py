@@ -387,6 +387,7 @@ class EmojiConfig(ValidatedConfigBase):
     content_filtration: bool = Field(default=False, description="内容过滤")
     filtration_prompt: str = Field(default="符合公序良俗", description="过滤提示")
     enable_emotion_analysis: bool = Field(default=True, description="启用情感分析")
+    emoji_selection_mode: Literal["emotion", "description"] = Field(default="emotion", description="表情选择模式")
     max_context_emojis: int = Field(default=30, description="每次随机传递给LLM的表情包最大数量，0为全部")
 
 

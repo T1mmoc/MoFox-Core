@@ -99,10 +99,72 @@ class EmojiAction(BaseAction):
             available_emotions = list(emotion_map.keys())
             emoji_base64, emoji_description = "", ""
 
-            if not available_emotions:
-                logger.warning(f"{self.log_prefix} 获取到的表情包均无情感标签, 将随机发送")
-                emoji_base64, emoji_description = random.choice(all_emojis_data)
-            else:
+            # 4. 根据配置选择不同的表情选择模式
+            if global_config.emoji.emoji_selection_mode == "emotion":
+                # --- 情感标签选择模式 ---
+                if not available_emotions:
+                    logger.warning(f"{self.log_prefix} 获取到的表情包均无情感标签, 将随机发送")
+                    emoji_base64, emoji_description = random.choice(all_emojis_data)
+                else:
+                    # 获取最近的5条消息内容用于判断
+                    recent_messages = message_api.get_recent_messages(chat_id=self.chat_id, limit=5)
+                    messages_text = ""
+                    if recent_messages:
+                        messages_text = message_api.build_readable_messages(
+                            messages=recent_messages,
+                            timestamp_mode="normal_no_YMD",
+                            truncate=False,
+                            show_actions=False,
+                        )
+
+                    # 构建prompt让LLM选择情感
+                    prompt = f"""
+                    你是一个正在进行聊天的网友，你需要根据一个理由和最近的聊天记录，从一个情感标签列表中选择最匹配的一个。
+                    这是最近的聊天记录：
+                    {messages_text}
+                    
+                    这是理由：“{reason}”
+                    这里是可用的情感标签：{available_emotions}
+                    请直接返回最匹配的那个情感标签，不要进行任何解释或添加其他多余的文字。
+                    """
+
+                    if global_config.debug.show_prompt:
+                        logger.info(f"{self.log_prefix} 生成的LLM Prompt: {prompt}")
+                    else:
+                        logger.debug(f"{self.log_prefix} 生成的LLM Prompt: {prompt}")
+
+                    # 调用LLM
+                    models = llm_api.get_available_models()
+                    chat_model_config = models.get("planner")
+                    if not chat_model_config:
+                        logger.error(f"{self.log_prefix} 未找到'planner'模型配置，无法调用LLM")
+                        return False, "未找到'planner'模型配置"
+
+                    success, chosen_emotion, _, _ = await llm_api.generate_with_model(
+                        prompt, model_config=chat_model_config, request_type="emoji"
+                    )
+
+                    if not success:
+                        logger.warning(f"{self.log_prefix} LLM调用失败: {chosen_emotion}, 将随机选择一个表情包")
+                        emoji_base64, emoji_description = random.choice(all_emojis_data)
+                    else:
+                        chosen_emotion = chosen_emotion.strip().replace('"', "").replace("'", "")
+                        logger.info(f"{self.log_prefix} LLM选择的情感: {chosen_emotion}")
+
+                        # 使用模糊匹配来查找最相关的情感标签
+                        matched_key = next((key for key in emotion_map if chosen_emotion in key), None)
+                        
+                        if matched_key:
+                            emoji_base64, emoji_description = random.choice(emotion_map[matched_key])
+                            logger.info(f"{self.log_prefix} 找到匹配情感 '{chosen_emotion}' (匹配到: '{matched_key}') 的表情包: {emoji_description}")
+                        else:
+                            logger.warning(
+                                f"{self.log_prefix} LLM选择的情感 '{chosen_emotion}' 不在可用列表中, 将随机选择一个表情包"
+                            )
+                            emoji_base64, emoji_description = random.choice(all_emojis_data)
+            
+            elif global_config.emoji.emoji_selection_mode == "description":
+                # --- 详细描述选择模式 ---
                 # 获取最近的5条消息内容用于判断
                 recent_messages = message_api.get_recent_messages(chat_id=self.chat_id, limit=5)
                 messages_text = ""
@@ -114,51 +176,53 @@ class EmojiAction(BaseAction):
                         show_actions=False,
                     )
 
-                # 4. 构建prompt让LLM选择情感
+                # 准备表情描述列表
+                emoji_descriptions = [desc for _, desc in all_emojis_data]
+
+                # 构建prompt让LLM选择描述
                 prompt = f"""
-                你是一个正在进行聊天的网友，你需要根据一个理由和最近的聊天记录，从一个情感标签列表中选择最匹配的一个。
+                你是一个正在进行聊天的网友，你需要根据一个理由和最近的聊天记录，从一个表情包描述列表中选择最匹配的一个。
                 这是最近的聊天记录：
                 {messages_text}
                 
                 这是理由：“{reason}”
-                这里是可用的情感标签：{available_emotions}
-                请直接返回最匹配的那个情感标签，不要进行任何解释或添加其他多余的文字。
+                这里是可用的表情包描述：{emoji_descriptions}
+                请直接返回最匹配的那个表情包描述，不要进行任何解释或添加其他多余的文字。
                 """
+                logger.debug(f"{self.log_prefix} 生成的LLM Prompt: {prompt}")
 
-                if global_config.debug.show_prompt:
-                    logger.info(f"{self.log_prefix} 生成的LLM Prompt: {prompt}")
-                else:
-                    logger.debug(f"{self.log_prefix} 生成的LLM Prompt: {prompt}")
-
-                # 5. 调用LLM
+                # 调用LLM
                 models = llm_api.get_available_models()
                 chat_model_config = models.get("planner")
                 if not chat_model_config:
-                    logger.error(f"{self.log_prefix} 未找到'utils_small'模型配置，无法调用LLM")
-                    return False, "未找到'utils_small'模型配置"
+                    logger.error(f"{self.log_prefix} 未找到'planner'模型配置，无法调用LLM")
+                    return False, "未找到'planner'模型配置"
 
-                success, chosen_emotion, _, _ = await llm_api.generate_with_model(
+                success, chosen_description, _, _ = await llm_api.generate_with_model(
                     prompt, model_config=chat_model_config, request_type="emoji"
                 )
 
                 if not success:
-                    logger.warning(f"{self.log_prefix} LLM调用失败: {chosen_emotion}, 将随机选择一个表情包")
+                    logger.warning(f"{self.log_prefix} LLM调用失败: {chosen_description}, 将随机选择一个表情包")
                     emoji_base64, emoji_description = random.choice(all_emojis_data)
                 else:
-                    chosen_emotion = chosen_emotion.strip().replace('"', "").replace("'", "")
-                    logger.info(f"{self.log_prefix} LLM选择的情感: {chosen_emotion}")
+                    chosen_description = chosen_description.strip().replace('"', "").replace("'", "")
+                    logger.info(f"{self.log_prefix} LLM选择的描述: {chosen_description}")
 
-                    # 使用模糊匹配来查找最相关的情感标签
-                    matched_key = next((key for key in emotion_map if chosen_emotion in key), None)
-                    
-                    if matched_key:
-                        emoji_base64, emoji_description = random.choice(emotion_map[matched_key])
-                        logger.info(f"{self.log_prefix} 找到匹配情感 '{chosen_emotion}' (匹配到: '{matched_key}') 的表情包: {emoji_description}")
+                    # 查找与选择的描述匹配的表情包
+                    matched_emoji = next((item for item in all_emojis_data if item == chosen_description), None)
+
+                    if matched_emoji:
+                        emoji_base64, emoji_description = matched_emoji
+                        logger.info(f"{self.log_prefix} 找到匹配描述 '{chosen_description}' 的表情包")
                     else:
                         logger.warning(
-                            f"{self.log_prefix} LLM选择的情感 '{chosen_emotion}' 不在可用列表中, 将随机选择一个表情包"
+                            f"{self.log_prefix} LLM选择的描述 '{chosen_description}' 不在可用列表中, 将随机选择一个表情包"
                         )
                         emoji_base64, emoji_description = random.choice(all_emojis_data)
+            else:
+                logger.error(f"{self.log_prefix} 无效的表情选择模式: {global_config.emoji.emoji_selection_mode}")
+                return False, "无效的表情选择模式"
 
             # 7. 发送表情包
             success = await self.send_emoji(emoji_base64)

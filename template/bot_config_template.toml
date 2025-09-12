@@ -263,6 +263,10 @@ steal_emoji = true # 是否偷取表情包，让MoFox-Bot可以将一些表情�
 content_filtration = false  # 是否启用表情包过滤，只有符合该要求的表情包才会被保存
 filtration_prompt = "符合公序良俗" # 表情包过滤要求，只有符合该要求的表情包才会被保存
 enable_emotion_analysis = false # 是否启用表情包感情关键词二次识别，启用后表情包在第一次识别完毕后将送入第二次大模型识别来总结感情关键词，并构建进回复和决策器的上下文消息中
+# 表情选择模式, 可选值为 "emotion" 或 "description"
+# emotion: 让大模型从情感标签中选择
+# description: 让大模型从详细描述中选择
+emoji_selection_mode = "emotion"
 max_context_emojis = 30 # 每次随机传递给LLM的表情包详细描述的最大数量，0为全部
 
 [memory]
