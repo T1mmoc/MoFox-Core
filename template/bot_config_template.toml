@@ -500,7 +500,7 @@ insomnia_trigger_delay_minutes = [15, 45]
 
 [server]
 host = "127.0.0.1"
-port = 8080
+port = 8000
 
 [cross_context] # 跨群聊/私聊上下文共享配置
 # 这是总开关，用于一键启用或禁用此功能
