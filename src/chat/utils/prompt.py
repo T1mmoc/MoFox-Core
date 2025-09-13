@@ -583,9 +583,8 @@ class Prompt:
             # 激活长期记忆
             memory_activator = MemoryActivator()
             running_memories = await memory_activator.activate_memory_with_chat_history(
-                chat_history=chat_history,
-                target_user=self.parameters.sender,
-                chat_id=self.parameters.chat_id
+                target_message=self.parameters.target,
+                chat_history_prompt=chat_history
             )
             
             # 获取即时记忆
