@@ -1,0 +1,9 @@
+{
+  "manifest_version": 1,
+  "name": "智能提醒插件",
+  "version": "1.0.0",
+  "description": "一个能从对话中智能识别并设置定时提醒的插件。",
+  "author": {
+    "name": "墨墨"
+  }
+}
