@@ -342,3 +342,4 @@ rust_video/Cargo.lock
 .claude/settings.local.json
 package-lock.json
 package.json
+src/chat/planner_actions/新建 文本文档.txt

@@ -84,7 +84,7 @@ class CycleProcessor:
         # 获取用户信息并生成回复提示
         person_id = person_info_manager.get_person_id(
             platform,
-            action_message.get("user_id", ""),
+            action_message.get("chat_info_user_id", ""),
         )
         person_name = await person_info_manager.get_value(person_id, "person_name")
         action_prompt_display = f"你对{person_name}进行了回复：{reply_text}"
