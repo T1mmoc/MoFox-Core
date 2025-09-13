@@ -318,7 +318,7 @@ class NapcatAdapterPlugin(BasePlugin):
         "maibot_server": {
             "host": ConfigField(type=str, default="localhost", description="麦麦在.env文件中设置的主机地址，即HOST字段"),
             "port": ConfigField(type=int, default=8000, description="麦麦在.env文件中设置的端口，即PORT字段"),
-            "platform_name": ConfigField(type=str, default="napcat", description="平台名称，用于消息路由"),
+            "platform_name": ConfigField(type=str, default="qq", description="平台名称，用于消息路由"),
         },
         "voice": {
             "use_tts": ConfigField(type=bool, default=False, description="是否使用tts语音（请确保你配置了tts并有对应的adapter）"),
