@@ -96,8 +96,7 @@ class HeartFCMessageReceiver:
 
         主要流程:
         1. 消息解析与初始化
-        2. 智能提醒分析
-        3. 消息缓冲处理
+        2. 消息缓冲处理
         4. 过滤检查
         5. 兴趣度计算
         6. 关系处理
@@ -110,99 +109,7 @@ class HeartFCMessageReceiver:
             userinfo = message.message_info.user_info
             chat = message.chat_stream
 
-            # 2. 智能提醒分析 - 检查用户是否请求提醒
-            from src.chat.chat_loop.proactive.smart_reminder_analyzer import smart_reminder_analyzer
-            from src.chat.chat_loop.proactive.event_scheduler import event_scheduler
-            
-            try:
-                reminder_event = await smart_reminder_analyzer.analyze_message(
-                    userinfo.user_id,  # type: ignore
-                    message.processed_plain_text
-                )
-                if reminder_event:
-                    logger.info(f"检测到提醒请求: {reminder_event}")
-                    
-                    # 创建提醒回调函数
-                    async def reminder_callback(metadata):
-                        """提醒执行回调函数 - 触发完整的主动思考流程"""
-                        try:
-                            # 获取对应的subheartflow实例
-                            from src.chat.heart_flow.heartflow import heartflow
-                            
-                            subflow = await heartflow.get_or_create_subheartflow(metadata.get("chat_id"))
-                            if not subflow:
-                                logger.error(f"无法获取subheartflow实例: {metadata.get('chat_id')}")
-                                return
-                                
-                            # 创建主动思考事件，触发完整的思考流程
-                            from src.chat.chat_loop.proactive.events import ProactiveTriggerEvent
-                            
-                            reminder_content = metadata.get('content', '提醒时间到了')
-                            # 使用原始消息内容作为reason，如果没有则使用处理后的内容
-                            original_message = metadata.get('original_message', '')
-                            reason_content = original_message if original_message else reminder_content
-                            
-                            event = ProactiveTriggerEvent(
-                                source="reminder_system",
-                                reason=f"定时提醒：{reason_content}",
-                                metadata=metadata,
-                                related_message_id=metadata.get("original_message_id")
-                           )
-                            
-                            # 通过subflow的HeartFChatting实例触发主动思考
-                            await subflow.heart_fc_instance.proactive_thinker.think(event)
-                            
-                            logger.info(f"已触发提醒的主动思考，内容: {reminder_content}")
-                            
-                        except Exception as callback_error:
-                            logger.error(f"执行提醒回调失败: {callback_error}")
-                            import traceback
-                            logger.error(traceback.format_exc())
-                            
-                            # Fallback: 如果主动思考失败，直接发送提醒消息
-                            try:
-                                from src.plugin_system.apis.send_api import text_to_stream
-                                reminder_content = metadata.get('content', '提醒时间到了')
-                                await text_to_stream(
-                                    text=f"⏰ 提醒：{reminder_content}",
-                                    stream_id=metadata.get("chat_id"),
-                                    typing=False
-                                )
-                                logger.info(f"Fallback提醒消息已发送: {reminder_content}")
-                            except Exception as fallback_error:
-                                logger.error(f"Fallback提醒也失败了: {fallback_error}")
-                    
-                    # 调度提醒事件
-                    event_id = f"reminder_{reminder_event.user_id}_{int(reminder_event.reminder_time.timestamp())}"
-                    metadata = {
-                        "type": "reminder",
-                        "user_id": reminder_event.user_id,
-                        "sender_name": userinfo.user_nickname,  # 添加发送者昵称
-                        "platform": chat.platform,
-                        "chat_id": chat.stream_id,
-                        "content": reminder_event.content,
-                        "confidence": reminder_event.confidence,
-                        "created_at": datetime.now().isoformat(),
-                        "original_message_id": message.message_info.message_id,
-                        "original_message": message.processed_plain_text  # 保存完整的原始消息
-                    }
-                    
-                    success = await event_scheduler.schedule_event(
-                        event_id=event_id,
-                        trigger_time=reminder_event.reminder_time,
-                        callback=reminder_callback,
-                        metadata=metadata
-                    )
-                    
-                    if success:
-                        logger.info(f"提醒事件调度成功: {event_id}")
-                    else:
-                        logger.error(f"提醒事件调度失败: {event_id}")
-                        
-            except Exception as e:
-                logger.error(f"智能提醒分析失败: {e}")
-
-            # 3. 兴趣度计算与更新
+            # 2. 兴趣度计算与更新
             interested_rate, is_mentioned, keywords = await _calculate_interest(message)
             message.interest_value = interested_rate
             message.is_mentioned = is_mentioned
