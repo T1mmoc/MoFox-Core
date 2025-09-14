@@ -1,0 +1,32 @@
+# 当代码推送到 master 分支时，自动创建一个 pre-release
+
+name: Create Pre-release
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  create-prerelease:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # 获取所有提交历史，以便生成 release notes
+          fetch-depth: 0
+
+      - name: Generate tag name
+        id: generate_tag
+        run: echo "TAG_NAME=prerelease-$(date -u +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
+
+      - name: Create Pre-release
+        env:
+          # 使用仓库自带的 GITHUB_TOKEN 进行认证
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ steps.generate_tag.outputs.TAG_NAME }} \
+            --title "Pre-release ${{ steps.generate_tag.outputs.TAG_NAME }}" \
+            --prerelease \
+            --generate-notes
