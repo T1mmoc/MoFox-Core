@@ -20,9 +20,8 @@ from datetime import datetime
 from typing import Dict, Optional
 
 from src.common.logger import get_logger
-from src.chat.chat_loop.proactive.events import ProactiveTriggerEvent
-from src.chat.heart_flow.heartflow import heartflow
-from src.chat.chat_loop.sleep_manager.sleep_manager import SleepManager
+from src.chat.affinity_flow.afc_manager import afc_manager
+# TODO: 需要重新实现主动思考和睡眠管理功能
 from .analyzer import chat_frequency_analyzer
 
 logger = get_logger("FrequencyBasedTrigger")
@@ -39,8 +38,8 @@ class FrequencyBasedTrigger:
     一个周期性任务，根据聊天频率分析结果来触发主动思考。
     """
 
-    def __init__(self, sleep_manager: SleepManager):
-        self._sleep_manager = sleep_manager
+    def __init__(self):
+        # TODO: 需要重新实现睡眠管理器
         self._task: Optional[asyncio.Task] = None
         # 记录上次为用户触发的时间，用于冷却控制
         # 格式: { "chat_id": timestamp }
@@ -53,14 +52,15 @@ class FrequencyBasedTrigger:
                 await asyncio.sleep(TRIGGER_CHECK_INTERVAL_SECONDS)
                 logger.debug("开始执行频率触发器检查...")
 
-                # 1. 检查角色是否清醒
-                if self._sleep_manager.is_sleeping():
-                    logger.debug("角色正在睡眠，跳过本次频率触发检查。")
-                    continue
+                # 1. TODO: 检查角色是否清醒 - 需要重新实现睡眠状态检查
+                # 暂时跳过睡眠检查
+                # if self._sleep_manager.is_sleeping():
+                #     logger.debug("角色正在睡眠，跳过本次频率触发检查。")
+                #     continue
 
                 # 2. 获取所有已知的聊天ID
-                #    【注意】这里我们假设所有 subheartflow 的 ID 就是 chat_id
-                all_chat_ids = list(heartflow.subheartflows.keys())
+                #    亲和力流系统中聊天ID直接从管理器获取
+                all_chat_ids = list(afc_manager.affinity_flow_chatters.keys())
                 if not all_chat_ids:
                     continue
 
@@ -75,25 +75,24 @@ class FrequencyBasedTrigger:
                     # 4. 检查当前是否是该用户的高峰聊天时间
                     if chat_frequency_analyzer.is_in_peak_time(chat_id, now):
                         
-                        sub_heartflow = await heartflow.get_or_create_subheartflow(chat_id)
-                        if not sub_heartflow:
-                            logger.warning(f"无法为 {chat_id} 获取或创建 sub_heartflow。")
+                        # 5. 检查用户当前是否已有活跃的处理任务
+                        #    亲和力流系统不直接提供循环状态，通过检查最后活动时间来判断是否忙碌
+                        chatter = afc_manager.get_or_create_chatter(chat_id)
+                        if not chatter:
+                            logger.warning(f"无法为 {chat_id} 获取或创建亲和力聊天处理器。")
                             continue
 
-                        # 5. 检查用户当前是否已有活跃的思考或回复任务
-                        cycle_detail = sub_heartflow.heart_fc_instance.context.current_cycle_detail
-                        if cycle_detail and not cycle_detail.end_time:
-                            logger.debug(f"用户 {chat_id} 的聊天循环正忙（仍在周期 {cycle_detail.cycle_id} 中），本次不触发。")
+                        # 检查是否在活跃状态（最近1分钟内有活动）
+                        current_time = time.time()
+                        if current_time - chatter.get_activity_time() < 60:
+                            logger.debug(f"用户 {chat_id} 的亲和力处理器正忙，本次不触发。")
                             continue
-                         
-                        logger.info(f"检测到用户 {chat_id} 处于聊天高峰期，且聊天循环空闲，准备触发主动思考。")
+                          
+                        logger.info(f"检测到用户 {chat_id} 处于聊天高峰期，且处理器空闲，准备触发主动思考。")
                         
-                        # 6. 直接调用 proactive_thinker
-                        event = ProactiveTriggerEvent(
-                            source="frequency_analyzer",
-                            reason="User is in a high-frequency chat period."
-                        )
-                        await sub_heartflow.heart_fc_instance.proactive_thinker.think(event)
+                        # 6. TODO: 亲和力流系统的主动思考机制需要另行实现
+                        #    目前先记录日志，等待后续实现
+                        logger.info(f"用户 {chat_id} 处于高峰期，但亲和力流的主动思考功能暂未实现")
                         
                         # 7. 更新触发时间，进入冷却
                         self._last_triggered[chat_id] = time.time()

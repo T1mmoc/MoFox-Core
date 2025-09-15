@@ -136,3 +136,5 @@ class AFCManager:
         if stream_id in self.affinity_flow_chatters:
             self.affinity_flow_chatters[stream_id].update_interest_keywords(new_keywords)
             logger.info(f"已更新聊天流 {stream_id} 的兴趣关键词: {list(new_keywords.keys())}")
+
+afc_manager = AFCManager()

@@ -11,7 +11,7 @@ from src.mood.mood_manager import mood_manager  # 导入情绪管理器
 from src.chat.message_receive.chat_stream import get_chat_manager, ChatStream
 from src.chat.message_receive.message import MessageRecv, MessageRecvS4U
 from src.chat.message_receive.storage import MessageStorage
-from src.chat.heart_flow.heartflow_message_processor import HeartFCMessageReceiver
+from src.chat.affinity_flow.afc_manager import afc_manager
 from src.chat.utils.prompt import Prompt, global_prompt_manager
 from src.plugin_system.core import component_registry, event_manager, global_announcement_manager
 from src.plugin_system.base import BaseCommand, EventType
@@ -73,7 +73,7 @@ class ChatBot:
         self.bot = None  # bot 实例引用
         self._started = False
         self.mood_manager = mood_manager  # 获取情绪管理器单例
-        self.heartflow_message_receiver = HeartFCMessageReceiver()  # 新增
+        # 亲和力流消息处理器 - 直接使用全局afc_manager
 
         self.s4u_message_processor = S4UMessageProcessor()
 
@@ -404,10 +404,7 @@ class ChatBot:
             # print(message_data)
             # logger.debug(str(message_data))
             message = MessageRecv(message_data)
-
-            if await self.handle_notice_message(message):
-                ...
-
+            
             group_info = message.message_info.group_info
             user_info = message.message_info.user_info
             if message.message_info.additional_config:
@@ -472,7 +469,13 @@ class ChatBot:
                 template_group_name = None
 
             async def preprocess():
-                await self.heartflow_message_receiver.process_message(message)
+                # 使用亲和力流系统处理消息
+                message_data = {
+                    "message_info": message.message_info.__dict__,
+                    "processed_plain_text": message.processed_plain_text,
+                    "chat_stream": message.chat_stream.__dict__ if message.chat_stream else None
+                }
+                await afc_manager.process_message(message.chat_stream.stream_id, message_data)
 
             if template_group_name:
                 async with global_prompt_manager.async_message_scope(template_group_name):
