@@ -159,19 +159,28 @@ class ProactiveThinker:
 
             news_block = "暂时没有获取到最新资讯。"
             if trigger_event.source != "reminder_system":
-                # 增加搜索前决策
+                # 升级决策模型
                 should_search_prompt = f"""
 # 搜索决策
 
 ## 任务
-判断是否有必要为了话题“{topic}”进行网络搜索。
+分析话题“{topic}”，判断它的展开更依赖于“外部信息”还是“内部信息”，并决定是否需要进行网络搜索。
 
-## 判断标准
-- **需要搜索**：时事新闻、知识查询、具体事件等需要外部信息的话题。
-- **无需搜索**：日常关心、个人感受、延续已有对话等不需要外部信息的话题。
+## 判断原则
+- **需要搜索 (SEARCH)**：当话题的有效讨论**必须**依赖于现实世界的、客观的、可被检索的外部信息时。这包括但不限于：
+    - 新闻时事、公共事件
+    - 专业知识、科学概念
+    - 天气、股价等实时数据
+    - 对具体实体（如电影、书籍、地点）的客观描述查询
+
+- **无需搜索 (SKIP)**：当话题的展开主要依赖于**已有的对话上下文、个人情感、主观体验或社交互动**时。这包括但不限于：
+    - 延续之前的对话、追问细节
+    - 表达关心、问候或个人感受
+    - 分享主观看法或经历
+    - 纯粹的社交性互动
 
 ## 你的决策
-输出`SEARCH`或`SKIP`。
+根据以上原则，对“{topic}”这个话题进行分析，并严格输出`SEARCH`或`SKIP`。
 """
                 from src.llm_models.utils_model import LLMRequest
                 from src.config.config import model_config
@@ -185,18 +194,23 @@ class ProactiveThinker:
 
                 if "SEARCH" in decision:
                     try:
-                        web_search_tool = tool_api.get_tool_instance("web_search")
-                        if web_search_tool and topic:
-                            try:
-                                search_result_dict = await web_search_tool.execute(function_args={"keyword": topic, "max_results": 10})
-                                if search_result_dict and not search_result_dict.get("error"):
-                                    news_block = search_result_dict.get("content", "未能提取有效资讯。")
-                                elif search_result_dict:
-                                    logger.warning(f"{self.context.log_prefix} 网络搜索返回错误: {search_result_dict.get('error')}")
-                            except Exception as e:
-                                logger.error(f"{self.context.log_prefix} 网络搜索执行失败: {e}")
+                        if topic and topic.strip():
+                            web_search_tool = tool_api.get_tool_instance("web_search")
+                            if web_search_tool:
+                                try:
+                                    search_result_dict = await web_search_tool.execute(
+                                        function_args={"query": topic, "max_results": 10}
+                                    )
+                                    if search_result_dict and not search_result_dict.get("error"):
+                                        news_block = search_result_dict.get("content", "未能提取有效资讯。")
+                                    elif search_result_dict:
+                                        logger.warning(f"{self.context.log_prefix} 网络搜索返回错误: {search_result_dict.get('error')}")
+                                except Exception as e:
+                                    logger.error(f"{self.context.log_prefix} 网络搜索执行失败: {e}")
+                            else:
+                                logger.warning(f"{self.context.log_prefix} 未找到 web_search 工具实例。")
                         else:
-                            logger.warning(f"{self.context.log_prefix} 未找到 web_search 工具实例或主题为空。")
+                            logger.warning(f"{self.context.log_prefix} 主题为空，跳过网络搜索。")
                     except Exception as e:
                         logger.error(f"{self.context.log_prefix} 主动思考时网络搜索失败: {e}")
                 message_list = get_raw_msg_before_timestamp_with_chat(
@@ -279,6 +293,8 @@ class ProactiveThinker:
 - 如果想起了之前的话题，就问问后来怎么样了
 - 如果有什么想分享的想法，就自然地开启话题
 - 如果只是想闲聊，就随意地说些什么
+
+**重要**：如果获取到了最新的网络信息（news_block不为空），请**自然地**将这些信息融入你的回复中，作为话题的补充或引子，而不是生硬地复述。
 
 ## 要求
 - 像真正的朋友一样，自然地表达关心或好奇
