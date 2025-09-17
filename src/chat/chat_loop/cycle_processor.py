@@ -3,7 +3,7 @@ import time
 import traceback
 import math
 import random
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 
 from src.chat.utils.timer_calculator import Timer
 from src.common.logger import get_logger
@@ -351,7 +351,16 @@ class CycleProcessor:
         # 2. 然后并行执行所有其他动作
         if other_actions:
             logger.info(f"{self.log_prefix} 正在执行附加动作: {[a.get('action_type') for a in other_actions]}")
-            other_action_tasks = [asyncio.create_task(execute_action(action)) for action in other_actions]
+            
+            # 从回复文本中提取歌名
+            song_name_from_reply = self._extract_song_name_from_reply(reply_text_from_reply)
+            
+            other_action_tasks = []
+            for action in other_actions:
+                if action.get("action_type") == "music_search" and song_name_from_reply:
+                    action["action_data"]["song_name"] = song_name_from_reply
+                other_action_tasks.append(asyncio.create_task(execute_action(action)))
+
             results = await asyncio.gather(*other_action_tasks, return_exceptions=True)
             for i, result in enumerate(results):
                 if isinstance(result, BaseException):
@@ -465,7 +474,7 @@ class CycleProcessor:
                 if not action_handler:
                     logger.error(f"{self.context.log_prefix} 回退方案也失败，无法创建任何动作处理器")
                     return False, "", ""
-
+        
             # 执行动作
             success, reply_text = await action_handler.handle_action()
             return success, reply_text, ""
@@ -473,3 +482,12 @@ class CycleProcessor:
             logger.error(f"{self.context.log_prefix} 处理{action}时出错: {e}")
             traceback.print_exc()
             return False, "", ""
+
+    def _extract_song_name_from_reply(self, reply_text: str) -> Optional[str]:
+        """从回复文本中提取歌名"""
+        import re
+        # 匹配书名号中的内容
+        match = re.search(r"《(.*?)》", reply_text)
+        if match:
+            return match.group(1)
+        return None
