@@ -2,14 +2,14 @@
 PlanGenerator: 负责搜集和汇总所有决策所需的信息，生成一个未经筛选的“原始计划” (Plan)。
 """
 import time
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 
 from src.chat.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat
 from src.chat.utils.utils import get_chat_type_and_target_info
 from src.common.data_models.database_data_model import DatabaseMessages
 from src.common.data_models.info_data_model import Plan, TargetPersonInfo
 from src.config.config import global_config
-from src.plugin_system.base.component_types import ActionInfo, ChatMode, ComponentType
+from src.plugin_system.base.component_types import ActionActivationType, ActionInfo, ChatMode, ComponentType
 from src.plugin_system.core.component_registry import component_registry
 
 
@@ -57,13 +57,13 @@ class PlanGenerator:
         if chat_target_info_dict:
             target_info = TargetPersonInfo(**chat_target_info_dict)
 
-        available_actions = self._get_available_actions()
         chat_history_raw = get_raw_msg_before_timestamp_with_chat(
             chat_id=self.chat_id,
             timestamp=time.time(),
             limit=int(global_config.chat.max_context_size),
         )
         chat_history = [DatabaseMessages(**msg) for msg in chat_history_raw]
+        available_actions = self._get_available_actions(mode, chat_history)
 
 
         plan = Plan(
@@ -75,36 +75,41 @@ class PlanGenerator:
         )
         return plan
 
-    def _get_available_actions(self) -> Dict[str, "ActionInfo"]:
+    def _get_available_actions(self, mode: ChatMode, chat_history: List[DatabaseMessages]) -> Dict[str, "ActionInfo"]:
         """
-        从 ActionManager 和组件注册表中获取当前所有可用的动作。
-
-        它会合并已注册的动作和系统级动作（如 "no_reply"），
-        并以字典形式返回。
-
-        Returns:
-            Dict[str, "ActionInfo"]: 一个字典，键是动作名称，值是 ActionInfo 对象。
+        根据当前的聊天模式和激活类型，筛选出可用的动作。
         """
-        current_available_actions_dict = self.action_manager.get_using_actions()
-        all_registered_actions: Dict[str, ActionInfo] = component_registry.get_components_by_type( # type: ignore
-            ComponentType.ACTION
-        )
-        
-        current_available_actions = {}
-        for action_name in current_available_actions_dict:
-            if action_name in all_registered_actions:
-                current_available_actions[action_name] = all_registered_actions[action_name]
+        all_actions: Dict[str, ActionInfo] = component_registry.get_components_by_type(ComponentType.ACTION)  # type: ignore
+        available_actions = {}
+        latest_message_text = chat_history[-1].processed_plain_text if chat_history else ""
 
+        for name, info in all_actions.items():
+            # 根据当前模式选择对应的激活类型
+            activation_type = info.focus_activation_type if mode == ChatMode.FOCUS else info.normal_activation_type
+
+            if activation_type in [ActionActivationType.ALWAYS, ActionActivationType.LLM_JUDGE]:
+                available_actions[name] = info
+            elif activation_type == ActionActivationType.KEYWORD:
+                if any(kw.lower() in latest_message_text.lower() for kw in info.activation_keywords):
+                    available_actions[name] = info
+            elif activation_type == ActionActivationType.KEYWORD_OR_LLM_JUDGE:
+                if any(kw.lower() in latest_message_text.lower() for kw in info.activation_keywords):
+                    available_actions[name] = info
+                else:
+                    # 即使关键词不匹配，也将其添加到可用动作中，交由LLM判断
+                    available_actions[name] = info
+            elif activation_type == ActionActivationType.NEVER:
+                pass  # 永不激活
+            else:
+                logger.warning(f"未知的激活类型: {activation_type}，跳过处理")
+
+        # 添加系统级动作
         no_reply_info = ActionInfo(
             name="no_reply",
             component_type=ComponentType.ACTION,
             description="系统级动作：选择不回复消息的决策",
-            action_parameters={},
-            activation_keywords=[],
             plugin_name="SYSTEM",
-            enabled=True,
-            parallel_action=False,
         )
-        current_available_actions["no_reply"] = no_reply_info
-        
-        return current_available_actions
+        available_actions["no_reply"] = no_reply_info
+
+        return available_actions

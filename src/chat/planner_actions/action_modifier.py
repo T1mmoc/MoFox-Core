@@ -10,7 +10,7 @@ from src.llm_models.utils_model import LLMRequest
 from src.chat.message_receive.chat_stream import get_chat_manager, ChatMessageContext
 from src.chat.planner_actions.action_manager import ActionManager
 from src.chat.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat, build_readable_messages
-from src.plugin_system.base.component_types import ActionInfo, ActionActivationType
+from src.plugin_system.base.component_types import ActionInfo, ActionActivationType, ChatMode
 from src.plugin_system.core.global_announcement_manager import global_announcement_manager
 
 if TYPE_CHECKING:
@@ -43,10 +43,7 @@ class ActionModifier:
         self._cache_expiry_time = 30  # 缓存过期时间（秒）
         self._last_context_hash = None  # 上次上下文的哈希值
 
-    async def modify_actions(
-        self,
-        message_content: str = "",
-    ):  # sourcery skip: use-named-expression
+    async def modify_actions(self, mode: ChatMode, message_content: str = ""):
         """
         动作修改流程，整合传统观察处理和新的激活类型判定
 
@@ -146,6 +143,7 @@ class ActionModifier:
             removals_s3 = await self._get_deactivated_actions_by_type(
                 current_using_actions,
                 chat_content,
+                mode,
             )
 
             # 应用第三阶段的移除
@@ -178,6 +176,7 @@ class ActionModifier:
         self,
         actions_with_info: Dict[str, ActionInfo],
         chat_content: str = "",
+        mode: ChatMode = ChatMode.NORMAL,
     ) -> List[tuple[str, str]]:
         """
         根据激活类型过滤，返回需要停用的动作列表及原因
@@ -198,34 +197,26 @@ class ActionModifier:
         random.shuffle(actions_to_check)
 
         for action_name, action_info in actions_to_check:
-            activation_type = action_info.activation_type or action_info.focus_activation_type
+            if mode == ChatMode.FOCUS:
+                activation_type = action_info.focus_activation_type
+            else:
+                activation_type = action_info.normal_activation_type
 
             if activation_type == ActionActivationType.ALWAYS:
-                continue  # 总是激活，无需处理
-
+                continue
             elif activation_type == ActionActivationType.RANDOM:
-                probability = action_info.random_activation_probability
-                probability = action_info.random_activation_probability
-                if random.random() >= probability:
-                    reason = f"RANDOM类型未触发（概率{probability}）"
-                    deactivated_actions.append((action_name, reason))
-                    logger.debug(f"{self.log_prefix}未激活动作: {action_name}，原因: {reason}")
-
+                if random.random() >= action_info.random_activation_probability:
+                    deactivated_actions.append((action_name, f"RANDOM类型未触发（概率{action_info.random_activation_probability}）"))
             elif activation_type == ActionActivationType.KEYWORD:
                 if not self._check_keyword_activation(action_name, action_info, chat_content):
-                    keywords = action_info.activation_keywords
-                    reason = f"关键词未匹配（关键词: {keywords}）"
-                    deactivated_actions.append((action_name, reason))
-                    logger.debug(f"{self.log_prefix}未激活动作: {action_name}，原因: {reason}")
-
+                    deactivated_actions.append((action_name, f"关键词未匹配（关键词: {action_info.activation_keywords}）"))
             elif activation_type == ActionActivationType.LLM_JUDGE:
                 llm_judge_actions[action_name] = action_info
-
+            elif activation_type == ActionActivationType.KEYWORD_OR_LLM_JUDGE:
+                if not self._check_keyword_activation(action_name, action_info, chat_content):
+                    llm_judge_actions[action_name] = action_info
             elif activation_type == ActionActivationType.NEVER:
-                reason = "激活类型为never"
-                deactivated_actions.append((action_name, reason))
-                logger.debug(f"{self.log_prefix}未激活动作: {action_name}，原因: 激活类型为never")
-
+                deactivated_actions.append((action_name, "激活类型为never"))
             else:
                 logger.warning(f"{self.log_prefix}未知的激活类型: {activation_type}，跳过处理")
 

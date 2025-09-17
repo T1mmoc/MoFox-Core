@@ -135,6 +135,16 @@ class CycleProcessor:
         action_type = "no_action"
         reply_text = ""  # 初始化reply_text变量，避免UnboundLocalError
 
+
+        # 开始新的思考循环
+        cycle_timers, thinking_id = self.cycle_tracker.start_cycle()
+        logger.info(f"{self.log_prefix} 开始第{self.context.cycle_counter}次思考")
+
+        if ENABLE_S4U and self.context.chat_stream and self.context.chat_stream.user_info:
+            await send_typing(self.context.chat_stream.user_info.user_id)
+
+        loop_start_time = time.time()
+
         # 使用sigmoid函数将interest_value转换为概率
         # 当interest_value为0时，概率接近0（使用Focus模式）
         # 当interest_value很高时，概率接近1（使用Normal模式）
@@ -188,7 +198,7 @@ class CycleProcessor:
         # 第一步：动作修改
         with Timer("动作修改", cycle_timers):
             try:
-                await self.action_modifier.modify_actions()
+                await self.action_modifier.modify_actions(mode=mode)
                 available_actions = self.context.action_manager.get_using_actions()
             except Exception as e:
                 logger.error(f"{self.context.log_prefix} 动作修改失败: {e}")

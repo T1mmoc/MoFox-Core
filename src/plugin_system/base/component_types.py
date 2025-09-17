@@ -31,6 +31,7 @@ class ActionActivationType(Enum):
     LLM_JUDGE = "llm_judge"  # LLM判定是否启动该action到planner
     RANDOM = "random"  # 随机启用action到planner
     KEYWORD = "keyword"  # 关键词触发启用action到planner
+    KEYWORD_OR_LLM_JUDGE = "keyword_or_llm_judge"  # From Elysia with love~ 献给我最棒的伙伴！
 
     def __str__(self):
         return self.value

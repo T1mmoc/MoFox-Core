@@ -459,7 +459,6 @@ class BaseAction(ABC):
         focus_activation_type = getattr(cls, "focus_activation_type", ActionActivationType.ALWAYS)
         normal_activation_type = getattr(cls, "normal_activation_type", ActionActivationType.ALWAYS)
 
-        # 处理activation_type：如果插件中声明了就用插件的值，否则默认使用focus_activation_type
         activation_type = getattr(cls, "activation_type", focus_activation_type)
 
         return ActionInfo(
