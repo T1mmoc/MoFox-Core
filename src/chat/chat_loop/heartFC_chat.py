@@ -39,6 +39,7 @@ class HeartFChatting:
         - 初始化聊天模式并记录初始化完成日志
         """
         self.context = HfcContext(chat_id)
+        self.context.new_message_queue = asyncio.Queue()
 
         self.cycle_tracker = CycleTracker(self.context)
         self.response_handler = ResponseHandler(self.context)
@@ -107,6 +108,10 @@ class HeartFChatting:
         self._loop_task = asyncio.create_task(self._main_chat_loop())
         self._loop_task.add_done_callback(self._handle_loop_completion)
         logger.info(f"{self.context.log_prefix} HeartFChatting 启动完成")
+
+    async def add_message(self, message: Dict[str, Any]):
+        """从外部接收新消息并放入队列"""
+        await self.context.new_message_queue.put(message)
 
     async def stop(self):
         """
@@ -362,15 +367,10 @@ class HeartFChatting:
         # 核心修复：在睡眠模式(包括失眠)下获取消息时，不过滤命令消息，以确保@消息能被接收
         filter_command_flag = not (is_sleeping or is_in_insomnia)
 
-        recent_messages = await message_api.get_messages_by_time_in_chat(
-            chat_id=self.context.stream_id,
-            start_time=self.context.last_read_time,
-            end_time=time.time(),
-            limit=10,
-            limit_mode="latest",
-            filter_mai=True,
-            filter_command=filter_command_flag,
-        )
+        # 从队列中获取所有待处理的新消息
+        recent_messages = []
+        while not self.context.new_message_queue.empty():
+            recent_messages.append(await self.context.new_message_queue.get())
 
         has_new_messages = bool(recent_messages)
         new_message_count = len(recent_messages)

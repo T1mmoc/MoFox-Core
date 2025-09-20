@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from json_repair import repair_json
 
+from . import planner_prompts
 from src.chat.memory_system.Hippocampus import hippocampus_manager
 from src.chat.utils.chat_message_builder import (
     build_readable_actions,
@@ -167,7 +168,7 @@ class PlanFilter:
                 limit=5,
             )
 
-            actions_before_now_block = build_readable_actions(actions=await actions_before_now)
+            actions_before_now_block = build_readable_actions(actions=actions_before_now)
             actions_before_now_block = f"你刚刚选择并执行过的action是：\n{actions_before_now_block}"
 
             self.last_obs_time_mark = time.time()
