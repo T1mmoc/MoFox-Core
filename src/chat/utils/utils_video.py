@@ -242,7 +242,7 @@ class VideoAnalyzer:
                         existing_video.fps = metadata.get("fps")
                         existing_video.resolution = metadata.get("resolution")
                         existing_video.file_size = metadata.get("file_size")
-                    session.commit()
+                    await session.commit()
                     session.refresh(existing_video)
                     logger.info(f"✅ 更新已存在的视频记录，hash: {video_hash[:16]}..., count: {existing_video.count}")
                     return existing_video
@@ -257,8 +257,8 @@ class VideoAnalyzer:
                         video_record.resolution = metadata.get("resolution")
                         video_record.file_size = metadata.get("file_size")
 
-                    session.add(video_record)
-                    session.commit()
+                    await session.add(video_record)
+                    await session.commit()
                     session.refresh(video_record)
                     logger.info(f"✅ 新视频分析结果已保存到数据库，hash: {video_hash[:16]}...")
                     return video_record

@@ -128,7 +128,7 @@ class ScheduleManager:
                 existing_schedule.updated_at = datetime.now()
             else:
                 new_schedule = Schedule(date=date_str, schedule_data=schedule_json)
-                session.add(new_schedule)
+                await session.add(new_schedule)
             await session.commit()
 
     @staticmethod

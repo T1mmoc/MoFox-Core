@@ -178,7 +178,7 @@ class LLMUsageRecorder:
                     timestamp=datetime.now(),  # SQLAlchemy 会处理 DateTime 字段
                 )
 
-                session.add(usage_record)
+                await session.add(usage_record)
                 await session.commit()
 
             logger.debug(

@@ -676,7 +676,6 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
             raise RuntimeError("Database session not initialized")
         session = SessionLocal()
         yield session
-        # await session.commit()
     except Exception:
         if session:
             await session.rollback()

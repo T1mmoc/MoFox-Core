@@ -510,7 +510,7 @@ class PersonInfoManager:
             async with get_db_session() as session:
                 try:
                     new_person = PersonInfo(**p_data)
-                    session.add(new_person)
+                    await session.add(new_person)
                     await session.commit()
                     return True
                 except Exception as e:
@@ -575,7 +575,7 @@ class PersonInfoManager:
 
                     # 尝试创建
                     new_person = PersonInfo(**p_data)
-                    session.add(new_person)
+                    await session.add(new_person)
                     await session.commit()
                     return True
                 except Exception as e:
@@ -941,7 +941,7 @@ class PersonInfoManager:
                 # 记录不存在，尝试创建
                 try:
                     new_person = PersonInfo(**init_data)
-                    session.add(new_person)
+                    await session.add(new_person)
                     await session.commit()
                     await session.refresh(new_person)
                     return new_person, True  # 创建成功

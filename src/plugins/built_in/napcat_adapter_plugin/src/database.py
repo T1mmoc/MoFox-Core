@@ -83,14 +83,14 @@ class DatabaseManager:
                         continue
                     # 更新现有记录的 lift_time
                     existing_record.lift_time = ban_user.lift_time
-                    session.add(existing_record)
+                    await session.add(existing_record)
                     logger.debug(f"更新禁言记录: {existing_record}")
                 else:
                     # 创建新记录
                     db_record = DB_BanUser(
                         user_id=ban_user.user_id, group_id=ban_user.group_id, lift_time=ban_user.lift_time
                     )
-                    session.add(db_record)
+                    await session.add(db_record)
                     logger.debug(f"创建新禁言记录: {ban_user}")
             # 删除不在 ban_list 中的记录
             for db_record in all_records:
@@ -132,14 +132,14 @@ class DatabaseManager:
             if existing_record:
                 # 如果记录已存在，更新 lift_time
                 existing_record.lift_time = ban_record.lift_time
-                session.add(existing_record)
+                await session.add(existing_record)
                 logger.debug(f"更新禁言记录: {ban_record}")
             else:
                 # 如果记录不存在，创建新记录
                 db_record = DB_BanUser(
                     user_id=ban_record.user_id, group_id=ban_record.group_id, lift_time=ban_record.lift_time
                 )
-                session.add(db_record)
+                await session.add(db_record)
                 logger.debug(f"创建新禁言记录: {ban_record}")
 
     def delete_ban_record(self, ban_record: BanUser):

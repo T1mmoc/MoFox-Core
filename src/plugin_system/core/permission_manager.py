@@ -149,7 +149,7 @@ class PermissionManager(IPermissionManager):
                     default_granted=node.default_granted,
                     created_at=datetime.utcnow(),
                 )
-                session.add(new_node)
+                await session.add(new_node)
                 await session.commit()
                 logger.info(f"注册新权限节点: {node.node_name} (插件: {node.plugin_name})")
                 return True
@@ -204,7 +204,7 @@ class PermissionManager(IPermissionManager):
                         granted=True,
                         granted_at=datetime.utcnow(),
                     )
-                    session.add(new_perm)
+                    await session.add(new_perm)
 
                 await session.commit()
                 logger.info(f"已授权用户 {user.platform}:{user.user_id} 权限节点 {permission_node}")
@@ -257,7 +257,7 @@ class PermissionManager(IPermissionManager):
                         granted=False,
                         granted_at=datetime.utcnow(),
                     )
-                    session.add(new_perm)
+                    await session.add(new_perm)
 
                 await session.commit()
                 logger.info(f"已撤销用户 {user.platform}:{user.user_id} 权限节点 {permission_node}")

@@ -52,7 +52,7 @@ class UserBanManager:
                             # 封禁已过期，重置违规次数
                             ban_record.violation_num = 0
                             ban_record.created_at = datetime.datetime.now()
-                            session.commit()
+                            await session.commit()
                             logger.info(f"用户 {platform}:{user_id} 封禁已过期，违规次数已重置")
 
             return None
@@ -85,9 +85,9 @@ class UserBanManager:
                         reason=f"提示词注入攻击 (置信度: {detection_result.confidence:.2f})",
                         created_at=datetime.datetime.now(),
                     )
-                    session.add(ban_record)
+                    await session.add(ban_record)
 
-                session.commit()
+                await session.commit()
 
                 # 检查是否需要自动封禁
                 if ban_record.violation_num >= self.config.auto_ban_violation_threshold:
@@ -95,7 +95,7 @@ class UserBanManager:
                     # 只有在首次达到阈值时才更新封禁开始时间
                     if ban_record.violation_num == self.config.auto_ban_violation_threshold:
                         ban_record.created_at = datetime.datetime.now()
-                    session.commit()
+                    await session.commit()
                 else:
                     logger.info(f"用户 {platform}:{user_id} 违规记录已更新，当前违规次数: {ban_record.violation_num}")
 

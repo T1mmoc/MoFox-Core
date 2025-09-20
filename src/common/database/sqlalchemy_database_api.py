@@ -168,7 +168,7 @@ async def db_query(
 
                 # 创建新记录
                 new_record = model_class(**data)
-                session.add(new_record)
+                await session.add(new_record)
                 await session.flush()  # 获取自动生成的ID
 
                 # 转换为字典格式返回
@@ -295,7 +295,7 @@ async def db_save(
 
             # 创建新记录
             new_record = model_class(**data)
-            session.add(new_record)
+            await session.add(new_record)
             await session.flush()
 
             # 转换为字典格式返回

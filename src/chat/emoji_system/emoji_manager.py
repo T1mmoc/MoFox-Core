@@ -166,7 +166,7 @@ class MaiEmoji:
                         usage_count=self.usage_count,
                         last_used_time=self.last_used_time,
                     )
-                    session.add(emoji)
+                    await session.add(emoji)
                     await session.commit()
 
                     logger.info(f"[注册] 表情包信息保存到数据库: {self.filename} ({self.emotion})")

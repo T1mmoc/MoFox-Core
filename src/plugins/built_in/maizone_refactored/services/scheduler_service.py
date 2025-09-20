@@ -186,8 +186,8 @@ class SchedulerService:
                         story_content=content,
                         send_success=success,
                     )
-                    session.add(new_record)
-                session.commit()
+                    await session.add(new_record)
+                await session.commit()
                 logger.info(f"已更新日程处理状态: {hour_str} - {activity} - 成功: {success}")
         except Exception as e:
             logger.error(f"更新日程处理状态时发生数据库错误: {e}")

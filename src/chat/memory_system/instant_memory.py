@@ -117,8 +117,8 @@ class InstantMemory:
                 create_time=memory_item.create_time,
                 last_view_time=memory_item.last_view_time,
             )
-            session.add(memory)
-            session.commit()
+            await session.add(memory)
+            await session.commit()
 
     async def get_memory(self, target: str):
         from json_repair import repair_json

@@ -265,7 +265,7 @@ class AntiPromptInjector:
                 # 删除对应的消息记录
                 stmt = delete(Messages).where(Messages.message_id == message_id)
                 result = session.execute(stmt)
-                session.commit()
+                await session.commit()
 
                 if result.rowcount > 0:
                     logger.debug(f"成功删除违禁消息记录: {message_id}")
@@ -295,7 +295,7 @@ class AntiPromptInjector:
                     .values(processed_plain_text=new_content, display_message=new_content)
                 )
                 result = session.execute(stmt)
-                session.commit()
+                await session.commit()
 
                 if result.rowcount > 0:
                     logger.debug(f"成功更新消息内容为加盾版本: {message_id}")

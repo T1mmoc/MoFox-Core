@@ -147,7 +147,7 @@ class ChatManager:
             #     db.connect(reuse_if_open=True)
             #     # 确保 ChatStreams 表存在
             #     session.execute(text("CREATE TABLE IF NOT EXISTS chat_streams (stream_id TEXT PRIMARY KEY, platform TEXT, create_time REAL, last_active_time REAL, user_platform TEXT, user_id TEXT, user_nickname TEXT, user_cardname TEXT, group_platform TEXT, group_id TEXT, group_name TEXT)"))
-            #     session.commit()
+            #     await session.commit()
             # except Exception as e:
             #     logger.error(f"数据库连接或 ChatStreams 表创建失败: {e}")
 

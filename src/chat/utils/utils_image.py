@@ -128,7 +128,7 @@ class ImageManager:
                         description=description,
                         timestamp=current_timestamp,
                     )
-                    session.add(new_desc)
+                    await session.add(new_desc)
                 await session.commit()
                 #  会在上下文管理器中自动调用
         except Exception as e:
@@ -278,7 +278,7 @@ class ImageManager:
                                     description=detailed_description,  # 保存详细描述
                                     timestamp=current_timestamp,
                                 )
-                                session.add(new_img)
+                                await session.add(new_img)
                             await session.commit()
                     except Exception as e:
                         logger.error(f"保存到Images表失败: {str(e)}")
@@ -370,7 +370,7 @@ class ImageManager:
                         vlm_processed=True,
                         count=1,
                     )
-                    session.add(new_img)
+                    await session.add(new_img)
                     logger.debug(f"[数据库] 创建新图片记录: {image_hash[:8]}...")
 
                 await session.commit()
@@ -590,7 +590,7 @@ class ImageManager:
                     vlm_processed=True,
                     count=1,
                 )
-                session.add(new_img)
+                await session.add(new_img)
                 await session.commit()
 
             return image_id, f"[picid:{image_id}]"

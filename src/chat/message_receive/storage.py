@@ -123,7 +123,8 @@ class MessageStorage:
                 is_picid=is_picid,
             )
             async with get_db_session() as session:
-                session.add(new_message)
+                await session.add(new_message)
+                await session.commit()
 
         except Exception:
             logger.exception("存储消息失败")
@@ -161,9 +162,6 @@ class MessageStorage:
                 logger.debug(f"消息段类型 {message.message_segment.type} 中未找到有效的message_id，跳过更新")
                 logger.debug(f"消息段数据: {message.message_segment.data}")
                 return
-
-            # 使用上下文管理器确保session正确管理
-            from src.common.database.sqlalchemy_models import get_db_session
 
             async with get_db_session() as session:
                 matched_message = (

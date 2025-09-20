@@ -42,7 +42,7 @@ async def add_new_plans(plans: List[str], month: str):
             new_plan_objects = [
                 MonthlyPlan(plan_text=plan, target_month=month, status="active") for plan in plans_to_add
             ]
-            session.add_all(new_plan_objects)
+            await session.add_all(new_plan_objects)
             await session.commit()
 
             logger.info(f"成功向数据库添加了 {len(new_plan_objects)} 条 {month} 的月度计划。")
