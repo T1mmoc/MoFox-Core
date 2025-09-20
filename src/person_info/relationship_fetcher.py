@@ -110,7 +110,11 @@ class RelationshipFetcher:
         if person_name == nickname_str and not short_impression:
             return ""
 
-        current_points = person_info.get("points") or []
+        current_points = person_info.get("points")
+        if isinstance(current_points, str):
+            current_points = orjson.loads(current_points)
+        else:
+            current_points = current_points or []
 
         # 按时间排序forgotten_points
         current_points.sort(key=lambda x: x[2])

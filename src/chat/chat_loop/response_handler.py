@@ -130,7 +130,7 @@ class ResponseHandler:
         """
         current_time = time.time()
         # 计算新消息数量
-        new_message_count = message_api.count_new_messages(
+        new_message_count = await message_api.count_new_messages(
             chat_id=self.context.stream_id, start_time=thinking_start_time, end_time=current_time
         )
 
