@@ -379,6 +379,11 @@ class PlanFilter:
                 if target_message_dict:
                     # 直接使用字典作为action_message，避免DatabaseMessages对象创建失败
                     target_message_obj = target_message_dict
+                    # 替换action_data中的临时ID为真实ID
+                    if "target_message_id" in action_data:
+                        real_message_id = target_message_dict.get("message_id") or target_message_dict.get("id")
+                        if real_message_id:
+                            action_data["target_message_id"] = real_message_id
                 else:
                     # 如果找不到目标消息，对于reply动作来说这是必需的，应该记录警告
                     if action == "reply":

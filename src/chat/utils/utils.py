@@ -701,25 +701,9 @@ def assign_message_ids(messages: List[Any]) -> List[Dict[str, Any]]:
     """
     result = []
     used_ids = set()
-    len_i = len(messages)
-    if len_i > 100:
-        a = 10
-        b = 99
-    else:
-        a = 1
-        b = 9
-
     for i, message in enumerate(messages):
-        # 生成唯一的简短ID
-        while True:
-            # 使用索引+随机数生成简短ID
-            random_suffix = random.randint(a, b)
-            message_id = f"m{i + 1}{random_suffix}"
-
-            if message_id not in used_ids:
-                used_ids.add(message_id)
-                break
-
+        # 使用简单的索引作为ID
+        message_id = f"m{i + 1}"
         result.append({"id": message_id, "message": message})
 
     return result

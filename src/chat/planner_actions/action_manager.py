@@ -430,8 +430,6 @@ class ActionManager:
         )
 
         # 根据新消息数量决定是否需要引用回复
-        need_reply = new_message_count >= random.randint(2, 4)
-
         reply_text = ""
         is_proactive_thinking = (message_data.get("message_type") == "proactive_thinking") if message_data else True
 
@@ -462,7 +460,7 @@ class ActionManager:
                     text=data,
                     stream_id=chat_stream.stream_id,
                     reply_to_message=message_data,
-                    set_reply=need_reply,
+                    set_reply=bool(message_data),
                     typing=False,
                 )
                 first_replied = True
