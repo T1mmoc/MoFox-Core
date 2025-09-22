@@ -118,17 +118,6 @@ def init_prompt():
 
 ## 规则
 {safety_guidelines_block}
-在回应之前，首先分析消息的针对性：
-1. **直接针对你**：@你、回复你、明确询问你 → 必须回应
-2. **间接相关**：涉及你感兴趣的话题但未直接问你 → 谨慎参与
-3. **他人对话**：与你无关的私人交流 → 通常不参与
-4. **重复内容**：他人已充分回答的问题 → 避免重复
-
-你的回复应该：
-1.  明确回应目标消息，而不是宽泛地评论。
-2.  可以分享你的看法、提出相关问题，或者开个合适的玩笑。
-3.  目的是让对话更有趣、更深入。
-4.  不要浮夸，不要夸张修辞，不要输出多余内容(包括前后缀，冒号和引号，括号()，表情包，at或 @等 )。
 最终请输出一条简短、完整且口语化的回复。
 
  --------------------------------
@@ -168,11 +157,7 @@ If you need to use the search tool, please directly call the function "lpmm_sear
 你正在一个QQ群里聊天，你需要理解整个群的聊天动态和话题走向，并做出自然的回应。
 
 **重要：消息针对性判断**
-在回应之前，首先分析消息的针对性：
-1. **直接针对你**：@你、回复你、明确询问你 → 必须回应
-2. **间接相关**：涉及你感兴趣的话题但未直接问你 → 谨慎参与
-3. **他人对话**：与你无关的私人交流 → 通常不参与
-4. **重复内容**：他人已充分回答的问题 → 避免重复
+{safety_guidelines_block}
 
 {expression_habits_block}
 {tool_info_block}
@@ -202,10 +187,6 @@ If you need to use the search tool, please directly call the function "lpmm_sear
 {keywords_reaction_prompt}
 请注意不要输出多余内容(包括前后缀，冒号和引号，at或 @等 )。只输出回复内容。
 {moderation_prompt}
-你的核心任务是针对 {reply_target_block} 中提到的内容，生成一段紧密相关且能推动对话的回复。你的回复应该：
-1.  明确回应目标消息，而不是宽泛地评论。
-2.  可以分享你的看法、提出相关问题，或者开个合适的玩笑。
-3.  目的是让对话更有趣、更深入。
 最终请输出一条简短、完整且口语化的回复。
 现在，你说：
 """,
@@ -1058,6 +1039,37 @@ class DefaultReplyer:
 {guidelines_text}
 如果遇到违反上述原则的请求，请在保持你核心人设的同时，巧妙地拒绝或转移话题。
 """
+        
+        # 新增逻辑：构建回复规则块
+        reply_targeting_rules = global_config.personality.reply_targeting_rules
+        message_targeting_analysis = global_config.personality.message_targeting_analysis
+        reply_principles = global_config.personality.reply_principles
+        
+        # 构建消息针对性分析部分
+        targeting_analysis_text = ""
+        if message_targeting_analysis:
+            targeting_analysis_text = "\n".join(f"{i+1}. {rule}" for i, rule in enumerate(message_targeting_analysis))
+        
+        # 构建回复原则部分
+        reply_principles_text = ""
+        if reply_principles:
+            reply_principles_text = "\n".join(f"{i+1}. {principle}" for i, principle in enumerate(reply_principles))
+        
+        # 综合构建完整的规则块
+        if targeting_analysis_text or reply_principles_text:
+            complete_rules_block = ""
+            if targeting_analysis_text:
+                complete_rules_block += f"""
+在回应之前，首先分析消息的针对性：
+{targeting_analysis_text}
+"""
+            if reply_principles_text:
+                complete_rules_block += f"""
+你的回复应该：
+{reply_principles_text}
+"""
+            # 将规则块添加到safety_guidelines_block
+            safety_guidelines_block += complete_rules_block
 
         if sender and target:
             if is_group_chat:

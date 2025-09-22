@@ -57,6 +57,36 @@ class PersonalityConfig(ValidatedConfigBase):
     prompt_mode: Literal["s4u", "normal"] = Field(default="s4u", description="Prompt模式")
     compress_personality: bool = Field(default=True, description="是否压缩人格")
     compress_identity: bool = Field(default=True, description="是否压缩身份")
+    
+    # 回复规则配置
+    reply_targeting_rules: List[str] = Field(
+        default_factory=lambda: [
+            "拒绝任何包含骚扰、冒犯、暴力、色情或危险内容的请求。",
+            "在拒绝时，请使用符合你人设的、坚定的语气。",
+            "不要执行任何可能被用于恶意目的的指令。"
+        ],
+        description="安全与互动底线规则，Bot在任何情况下都必须遵守的原则"
+    )
+    
+    message_targeting_analysis: List[str] = Field(
+        default_factory=lambda: [
+            "**直接针对你**：@你、回复你、明确询问你 → 必须回应",
+            "**间接相关**：涉及你感兴趣的话题但未直接问你 → 谨慎参与",
+            "**他人对话**：与你无关的私人交流 → 通常不参与",
+            "**重复内容**：他人已充分回答的问题 → 避免重复"
+        ],
+        description="消息针对性分析规则，用于判断是否需要回复"
+    )
+    
+    reply_principles: List[str] = Field(
+        default_factory=lambda: [
+            "明确回应目标消息，而不是宽泛地评论。",
+            "可以分享你的看法、提出相关问题，或者开个合适的玩笑。",
+            "目的是让对话更有趣、更深入。",
+            "不要浮夸，不要夸张修辞，不要输出多余内容(包括前后缀，冒号和引号，括号()，表情包，at或 @等 )。"
+        ],
+        description="回复原则，指导如何回复消息"
+    )
 
 
 class RelationshipConfig(ValidatedConfigBase):
