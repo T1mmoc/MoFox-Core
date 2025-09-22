@@ -796,8 +796,6 @@ class ComponentRegistry:
             },
             "enabled_components": len([c for c in self._components.values() if c.enabled]),
             "enabled_plugins": len([p for p in self._plugins.values() if p.enabled]),
-        }
-            },
             "enabled_components": len([c for c in self._components.values() if c.enabled]),
             "enabled_plugins": len([p for p in self._plugins.values() if p.enabled]),
         }
