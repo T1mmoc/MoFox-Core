@@ -40,9 +40,8 @@ class ActionActivationType(Enum):
 # 聊天模式枚举
 class ChatMode(Enum):
     """聊天模式枚举"""
-
-    GROUP = "group"  # 群聊模式
-    PRIVATE = "private"  # 私聊模式
+    
+    FOCUS = "focus"  # 专注模式
     NORMAL = "normal"  # Normal聊天模式
     PROACTIVE = "proactive"  # 主动思考模式
     PRIORITY = "priority"  # 优先级聊天模式

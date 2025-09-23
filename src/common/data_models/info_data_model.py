@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Optional, Dict, List, TYPE_CHECKING
 
+from src.plugin_system.base.component_types import ChatType
 from . import BaseDataModel
 
 if TYPE_CHECKING:
@@ -46,6 +47,7 @@ class Plan(BaseDataModel):
     chat_id: str
     mode: "ChatMode"
 
+    chat_type: "ChatType"
     # Generator 填充
     available_actions: Dict[str, "ActionInfo"] = field(default_factory=dict)
     chat_history: List["DatabaseMessages"] = field(default_factory=list)

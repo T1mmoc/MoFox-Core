@@ -15,17 +15,15 @@ class BaseChatter(ABC):
     """Chatter组件的描述"""
     chat_types: List[ChatType] = [ChatType.PRIVATE, ChatType.GROUP]
 
-    def __init__(self, stream_id: str, planner: 'ActionPlanner', action_manager: 'ChatterActionManager'):
+    def __init__(self, stream_id: str, action_manager: 'ChatterActionManager'):
         """
         初始化聊天处理器
 
         Args:
             stream_id: 聊天流ID
-            planner: 动作规划器
             action_manager: 动作管理器
         """
         self.stream_id = stream_id
-        self.planner = planner
         self.action_manager = action_manager
 
     @abstractmethod

@@ -9,9 +9,9 @@ from datetime import datetime
 from typing import Dict, Any
 
 from src.plugin_system.base.base_chatter import BaseChatter
-from src.plugin_system.base.component_types import ChatType, ChatMode
+from src.plugin_system.base.component_types import ChatType
 from src.common.data_models.message_manager_data_model import StreamContext
-from src.plugins.built_in.affinity_flow_chatter.planner import ChatterActionPlanner as ActionPlanner
+from src.plugins.built_in.affinity_flow_chatter.planner import ChatterActionPlanner
 from src.chat.planner_actions.action_manager import ChatterActionManager
 from src.common.logger import get_logger
 
@@ -20,11 +20,12 @@ logger = get_logger("affinity_chatter")
 
 class AffinityChatter(BaseChatter):
     """亲和力聊天处理器"""
+
     chatter_name: str = "AffinityChatter"
     chatter_description: str = "基于亲和力模型的智能聊天处理器，支持多种聊天类型"
     chat_types: list[ChatType] = [ChatType.ALL]  # 支持所有聊天类型
 
-    def __init__(self, stream_id: str, planner: ActionPlanner, action_manager: ChatterActionManager):
+    def __init__(self, stream_id: str, action_manager: ChatterActionManager):
         """
         初始化亲和力聊天处理器
 
@@ -33,7 +34,8 @@ class AffinityChatter(BaseChatter):
             planner: 动作规划器
             action_manager: 动作管理器
         """
-        super().__init__(stream_id, planner, action_manager)
+        super().__init__(stream_id, action_manager)
+        self.planner = ChatterActionPlanner(stream_id, action_manager)
 
         # 处理器统计
         self.stats = {
@@ -59,7 +61,7 @@ class AffinityChatter(BaseChatter):
             unread_messages = context.get_unread_messages()
 
             # 使用增强版规划器处理消息
-            actions, target_message = await self.planner.plan(mode=ChatMode.GROUP, context=context)
+            actions, target_message = await self.planner.plan(context=context)
             self.stats["plans_created"] += 1
 
             # 执行动作（如果规划器返回了动作）

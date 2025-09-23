@@ -22,7 +22,7 @@ from src.common.logger import get_logger
 from src.config.config import global_config, model_config
 from src.llm_models.utils_model import LLMRequest
 from src.mood.mood_manager import mood_manager
-from src.plugin_system.base.component_types import ActionInfo, ChatMode
+from src.plugin_system.base.component_types import ActionInfo, ChatMode, ChatType
 from src.schedule.schedule_manager import schedule_manager
 
 logger = get_logger("plan_filter")
@@ -41,31 +41,33 @@ class ChatterPlanFilter:
         """
         执行筛选逻辑，并填充 Plan 对象的 decided_actions 字段。
         """
-        logger.debug(f"墨墨在这里加了日志 -> filter 入口 plan: {plan}")
         try:
             prompt, used_message_id_list = await self._build_prompt(plan)
             plan.llm_prompt = prompt
-            logger.info(f"规划器原始提示词: {prompt}")
 
             llm_content, _ = await self.planner_llm.generate_response_async(prompt=prompt)
 
             if llm_content:
-                logger.debug(f"墨墨在这里加了日志 -> LLM a原始返回: {llm_content}")
                 try:
                     parsed_json = orjson.loads(repair_json(llm_content))
                 except orjson.JSONDecodeError:
-                    parsed_json = {"action": "no_action", "reason": "返回内容无法解析为JSON"}
-                logger.debug(f"墨墨在这里加了日志 -> 解析后的 JSON: {parsed_json}")
+                    parsed_json = {
+                        "thinking": "",
+                        "actions": {"action_type": "no_action", "reason": "返回内容无法解析为JSON"},
+                    }
 
                 if "reply" in plan.available_actions and reply_not_available:
                     # 如果reply动作不可用，但llm返回的仍然有reply，则改为no_reply
-                    if isinstance(parsed_json, dict) and parsed_json.get("action") == "reply":
-                        parsed_json["action"] = "no_reply"
+                    if (
+                        isinstance(parsed_json, dict)
+                        and parsed_json.get("actions", {}).get("action_type", "") == "reply"
+                    ):
+                        parsed_json["actions"]["action_type"] = "no_reply"
                     elif isinstance(parsed_json, list):
                         for item in parsed_json:
-                            if isinstance(item, dict) and item.get("action") == "reply":
-                                item["action"] = "no_reply"
-                                item["reason"] += " (但由于兴趣度不足，reply动作不可用，已改为no_reply)"
+                            if isinstance(item, dict) and item.get("actions", {}).get("action_type", "") == "reply":
+                                item["actions"]["action_type"] = "no_reply"
+                                item["actions"]["reason"] += " (但由于兴趣度不足，reply动作不可用，已改为no_reply)"
 
                 if isinstance(parsed_json, dict):
                     parsed_json = [parsed_json]
@@ -81,23 +83,40 @@ class ChatterPlanFilter:
                             continue
 
                         # 预解析 action_type 来进行判断
-                        action_type = item.get("action", "no_action")
+                        thinking = item.get("thinking", "未提供思考过程")
+                        actions_obj = item.get("actions", {})
+                        
+                        # 处理actions字段可能是字典或列表的情况
+                        if isinstance(actions_obj, dict):
+                            action_type = actions_obj.get("action_type", "no_action")
+                        elif isinstance(actions_obj, list) and actions_obj:
+                            # 如果是列表，取第一个元素的action_type
+                            first_action = actions_obj[0]
+                            if isinstance(first_action, dict):
+                                action_type = first_action.get("action_type", "no_action")
+                            else:
+                                action_type = "no_action"
+                        else:
+                            action_type = "no_action"
 
                         if action_type in reply_action_types:
                             if not reply_action_added:
-                                final_actions.extend(await self._parse_single_action(item, used_message_id_list, plan))
+                                final_actions.extend(
+                                    await self._parse_single_action(item, used_message_id_list, plan)
+                                )
                                 reply_action_added = True
                         else:
                             # 非回复类动作直接添加
                             final_actions.extend(await self._parse_single_action(item, used_message_id_list, plan))
-
-                    plan.decided_actions = self._filter_no_actions(final_actions)
+                        
+                        if thinking and thinking != "未提供思考过程":
+                            logger.info(f"思考: {thinking}")
+                        plan.decided_actions = self._filter_no_actions(final_actions)
 
         except Exception as e:
             logger.error(f"筛选 Plan 时出错: {e}\n{traceback.format_exc()}")
             plan.decided_actions = [ActionPlannerInfo(action_type="no_action", reasoning=f"筛选时出错: {e}")]
 
-        logger.debug(f"墨墨在这里加了日志 -> filter 出口 decided_actions: {plan.decided_actions}")
         return plan
 
     async def _build_prompt(self, plan: Plan) -> tuple[str, list]:
@@ -186,7 +205,7 @@ class ChatterPlanFilter:
             if global_config.chat.at_bot_inevitable_reply:
                 mentioned_bonus = "\n- 有人提到你，或者at你"
 
-            if plan.mode == ChatMode.GROUP:
+            if plan.mode == ChatMode.FOCUS:
                 no_action_block = """
 动作：no_action
 动作描述：不选择任何动作
@@ -204,7 +223,7 @@ class ChatterPlanFilter:
     "reason":"不回复的原因"
 }}
 """
-            else:  # PRIVATE Mode
+            else:  # normal Mode
                 no_action_block = """重要说明：
 - 'reply' 表示只进行普通聊天回复，不执行任何额外动作
 - 其他action表示在普通回复的基础上，执行相应的额外动作
@@ -214,7 +233,7 @@ class ChatterPlanFilter:
     "reason":"回复的原因"
 }}"""
 
-            is_group_chat = plan.target_info.platform == "group" if plan.target_info else True
+            is_group_chat = plan.chat_type == ChatType.GROUP
             chat_context_description = "你现在正在一个群聊中"
             if not is_group_chat and plan.target_info:
                 chat_target_name = plan.target_info.person_name or plan.target_info.user_nickname or "对方"
@@ -321,7 +340,9 @@ class ChatterPlanFilter:
         interest_scores = {}
 
         try:
-            from src.plugins.built_in.affinity_flow_chatter.interest_scoring import chatter_interest_scoring_system as interest_scoring_system
+            from src.plugins.built_in.affinity_flow_chatter.interest_scoring import (
+                chatter_interest_scoring_system as interest_scoring_system,
+            )
             from src.common.data_models.database_data_model import DatabaseMessages
 
             # 转换消息格式
@@ -364,13 +385,39 @@ class ChatterPlanFilter:
     ) -> List[ActionPlannerInfo]:
         parsed_actions = []
         try:
-            action = action_json.get("action", "no_action")
-            reasoning = action_json.get("reason", "未提供原因")
-            action_data = {k: v for k, v in action_json.items() if k not in ["action", "reason"]}
+            # 从新的actions结构中获取动作信息
+            actions_obj = action_json.get("actions", {})
+            
+            # 处理actions字段可能是字典或列表的情况
+            if isinstance(actions_obj, dict):
+                action = actions_obj.get("action_type", "no_action")
+                reasoning = actions_obj.get("reason", "未提供原因")
+                # 合并actions_obj中的其他字段作为action_data
+                action_data = {k: v for k, v in actions_obj.items() if k not in ["action_type", "reason"]}
+            elif isinstance(actions_obj, list) and actions_obj:
+                # 如果是列表，取第一个元素
+                first_action = actions_obj[0]
+                if isinstance(first_action, dict):
+                    action = first_action.get("action_type", "no_action")
+                    reasoning = first_action.get("reason", "未提供原因")
+                    action_data = {k: v for k, v in first_action.items() if k not in ["action_type", "reason"]}
+                else:
+                    action = "no_action"
+                    reasoning = "actions格式错误"
+                    action_data = {}
+            else:
+                action = "no_action"
+                reasoning = "actions格式错误"
+                action_data = {}
+            
+            # 保留原始的thinking字段（如果有）
+            thinking = action_json.get("thinking")
+            if thinking:
+                action_data["thinking"] = thinking
 
             target_message_obj = None
             if action not in ["no_action", "no_reply", "do_nothing", "proactive_reply"]:
-                if target_message_id := action_json.get("target_message_id"):
+                if target_message_id := action_data.get("target_message_id"):
                     target_message_dict = self._find_message_by_id(target_message_id, message_id_list)
                 else:
                     # 如果LLM没有指定target_message_id，我们就默认选择最新的一条消息
@@ -388,7 +435,7 @@ class ChatterPlanFilter:
                     # 如果找不到目标消息，对于reply动作来说这是必需的，应该记录警告
                     if action == "reply":
                         logger.warning(
-                            f"reply动作找不到目标消息，target_message_id: {action_json.get('target_message_id')}"
+                            f"reply动作找不到目标消息，target_message_id: {action_data.get('target_message_id')}"
                         )
                         # 将reply动作改为no_action，避免后续执行时出错
                         action = "no_action"

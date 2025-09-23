@@ -10,7 +10,7 @@ from src.chat.utils.utils import get_chat_type_and_target_info
 from src.common.data_models.database_data_model import DatabaseMessages
 from src.common.data_models.info_data_model import Plan, TargetPersonInfo
 from src.config.config import global_config
-from src.plugin_system.base.component_types import ActionActivationType, ActionInfo, ChatMode, ChatType, ComponentType
+from src.plugin_system.base.component_types import ActionInfo, ChatMode, ChatType
 from src.plugin_system.core.component_registry import component_registry
 
 
@@ -66,6 +66,7 @@ class ChatterPlanGenerator:
             # 构建计划对象
             plan = Plan(
                 chat_id=self.chat_id,
+                chat_type=chat_type,
                 mode=mode,
                 target_info=target_info,
                 available_actions=available_actions,
@@ -74,7 +75,7 @@ class ChatterPlanGenerator:
 
             return plan
 
-        except Exception as e:
+        except Exception:
             # 如果生成失败，返回一个基本的空计划
             return Plan(
                 chat_id=self.chat_id,
@@ -110,7 +111,7 @@ class ChatterPlanGenerator:
 
             return filtered_actions
 
-        except Exception as e:
+        except Exception:
             # 如果获取失败，返回空字典
             return {}
 
@@ -124,9 +125,7 @@ class ChatterPlanGenerator:
         try:
             # 获取最近的消息记录
             raw_messages = get_raw_msg_before_timestamp_with_chat(
-                chat_id=self.chat_id,
-                timestamp=time.time(),
-                limit=global_config.memory.short_memory_length
+                chat_id=self.chat_id, timestamp=time.time(), limit=global_config.memory.short_memory_length
             )
 
             # 转换为 DatabaseMessages 对象
@@ -143,13 +142,13 @@ class ChatterPlanGenerator:
                         user_platform=msg.get("user_platform", ""),
                     )
                     recent_messages.append(db_msg)
-                except Exception as e:
+                except Exception:
                     # 跳过格式错误的消息
                     continue
 
             return recent_messages
 
-        except Exception as e:
+        except Exception:
             # 如果获取失败，返回空列表
             return []
 
@@ -162,6 +161,8 @@ class ChatterPlanGenerator:
         """
         return {
             "chat_id": self.chat_id,
-            "action_count": len(self.action_manager._using_actions) if hasattr(self.action_manager, '_using_actions') else 0,
-            "generation_time": time.time()
+            "action_count": len(self.action_manager._using_actions)
+            if hasattr(self.action_manager, "_using_actions")
+            else 0,
+            "generation_time": time.time(),
         }

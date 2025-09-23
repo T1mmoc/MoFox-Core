@@ -99,8 +99,7 @@ class ChatterManager:
                 raise ValueError(f"No chatter registered for chat type {chat_type}")
 
         if stream_id not in self.instances:
-            planner = ActionPlanner(stream_id, self.action_manager)
-            self.instances[stream_id] = chatter_class(stream_id=stream_id, planner=planner, action_manager=self.action_manager)
+            self.instances[stream_id] = chatter_class(stream_id=stream_id, action_manager=self.action_manager)
             logger.info(f"创建新的聊天流实例: {stream_id} 使用 {chatter_class.__name__} (类型: {chat_type.value})")
 
         self.stats["streams_processed"] += 1

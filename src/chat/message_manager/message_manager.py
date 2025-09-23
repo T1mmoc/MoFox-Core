@@ -13,6 +13,7 @@ from src.common.data_models.database_data_model import DatabaseMessages
 from src.common.data_models.message_manager_data_model import StreamContext, MessageManagerStats, StreamStats
 from src.chat.chatter_manager import ChatterManager
 from src.chat.planner_actions.action_manager import ChatterActionManager
+from src.plugin_system.base.component_types import ChatMode
 
 if TYPE_CHECKING:
     from src.common.data_models.message_manager_data_model import StreamContext
@@ -72,6 +73,7 @@ class MessageManager:
             self.stats.total_streams += 1
 
         context = self.stream_contexts[stream_id]
+        context.set_chat_mode(ChatMode.FOCUS)
         context.add_message(message)
 
         logger.debug(f"添加消息到聊天流 {stream_id}: {message.message_id}")

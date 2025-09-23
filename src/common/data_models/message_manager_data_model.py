@@ -10,7 +10,7 @@ from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
 from . import BaseDataModel
-from src.plugin_system.base.component_types import ChatType
+from src.plugin_system.base.component_types import ChatMode, ChatType
 
 if TYPE_CHECKING:
     from .database_data_model import DatabaseMessages
@@ -30,6 +30,7 @@ class StreamContext(BaseDataModel):
 
     stream_id: str
     chat_type: ChatType = ChatType.PRIVATE  # 聊天类型，默认为私聊
+    chat_mode: ChatMode = ChatMode.NORMAL  # 聊天模式，默认为普通模式
     unread_messages: List["DatabaseMessages"] = field(default_factory=list)
     history_messages: List["DatabaseMessages"] = field(default_factory=list)
     last_check_time: float = field(default_factory=time.time)
@@ -60,6 +61,10 @@ class StreamContext(BaseDataModel):
         """手动更新聊天类型"""
         self.chat_type = chat_type
 
+    def set_chat_mode(self, chat_mode: ChatMode):
+        """设置聊天模式"""
+        self.chat_mode = chat_mode
+        
     def is_group_chat(self) -> bool:
         """检查是否为群聊"""
         return self.chat_type == ChatType.GROUP
@@ -89,7 +94,7 @@ class StreamContext(BaseDataModel):
                 self.history_messages.append(msg)
                 self.unread_messages.remove(msg)
                 break
-
+     
     def get_history_messages(self, limit: int = 20) -> List["DatabaseMessages"]:
         """获取历史消息"""
         # 优先返回最近的历史消息和所有未读消息

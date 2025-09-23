@@ -6,7 +6,7 @@ from typing import List, Tuple, Type
 
 from src.plugin_system.apis.plugin_register_api import register_plugin
 from src.plugin_system.base.base_plugin import BasePlugin
-from src.plugin_system.base.component_types import ComponentInfo, ChatterInfo, ComponentType, ChatType
+from src.plugin_system.base.component_types import ComponentInfo
 from src.common.logger import get_logger
 
 logger = get_logger("affinity_chatter_plugin")

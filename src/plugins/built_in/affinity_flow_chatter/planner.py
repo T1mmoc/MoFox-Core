@@ -6,7 +6,6 @@
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
-from src.plugin_system.base.component_types import ChatMode
 from src.plugins.built_in.affinity_flow_chatter.plan_executor import ChatterPlanExecutor
 from src.plugins.built_in.affinity_flow_chatter.plan_filter import ChatterPlanFilter
 from src.plugins.built_in.affinity_flow_chatter.plan_generator import ChatterPlanGenerator
@@ -21,7 +20,7 @@ if TYPE_CHECKING:
     from src.common.data_models.message_manager_data_model import StreamContext
     from src.common.data_models.info_data_model import Plan
     from src.chat.planner_actions.action_manager import ChatterActionManager
-    
+
 # 导入提示词模块以确保其被初始化
 from src.plugins.built_in.affinity_flow_chatter import planner_prompts  # noqa
 
@@ -58,7 +57,6 @@ class ChatterActionPlanner:
 
         # 创建新的关系追踪器
         self.relationship_tracker = ChatterRelationshipTracker(self.interest_scoring)
-        logger.info("创建新的关系追踪器实例")
 
         # 设置执行器的关系追踪器
         self.executor.set_relationship_tracker(self.relationship_tracker)
@@ -72,14 +70,11 @@ class ChatterActionPlanner:
             "other_actions_executed": 0,
         }
 
-    async def plan(
-        self, mode: ChatMode = ChatMode.GROUP, context: "StreamContext" = None
-    ) -> Tuple[List[Dict], Optional[Dict]]:
+    async def plan(self, context: "StreamContext" = None) -> Tuple[List[Dict], Optional[Dict]]:
         """
         执行完整的增强版规划流程。
 
         Args:
-            mode (ChatMode): 当前的聊天模式，默认为 GROUP。
             context (StreamContext): 包含聊天流消息的上下文对象。
 
         Returns:
@@ -90,18 +85,18 @@ class ChatterActionPlanner:
         try:
             self.planner_stats["total_plans"] += 1
 
-            return await self._enhanced_plan_flow(mode, context)
+            return await self._enhanced_plan_flow(context)
 
         except Exception as e:
             logger.error(f"规划流程出错: {e}")
             self.planner_stats["failed_plans"] += 1
             return [], None
 
-    async def _enhanced_plan_flow(self, mode: ChatMode, context: "StreamContext") -> Tuple[List[Dict], Optional[Dict]]:
+    async def _enhanced_plan_flow(self, context: "StreamContext") -> Tuple[List[Dict], Optional[Dict]]:
         """执行增强版规划流程"""
         try:
             # 1. 生成初始 Plan
-            initial_plan = await self.generator.generate(mode)
+            initial_plan = await self.generator.generate(context.chat_mode)
 
             unread_messages = context.get_unread_messages() if context else []
             # 2. 兴趣度评分 - 只对未读消息进行评分
@@ -119,16 +114,14 @@ class ChatterActionPlanner:
 
                     reply_not_available = False
                     if not should_reply and "reply" in initial_plan.available_actions:
-                        logger.info(f"兴趣度不足 ({latest_score.total_score:.2f})，移除'回复'动作。")
+                        logger.info(f"兴趣度不足 ({latest_score.total_score:.2f})，移除回复")
                         reply_not_available = True
 
             # base_threshold = self.interest_scoring.reply_threshold
             # 检查兴趣度是否达到非回复动作阈值
             non_reply_action_interest_threshold = global_config.affinity_flow.non_reply_action_interest_threshold
             if score < non_reply_action_interest_threshold:
-                logger.info(
-                    f"兴趣度 {score:.3f} 低于非回复动作阈值 {non_reply_action_interest_threshold:.3f}，不执行任何动作。"
-                )
+                logger.info(f"兴趣度 {score:.3f} 低于阈值 {non_reply_action_interest_threshold:.3f}，不执行动作")
                 # 直接返回 no_action
                 from src.common.data_models.info_data_model import ActionPlannerInfo
 

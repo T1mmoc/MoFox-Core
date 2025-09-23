@@ -385,7 +385,9 @@ class ChatterRelationshipTracker:
             time_diff = reply_timestamp - last_tracked_time
 
             if time_diff < 5 * 60:  # 5分钟内不重复追踪
-                logger.debug(f"⏱️ [RelationshipTracker] 用户 {user_id} 距离上次追踪时间不足5分钟 ({time_diff:.2f}s)，跳过")
+                logger.debug(
+                    f"⏱️ [RelationshipTracker] 用户 {user_id} 距离上次追踪时间不足5分钟 ({time_diff:.2f}s)，跳过"
+                )
                 return
 
             # 获取上次bot回复该用户的消息
@@ -644,9 +646,10 @@ class ChatterRelationshipTracker:
         """处理与用户的初次交互"""
         try:
             logger.info(f"✨ [RelationshipTracker] 正在处理与用户 {user_id} 的初次交互")
-            
+
             # 获取bot人设信息
             from src.individuality.individuality import Individuality
+
             individuality = Individuality()
             bot_personality = await individuality.get_personality_block()
 
@@ -682,12 +685,19 @@ class ChatterRelationshipTracker:
                 return
 
             import json
+
             cleaned_response = self._clean_llm_json_response(llm_response)
             response_data = json.loads(cleaned_response)
 
             new_text = response_data.get("relationship_text", "初次见面")
-            new_score = max(0.0, min(1.0, float(response_data.get("relationship_score", global_config.affinity_flow.base_relationship_score))))
-            
+            new_score = max(
+                0.0,
+                min(
+                    1.0,
+                    float(response_data.get("relationship_score", global_config.affinity_flow.base_relationship_score)),
+                ),
+            )
+
             # 更新数据库和缓存
             self._update_user_relationship_in_db(user_id, new_text, new_score)
             self.user_relationship_cache[user_id] = {
@@ -701,7 +711,6 @@ class ChatterRelationshipTracker:
         except Exception as e:
             logger.error(f"处理初次交互失败: {user_id}, 错误: {e}")
             logger.debug("错误详情:", exc_info=True)
-
 
     def _clean_llm_json_response(self, response: str) -> str:
         """

@@ -52,21 +52,16 @@ class ChatterInterestScoringSystem:
         user_messages = [msg for msg in messages if str(msg.user_info.user_id) != str(global_config.bot.qq_account)]
         if not user_messages:
             return []
-        logger.info(f"正在为 {len(user_messages)} 条用户消息计算兴趣度...")
 
         scores = []
-        for i, msg in enumerate(user_messages, 1):
-            logger.debug(f"[{i}/{len(user_messages)}] 处理消息 ID: {msg.message_id}")
+        for _, msg in enumerate(user_messages, 1):
             score = await self._calculate_single_message_score(msg, bot_nickname)
             scores.append(score)
 
-        logger.info(f"为 {len(scores)} 条消息生成了兴趣度评分。")
         return scores
 
     async def _calculate_single_message_score(self, message: DatabaseMessages, bot_nickname: str) -> InterestScore:
         """计算单条消息的兴趣度评分"""
-        message_preview = f"\033[96m{message.processed_plain_text[:30].replace('\n', ' ')}...\033[0m"
-        logger.info(f"计算消息 {message.message_id} 的分数 | 内容: {message_preview}")
 
         keywords = self._extract_keywords_from_database(message)
         interest_match_score = await self._calculate_interest_match_score(message.processed_plain_text, keywords)
@@ -86,8 +81,7 @@ class ChatterInterestScoringSystem:
         }
 
         logger.info(
-            f"消息 {message.message_id} 得分: {total_score:.3f} "
-            f"(匹配: {interest_match_score:.2f}, 关系: {relationship_score:.2f}, 提及: {mentioned_score:.2f})"
+            f"消息得分: {total_score:.3f} (匹配: {interest_match_score:.2f}, 关系: {relationship_score:.2f}, 提及: {mentioned_score:.2f})"
         )
 
         return InterestScore(
@@ -109,51 +103,31 @@ class ChatterInterestScoringSystem:
             return await self._calculate_smart_interest_match(content, keywords)
         else:
             # 智能匹配未初始化，返回默认分数
-            logger.warning("智能兴趣匹配系统未初始化，返回默认分数")
             return 0.3
 
     async def _calculate_smart_interest_match(self, content: str, keywords: List[str] = None) -> float:
         """使用embedding计算智能兴趣匹配"""
         try:
-            logger.debug("🧠 开始智能兴趣匹配计算...")
-
             # 如果没有传入关键词，则提取
             if not keywords:
-                logger.debug("🔍 从内容中提取关键词...")
                 keywords = self._extract_keywords_from_content(content)
-                logger.debug(f"🏷️  提取到 {len(keywords)} 个关键词")
 
             # 使用机器人兴趣管理器计算匹配度
-            logger.debug("🤖 调用机器人兴趣管理器计算匹配度...")
             match_result = await bot_interest_manager.calculate_interest_match(content, keywords)
 
             if match_result:
-                logger.debug("✅ 智能兴趣匹配成功:")
-                logger.debug(f"   📊 总分: {match_result.overall_score:.3f}")
-                logger.debug(f"   🏷️  匹配标签: {match_result.matched_tags}")
-                logger.debug(f"   🎯 最佳标签: {match_result.top_tag}")
-                logger.debug(f"   📈 置信度: {match_result.confidence:.3f}")
-                logger.debug(f"   🔢 匹配详情: {match_result.match_scores}")
-
                 # 返回匹配分数，考虑置信度和匹配标签数量
                 affinity_config = global_config.affinity_flow
                 match_count_bonus = min(
                     len(match_result.matched_tags) * affinity_config.match_count_bonus, affinity_config.max_match_bonus
                 )
                 final_score = match_result.overall_score * 1.15 * match_result.confidence + match_count_bonus
-                logger.debug(
-                    f"⚖️  最终分数计算: 总分({match_result.overall_score:.3f}) × 1.3 × 置信度({match_result.confidence:.3f}) + 标签数量奖励({match_count_bonus:.3f}) = {final_score:.3f}"
-                )
                 return final_score
             else:
-                logger.warning("⚠️ 智能兴趣匹配未返回结果")
                 return 0.0
 
         except Exception as e:
-            logger.error(f"❌ 智能兴趣匹配计算失败: {e}")
-            logger.debug("🔍 错误详情:")
-            logger.debug(f"   💬 内容长度: {len(content)} 字符")
-            logger.debug(f"   🏷️  关键词数量: {len(keywords) if keywords else 0}")
+            logger.error(f"智能兴趣匹配计算失败: {e}")
             return 0.0
 
     def _extract_keywords_from_database(self, message: DatabaseMessages) -> List[str]:
@@ -225,8 +199,8 @@ class ChatterInterestScoringSystem:
                 # 同时更新内存缓存
                 self.user_relationships[user_id] = relationship_score
                 return relationship_score
-            except Exception as e:
-                logger.warning(f"从关系追踪器获取关系分失败: {e}")
+            except Exception:
+                pass
         else:
             # 尝试从全局关系追踪器获取
             try:
@@ -238,8 +212,8 @@ class ChatterInterestScoringSystem:
                     # 同时更新内存缓存
                     self.user_relationships[user_id] = relationship_score
                     return relationship_score
-            except Exception as e:
-                logger.warning(f"从全局关系追踪器获取关系分失败: {e}")
+            except Exception:
+                pass
 
         # 默认新用户的基础分
         return global_config.affinity_flow.base_relationship_score
@@ -261,26 +235,20 @@ class ChatterInterestScoringSystem:
 
     def should_reply(self, score: InterestScore, message: "DatabaseMessages") -> bool:
         """判断是否应该回复"""
-        message_preview = f"\033[96m{(message.processed_plain_text or 'N/A')[:50].replace('\n', ' ')}\033[0m"
-        logger.info(f"评估消息 {score.message_id} (得分: {score.total_score:.3f}) | 内容: '{message_preview}...'")
         base_threshold = self.reply_threshold
 
         # 如果被提及，降低阈值
         if score.mentioned_score >= global_config.affinity_flow.mention_bot_adjustment_threshold:
             base_threshold = self.mention_threshold
-            logger.debug(f"机器人被提及, 使用较低阈值: {base_threshold:.3f}")
 
         # 计算连续不回复的概率提升
         probability_boost = min(self.no_reply_count * self.probability_boost_per_no_reply, 0.8)
         effective_threshold = base_threshold - probability_boost
-        logger.debug(
-            f"基础阈值: {base_threshold:.3f}, 不回复提升: {probability_boost:.3f}, 有效阈值: {effective_threshold:.3f}"
-        )
 
         # 做出决策
         should_reply = score.total_score >= effective_threshold
-        decision = "✅ 回复" if should_reply else "❌ 不回复"
-        logger.info(f"回复决策: {decision} (分数: {score.total_score:.3f} {' >=' if should_reply else ' <'} 阈值: {effective_threshold:.3f})")
+        decision = "回复" if should_reply else "不回复"
+        logger.info(f"决策: {decision} (分数: {score.total_score:.3f})")
 
         return should_reply, score.total_score
 
@@ -296,8 +264,7 @@ class ChatterInterestScoringSystem:
 
         # 限制最大计数
         self.no_reply_count = min(self.no_reply_count, self.max_no_reply_count)
-        logger.info(f"记录动作: {action} | 连续不回复次数: {old_count} -> {self.no_reply_count}")
-        logger.debug(f"📋 最大限制: {self.max_no_reply_count} 次")
+        logger.info(f"{action} | 不回复次数: {old_count} -> {self.no_reply_count}")
 
     def update_user_relationship(self, user_id: str, relationship_change: float):
         """更新用户关系"""
@@ -308,10 +275,7 @@ class ChatterInterestScoringSystem:
 
         self.user_relationships[user_id] = new_score
 
-        change_direction = "📈" if relationship_change > 0 else "📉" if relationship_change < 0 else "➖"
-        logger.info(f"{change_direction} 更新用户关系: {user_id}")
-        logger.info(f"💝 关系分: {old_score:.3f} → {new_score:.3f} (变化: {relationship_change:+.3f})")
-        logger.debug(f"👥 当前追踪用户数: {len(self.user_relationships)}")
+        logger.info(f"用户关系: {user_id} | {old_score:.3f} → {new_score:.3f}")
 
     def get_user_relationship(self, user_id: str) -> float:
         """获取用户关系分"""
@@ -342,12 +306,7 @@ class ChatterInterestScoringSystem:
             logger.info("智能兴趣系统初始化完成。")
 
             # 显示初始化后的统计信息
-            stats = bot_interest_manager.get_interest_stats()
-            logger.info(
-                f"兴趣系统统计: 总标签={stats.get('total_tags', 0)}, "
-                f"缓存大小={stats.get('cache_size', 0)}, "
-                f"模型='{stats.get('embedding_model', '未知')}'"
-            )
+            bot_interest_manager.get_interest_stats()
 
         except Exception as e:
             logger.error(f"初始化智能兴趣系统失败: {e}")
