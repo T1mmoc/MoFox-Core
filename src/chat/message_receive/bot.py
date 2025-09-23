@@ -265,7 +265,7 @@ class ChatBot:
                 try:
                     # 检查聊天类型限制
                     if not command_instance.is_chat_type_allowed():
-                        is_group = hasattr(message, "is_group_message") and message.is_group_message
+                        is_group = message.message_info.group_info
                         logger.info(
                             f"命令 {command_class.__name__} 不支持当前聊天类型: {'群聊' if is_group else '私聊'}"
                         )
