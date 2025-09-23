@@ -5,6 +5,7 @@ import time
 from src.common.logger import get_logger
 from src.config.config import global_config, model_config
 from src.chat.message_receive.message import MessageRecv
+from src.common.data_models.database_data_model import DatabaseMessages
 from src.chat.message_receive.chat_stream import get_chat_manager
 from src.chat.utils.prompt import Prompt, global_prompt_manager
 from src.chat.utils.chat_message_builder import build_readable_messages, get_raw_msg_by_timestamp_with_chat_inclusive
@@ -65,7 +66,7 @@ class ChatMood:
 
         self.last_change_time: float = 0
 
-    async def update_mood_by_message(self, message: MessageRecv, interested_rate: float):
+    async def update_mood_by_message(self, message: MessageRecv | DatabaseMessages, interested_rate: float):
         # 如果当前聊天处于失眠状态，则锁定情绪，不允许更新
         if self.chat_id in mood_manager.insomnia_chats:
             logger.debug(f"{self.log_prefix} 处于失眠状态，情绪已锁定，跳过更新。")
@@ -73,7 +74,13 @@ class ChatMood:
 
         self.regression_count = 0
 
-        during_last_time = message.message_info.time - self.last_change_time  # type: ignore
+        # 处理不同类型的消息对象
+        if isinstance(message, MessageRecv):
+            message_time = message.message_info.time
+        else:  # DatabaseMessages
+            message_time = message.time
+
+        during_last_time = message_time - self.last_change_time
 
         base_probability = 0.05
         time_multiplier = 4 * (1 - math.exp(-0.01 * during_last_time))
@@ -96,9 +103,7 @@ class ChatMood:
         logger.debug(
             f"{self.log_prefix} 更新情绪状态，感兴趣度: {interested_rate:.2f}, 更新概率: {update_probability:.2f}"
         )
-
-        message_time: float = message.message_info.time  # type: ignore
-        message_list_before_now = await get_raw_msg_by_timestamp_with_chat_inclusive(
+        message_list_before_now = get_raw_msg_by_timestamp_with_chat_inclusive(
             chat_id=self.chat_id,
             timestamp_start=self.last_change_time,
             timestamp_end=message_time,
