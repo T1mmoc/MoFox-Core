@@ -13,7 +13,8 @@ from src.common.data_models.database_data_model import DatabaseMessages
 from src.common.data_models.message_manager_data_model import StreamContext, MessageManagerStats, StreamStats
 from src.chat.chatter_manager import ChatterManager
 from src.chat.planner_actions.action_manager import ChatterActionManager
-from src.plugin_system.base.component_types import ChatMode
+from .sleep_manager.sleep_manager import SleepManager
+from .sleep_manager.wakeup_manager import WakeUpManager
 
 if TYPE_CHECKING:
     from src.common.data_models.message_manager_data_model import StreamContext
@@ -37,6 +38,10 @@ class MessageManager:
         self.action_manager = ChatterActionManager()
         self.chatter_manager = ChatterManager(self.action_manager)
 
+        # 初始化睡眠和唤醒管理器
+        self.sleep_manager = SleepManager()
+        self.wakeup_manager = WakeUpManager(self.sleep_manager)
+
     async def start(self):
         """启动消息管理器"""
         if self.is_running:
@@ -45,6 +50,7 @@ class MessageManager:
 
         self.is_running = True
         self.manager_task = asyncio.create_task(self._manager_loop())
+        await self.wakeup_manager.start()
         logger.info("消息管理器已启动")
 
     async def stop(self):
@@ -62,6 +68,8 @@ class MessageManager:
         # 停止管理器任务
         if self.manager_task and not self.manager_task.done():
             self.manager_task.cancel()
+        
+        await self.wakeup_manager.stop()
 
         logger.info("消息管理器已停止")
 
@@ -82,6 +90,9 @@ class MessageManager:
         """管理器主循环"""
         while self.is_running:
             try:
+                # 更新睡眠状态
+                await self.sleep_manager.update_sleep_state(self.wakeup_manager)
+                
                 await self._check_all_streams()
                 await asyncio.sleep(self.check_interval)
             except asyncio.CancelledError:
@@ -126,6 +137,28 @@ class MessageManager:
             unread_messages = context.get_unread_messages()
             if not unread_messages:
                 return
+            
+            # --- 睡眠状态检查 ---
+            from .sleep_manager.sleep_state import SleepState
+            if self.sleep_manager.is_sleeping():
+                logger.info(f"Bot正在睡觉，检查聊天流 {stream_id} 是否有唤醒触发器。")
+                
+                was_woken_up = False
+                is_private = context.is_private_chat()
+
+                for message in unread_messages:
+                    is_mentioned = message.is_mentioned or False
+                    if is_private or is_mentioned:
+                        if self.wakeup_manager.add_wakeup_value(is_private, is_mentioned):
+                            was_woken_up = True
+                            break # 一旦被吵醒，就跳出循环并处理消息
+                
+                if not was_woken_up:
+                    logger.debug(f"聊天流 {stream_id} 中没有唤醒触发器，保持消息未读状态。")
+                    return # 退出，不处理消息
+                
+                logger.info(f"Bot被聊天流 {stream_id} 中的消息吵醒，继续处理。")
+            # --- 睡眠状态检查结束 ---
 
             logger.debug(f"开始处理聊天流 {stream_id} 的 {len(unread_messages)} 条未读消息")
 
@@ -189,7 +222,7 @@ class MessageManager:
             unread_count=len(context.get_unread_messages()),
             history_count=len(context.history_messages),
             last_check_time=context.last_check_time,
-            has_active_task=context.processing_task and not context.processing_task.done(),
+            has_active_task=bool(context.processing_task and not context.processing_task.done()),
         )
 
     def get_manager_stats(self) -> Dict[str, Any]:
