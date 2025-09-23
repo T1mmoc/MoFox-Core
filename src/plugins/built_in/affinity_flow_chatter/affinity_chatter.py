@@ -139,6 +139,24 @@ class AffinityChatter(BaseChatter):
         """
         return self.planner.get_relationship_stats()
 
+    def get_current_mood_state(self) -> str:
+        """
+        获取当前聊天的情绪状态
+
+        Returns:
+            当前情绪状态描述
+        """
+        return self.planner.get_current_mood_state()
+
+    def get_mood_stats(self) -> Dict[str, Any]:
+        """
+        获取情绪状态统计信息
+
+        Returns:
+            情绪状态统计信息字典
+        """
+        return self.planner.get_mood_stats()
+
     def get_user_relationship(self, user_id: str) -> float:
         """
         获取用户关系分

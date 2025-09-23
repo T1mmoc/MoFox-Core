@@ -11,6 +11,7 @@ from src.plugins.built_in.affinity_flow_chatter.plan_filter import ChatterPlanFi
 from src.plugins.built_in.affinity_flow_chatter.plan_generator import ChatterPlanGenerator
 from src.plugins.built_in.affinity_flow_chatter.interest_scoring import ChatterInterestScoringSystem
 from src.plugins.built_in.affinity_flow_chatter.relationship_tracker import ChatterRelationshipTracker
+from src.mood.mood_manager import mood_manager
 
 
 from src.common.logger import get_logger
@@ -116,6 +117,12 @@ class ChatterActionPlanner:
                     if not should_reply and "reply" in initial_plan.available_actions:
                         logger.info(f"兴趣度不足 ({latest_score.total_score:.2f})，移除回复")
                         reply_not_available = True
+
+                    # 更新情绪状态 - 使用最新消息的兴趣度
+                    if latest_message and score > 0:
+                        chat_mood = mood_manager.get_mood_by_chat_id(self.chat_id)
+                        await chat_mood.update_mood_by_message(latest_message, score)
+                        logger.debug(f"已更新聊天 {self.chat_id} 的情绪状态，兴趣度: {score:.3f}")
 
             # base_threshold = self.interest_scoring.reply_threshold
             # 检查兴趣度是否达到非回复动作阈值
@@ -231,6 +238,21 @@ class ChatterActionPlanner:
             "tracking_users": len(self.relationship_tracker.tracking_users),
             "relationship_history": len(self.relationship_tracker.relationship_history),
             "max_tracking_users": self.relationship_tracker.max_tracking_users,
+        }
+
+    def get_current_mood_state(self) -> str:
+        """获取当前聊天的情绪状态"""
+        chat_mood = mood_manager.get_mood_by_chat_id(self.chat_id)
+        return chat_mood.mood_state
+
+    def get_mood_stats(self) -> Dict[str, any]:
+        """获取情绪状态统计"""
+        chat_mood = mood_manager.get_mood_by_chat_id(self.chat_id)
+        return {
+            "current_mood": chat_mood.mood_state,
+            "is_angry_from_wakeup": chat_mood.is_angry_from_wakeup,
+            "regression_count": chat_mood.regression_count,
+            "last_change_time": chat_mood.last_change_time,
         }
 
 
