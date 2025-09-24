@@ -816,7 +816,12 @@ class LLMRequest:
                 )
             return content, (reasoning_content, model_info.name, tool_calls)
 
-        return await self._execute_with_failover(request_callable=request_logic, raise_on_failure=True)
+        result = await self._execute_with_failover(request_callable=request_logic, raise_on_failure=True)
+        if result:
+            return result
+
+        # 这段代码理论上不可达，因为 raise_on_failure=True 会抛出异常
+        raise RuntimeError("图片响应生成失败，所有模型均尝试失败。")
 
     async def generate_response_for_voice(self, voice_base64: str) -> Optional[str]:
         """
@@ -840,7 +845,8 @@ class LLMRequest:
             return response.content or None
 
         # 对于语音识别，如果所有模型都失败，我们可能不希望程序崩溃，而是返回None
-        return await self._execute_with_failover(request_callable=request_logic, raise_on_failure=False)
+        result = await self._execute_with_failover(request_callable=request_logic, raise_on_failure=False)
+        return result
 
     async def generate_response_async(
         self,
@@ -1102,7 +1108,12 @@ class LLMRequest:
 
             return embedding, model_info.name
 
-        return await self._execute_with_failover(request_callable=request_logic, raise_on_failure=True)
+        result = await self._execute_with_failover(request_callable=request_logic, raise_on_failure=True)
+        if result:
+            return result
+
+        # 这段代码理论上不可达，因为 raise_on_failure=True 会抛出异常
+        raise RuntimeError("获取 embedding 失败，所有模型均尝试失败。")
 
     def _model_scheduler(
         self, failed_models: set | None = None
@@ -1244,7 +1255,7 @@ class LLMRequest:
                 cannot_retry_msg=f"任务-'{task_name}' 模型-'{model_name}': 连接异常，超过最大重试次数，请检查网络连接状态或URL是否正确",
             )
         elif isinstance(e, ReqAbortException):
-            logger.warning(f"任务-'{task_name}' 模型-'{model_name}': 请求被中断，详细信息-{e}")
+            logger.warning(f"任务-'{task_name}' 模型-'{model_name}': 请求被中断，详细信息-{str(e.message)}")
             return -1, None  # 不再重试请求该模型
         elif isinstance(e, RespNotOkException):
             return self._handle_resp_not_ok(
@@ -1258,7 +1269,7 @@ class LLMRequest:
             )
         elif isinstance(e, RespParseException):
             # 响应解析错误
-            logger.error(f"任务-'{task_name}' 模型-'{model_name}': 响应解析错误，错误信息-{e}")
+            logger.error(f"任务-'{task_name}' 模型-'{model_name}': 响应解析错误，错误信息-{e.message}")
             logger.debug(f"附加内容: {str(e.ext_info)}")
             return -1, None  # 不再重试请求该模型
         else:
