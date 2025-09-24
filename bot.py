@@ -229,10 +229,10 @@ if __name__ == "__main__":
         asyncio.set_event_loop(loop)
 
         try:
-            # 执行初始化和任务调度
-            loop.run_until_complete(main_system.initialize())
             # 异步初始化数据库表结构
             loop.run_until_complete(maibot.initialize_database_async())
+            # 执行初始化和任务调度
+            loop.run_until_complete(main_system.initialize())
             initialize_lpmm_knowledge()
             # Schedule tasks returns a future that runs forever.
             # We can run console_input_loop concurrently.

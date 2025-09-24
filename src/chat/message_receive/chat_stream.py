@@ -254,7 +254,7 @@ class ChatManager:
             model_instance = await _db_find_stream_async(stream_id)
 
             if model_instance:
-                # 从 Peewee 模型转换回 ChatStream.from_dict 期望的格式
+                # 从 SQLAlchemy 模型转换回 ChatStream.from_dict 期望的格式
                 user_info_data = {
                     "platform": model_instance.user_platform,
                     "user_id": model_instance.user_id,
@@ -382,7 +382,7 @@ class ChatManager:
             await _db_save_stream_async(stream_data_dict)
             stream.saved = True
         except Exception as e:
-            logger.error(f"保存聊天流 {stream.stream_id} 到数据库失败 (Peewee): {e}", exc_info=True)
+            logger.error(f"保存聊天流 {stream.stream_id} 到数据库失败 (SQLAlchemy): {e}", exc_info=True)
 
     async def _save_all_streams(self):
         """保存所有聊天流"""
@@ -435,7 +435,7 @@ class ChatManager:
                 if stream.stream_id in self.last_messages:
                     stream.set_context(self.last_messages[stream.stream_id])
         except Exception as e:
-            logger.error(f"从数据库加载所有聊天流失败 (Peewee): {e}", exc_info=True)
+            logger.error(f"从数据库加载所有聊天流失败 (SQLAlchemy): {e}", exc_info=True)
 
 
 chat_manager = None

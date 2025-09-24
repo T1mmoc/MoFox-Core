@@ -70,24 +70,32 @@ async def check_and_migrate_database():
 
                     def add_columns_sync(conn):
                         dialect = conn.dialect
+                        compiler = dialect.ddl_compiler(dialect, None)
+
                         for column_name in missing_columns:
                             column = table.c[column_name]
-                            
-                            # 使用DDLCompiler为特定方言编译列
-                            compiler = dialect.ddl_compiler(dialect, None)
-                            
-                            # 编译列的数据类型
                             column_type = compiler.get_column_specification(column)
-                            
-                            # 构建原生SQL
                             sql = f"ALTER TABLE {table.name} ADD COLUMN {column.name} {column_type}"
-                            
-                            # 添加默认值（如果存在）
+
                             if column.default:
-                                default_value = compiler.render_literal_value(column.default.arg, column.type)
+                                # 手动处理不同方言的默认值
+                                default_arg = column.default.arg
+                                if dialect.name == "sqlite" and isinstance(default_arg, bool):
+                                    # SQLite 将布尔值存储为 0 或 1
+                                    default_value = "1" if default_arg else "0"
+                                elif hasattr(compiler, 'render_literal_value'):
+                                    try:
+                                        # 尝试使用 render_literal_value
+                                        default_value = compiler.render_literal_value(default_arg, column.type)
+                                    except AttributeError:
+                                        # 如果失败，则回退到简单的字符串转换
+                                        default_value = f"'{default_arg}'" if isinstance(default_arg, str) else str(default_arg)
+                                else:
+                                    # 对于没有 render_literal_value 的旧版或特定方言
+                                    default_value = f"'{default_arg}'" if isinstance(default_arg, str) else str(default_arg)
+                                
                                 sql += f" DEFAULT {default_value}"
-                            
-                            # 添加非空约束（如果存在）
+
                             if not column.nullable:
                                 sql += " NOT NULL"
                             
@@ -109,12 +117,11 @@ async def check_and_migrate_database():
                     logger.info(f"在表 '{table_name}' 中发现缺失的索引: {', '.join(missing_indexes)}")
 
                     def add_indexes_sync(conn):
-                        with conn.begin():
-                            for index_name in missing_indexes:
-                                index_obj = next((idx for idx in table.indexes if idx.name == index_name), None)
-                                if index_obj is not None:
-                                    conn.execute(CreateIndex(index_obj))
-                                    logger.info(f"成功为表 '{table_name}' 创建索引 '{index_name}'。")
+                        for index_name in missing_indexes:
+                            index_obj = next((idx for idx in table.indexes if idx.name == index_name), None)
+                            if index_obj is not None:
+                                index_obj.create(conn)
+                                logger.info(f"成功为表 '{table_name}' 创建索引 '{index_name}'。")
 
                     await connection.run_sync(add_indexes_sync)
                 else:
