@@ -638,6 +638,10 @@ async def _build_readable_messages_internal(
             else:
                 person_name = "某人"
 
+        # 在用户名后面添加 QQ 号, 但机器人本体不用
+        if user_id != global_config.bot.qq_account:
+            person_name = f"{person_name}({user_id})"
+
         # 使用独立函数处理用户引用格式
         content = replace_user_references_sync(content, platform, replace_bot_name=replace_bot_name)
 
