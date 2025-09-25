@@ -218,6 +218,10 @@ class ChatterPlanFilter:
             self.last_obs_time_mark = time.time()
 
             mentioned_bonus = ""
+            if global_config.chat.mentioned_bot_inevitable_reply:
+                mentioned_bonus = "\n- 有人提到你"
+            if global_config.chat.at_bot_inevitable_reply:
+                mentioned_bonus = "\n- 有人提到你，或者at你"
 
             if plan.mode == ChatMode.FOCUS:
                 no_action_block = """

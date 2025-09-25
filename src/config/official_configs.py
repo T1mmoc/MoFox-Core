@@ -104,9 +104,20 @@ class ChatConfig(ValidatedConfigBase):
     """聊天配置类"""
 
     max_context_size: int = Field(default=18, description="最大上下文大小")
+    replyer_random_probability: float = Field(default=0.5, description="回复者随机概率")
     thinking_timeout: int = Field(default=40, description="思考超时时间")
+    talk_frequency: float = Field(default=1.0, description="聊天频率")
+    mentioned_bot_inevitable_reply: bool = Field(default=False, description="提到机器人的必然回复")
+    at_bot_inevitable_reply: bool = Field(default=False, description="@机器人的必然回复")
     allow_reply_self: bool = Field(default=False, description="是否允许回复自己说的话")
     talk_frequency_adjust: list[list[str]] = Field(default_factory=lambda: [], description="聊天频率调整")
+    focus_value: float = Field(default=1.0, description="专注值")
+    focus_mode_quiet_groups: List[str] = Field(
+        default_factory=list,
+        description='专注模式下需要保持安静的群组列表, 格式: ["platform:group_id1", "platform:group_id2"]',
+    )
+    force_reply_private: bool = Field(default=False, description="强制回复私聊")
+    group_chat_mode: Literal["auto", "normal", "focus"] = Field(default="auto", description="群聊模式")
     timestamp_display_mode: Literal["normal", "normal_no_YMD", "relative"] = Field(
         default="normal_no_YMD", description="时间戳显示模式"
     )
@@ -147,57 +158,46 @@ class ChatConfig(ValidatedConfigBase):
     dynamic_distribution_jitter_factor: float = Field(
         default=0.2, ge=0.0, le=0.5, description="分发间隔随机扰动因子"
     )
-    
-    # 并发消息处理
-    concurrent_message_processing: bool = Field(
-        default=False, description="是否启用并发消息处理，在同一聊天流中并行处理多个消息"
-    )
-    concurrent_per_user_limit: int = Field(
-        default=3, description="在并发模式下，每个聊天流（群/私聊）同时处理的最大用户数"
-    )
-    process_by_user_id: bool = Field(
-        default=True, description="在并发模式下，是否按用户ID进行独立串行处理"
-    )
- 
+
     def get_current_talk_frequency(self, chat_stream_id: Optional[str] = None) -> float:
         """
         根据当前时间和聊天流获取对应的 talk_frequency
- 
+
         Args:
             chat_stream_id: 聊天流ID，格式为 "platform:chat_id:type"
- 
+
         Returns:
             float: 对应的频率值
         """
         if not self.talk_frequency_adjust:
-            return 1.0
- 
+            return self.talk_frequency
+
         # 优先检查聊天流特定的配置
         if chat_stream_id:
             stream_frequency = self._get_stream_specific_frequency(chat_stream_id)
             if stream_frequency is not None:
                 return stream_frequency
- 
+
         # 检查全局时段配置（第一个元素为空字符串的配置）
         global_frequency = self._get_global_frequency()
-        return 1.0 if global_frequency is None else global_frequency
- 
+        return self.talk_frequency if global_frequency is None else global_frequency
+
     def _get_time_based_frequency(self, time_freq_list: list[str]) -> Optional[float]:
         """
         根据时间配置列表获取当前时段的频率
- 
+
         Args:
             time_freq_list: 时间频率配置列表，格式为 ["HH:MM,frequency", ...]
- 
+
         Returns:
             float: 频率值，如果没有配置则返回 None
         """
         from datetime import datetime
- 
+
         current_time = datetime.now().strftime("%H:%M")
         current_hour, current_minute = map(int, current_time.split(":"))
         current_minutes = current_hour * 60 + current_minute
- 
+
         # 解析时间频率配置
         time_freq_pairs = []
         for time_freq_str in time_freq_list:
@@ -209,13 +209,13 @@ class ChatConfig(ValidatedConfigBase):
                 time_freq_pairs.append((minutes, frequency))
             except (ValueError, IndexError):
                 continue
- 
+
         if not time_freq_pairs:
             return None
- 
+
         # 按时间排序
         time_freq_pairs.sort(key=lambda x: x[0])
- 
+
         # 查找当前时间对应的频率
         current_frequency = None
         for minutes, frequency in time_freq_pairs:
@@ -223,20 +223,20 @@ class ChatConfig(ValidatedConfigBase):
                 current_frequency = frequency
             else:
                 break
- 
+
         # 如果当前时间在所有配置时间之前，使用最后一个时间段的频率（跨天逻辑）
         if current_frequency is None and time_freq_pairs:
             current_frequency = time_freq_pairs[-1][1]
- 
+
         return current_frequency
- 
+
     def _get_stream_specific_frequency(self, chat_stream_id: str):
         """
         获取特定聊天流在当前时间的频率
- 
+
         Args:
             chat_stream_id: 聊天流ID（哈希值）
- 
+
         Returns:
             float: 频率值，如果没有配置则返回 None
         """
@@ -244,30 +244,30 @@ class ChatConfig(ValidatedConfigBase):
         for config_item in self.talk_frequency_adjust:
             if not config_item or len(config_item) < 2:
                 continue
- 
+
             stream_config_str = config_item[0]  # 例如 "qq:1026294844:group"
- 
+
             # 解析配置字符串并生成对应的 chat_id
             config_chat_id = self._parse_stream_config_to_chat_id(stream_config_str)
             if config_chat_id is None:
                 continue
- 
+
             # 比较生成的 chat_id
             if config_chat_id != chat_stream_id:
                 continue
- 
+
             # 使用通用的时间频率解析方法
             return self._get_time_based_frequency(config_item[1:])
- 
+
         return None
- 
+
     def _parse_stream_config_to_chat_id(self, stream_config_str: str) -> Optional[str]:
         """
         解析流配置字符串并生成对应的 chat_id
- 
+
         Args:
             stream_config_str: 格式为 "platform:id:type" 的字符串
- 
+
         Returns:
             str: 生成的 chat_id，如果解析失败则返回 None
         """
@@ -275,42 +275,42 @@ class ChatConfig(ValidatedConfigBase):
             parts = stream_config_str.split(":")
             if len(parts) != 3:
                 return None
- 
+
             platform = parts[0]
             id_str = parts[1]
             stream_type = parts[2]
- 
+
             # 判断是否为群聊
             is_group = stream_type == "group"
- 
+
             # 使用与 ChatStream.get_stream_id 相同的逻辑生成 chat_id
             import hashlib
- 
+
             if is_group:
                 components = [platform, str(id_str)]
             else:
                 components = [platform, str(id_str), "private"]
             key = "_".join(components)
             return hashlib.md5(key.encode()).hexdigest()
- 
+
         except (ValueError, IndexError):
             return None
- 
+
     def _get_global_frequency(self) -> Optional[float]:
         """
         获取全局默认频率配置
- 
+
         Returns:
             float: 频率值，如果没有配置则返回 None
         """
         for config_item in self.talk_frequency_adjust:
             if not config_item or len(config_item) < 2:
                 continue
- 
+
             # 检查是否为全局默认配置（第一个元素为空字符串）
             if config_item[0] == "":
                 return self._get_time_based_frequency(config_item[1:])
- 
+
         return None
 
 
@@ -344,10 +344,10 @@ class ExpressionConfig(ValidatedConfigBase):
     def _parse_stream_config_to_chat_id(stream_config_str: str) -> Optional[str]:
         """
         解析流配置字符串并生成对应的 chat_id
- 
+
         Args:
             stream_config_str: 格式为 "platform:id:type" 的字符串
- 
+
         Returns:
             str: 生成的 chat_id，如果解析失败则返回 None
         """
@@ -355,52 +355,52 @@ class ExpressionConfig(ValidatedConfigBase):
             parts = stream_config_str.split(":")
             if len(parts) != 3:
                 return None
- 
+
             platform = parts[0]
             id_str = parts[1]
             stream_type = parts[2]
- 
+
             # 判断是否为群聊
             is_group = stream_type == "group"
- 
+
             # 使用与 ChatStream.get_stream_id 相同的逻辑生成 chat_id
             import hashlib
- 
+
             if is_group:
                 components = [platform, str(id_str)]
             else:
                 components = [platform, str(id_str), "private"]
             key = "_".join(components)
             return hashlib.md5(key.encode()).hexdigest()
- 
+
         except (ValueError, IndexError):
             return None
- 
+
     def get_expression_config_for_chat(self, chat_stream_id: Optional[str] = None) -> tuple[bool, bool, float]:
         """
         根据聊天流ID获取表达配置
- 
+
         Args:
             chat_stream_id: 聊天流ID，格式为哈希值
- 
+
         Returns:
             tuple: (是否使用表达, 是否学习表达, 学习间隔)
         """
         if not self.rules:
             # 如果没有配置，使用默认值：启用表达，启用学习，强度1.0
             return True, True, 1.0
- 
+
         # 优先检查聊天流特定的配置
         if chat_stream_id:
             for rule in self.rules:
                 if rule.chat_stream_id and self._parse_stream_config_to_chat_id(rule.chat_stream_id) == chat_stream_id:
                     return rule.use_expression, rule.learn_expression, rule.learning_strength
- 
+
         # 检查全局配置（chat_stream_id为空字符串的配置）
         for rule in self.rules:
             if rule.chat_stream_id == "":
                 return rule.use_expression, rule.learn_expression, rule.learning_strength
- 
+
         # 如果都没有匹配，返回默认值
         return True, True, 1.0
 
@@ -474,7 +474,7 @@ class KeywordRuleConfig(ValidatedConfigBase):
 
     def __post_init__(self):
         import re
- 
+
         if not self.keywords and not self.regex:
             raise ValueError("关键词规则必须至少包含keywords或regex中的一个")
         if not self.reaction:
@@ -497,6 +497,7 @@ class CustomPromptConfig(ValidatedConfigBase):
     """自定义提示词配置类"""
 
     image_prompt: str = Field(default="", description="图片提示词")
+    planner_custom_prompt_enable: bool = Field(default=False, description="启用规划器自定义提示词")
     planner_custom_prompt_content: str = Field(default="", description="规划器自定义提示词内容")
 
 

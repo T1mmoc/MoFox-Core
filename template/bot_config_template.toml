@@ -1,5 +1,5 @@
 [inner]
-version = "7.0.4"
+version = "7.0.2"
 
 #----以下是给开发人员阅读的，如果你只是部署了MoFox-Bot，不需要阅读----
 #如果你想要修改配置文件，请递增version的值
@@ -155,13 +155,6 @@ dynamic_distribution_base_interval = 5.0 # 基础分发间隔（秒）
 dynamic_distribution_min_interval = 1.0 # 最小分发间隔（秒）
 dynamic_distribution_max_interval = 30.0 # 最大分发间隔（秒）
 dynamic_distribution_jitter_factor = 0.2 # 分发间隔随机扰动因子
-
-# 是否启用并发消息处理，在同一聊天流中并行处理多个消息
-concurrent_message_processing = false
-# 在并发模式下，每个聊天流（群/私聊）同时处理的最大用户数
-concurrent_per_user_limit = 3
-# 在并发模式下，是否按用户ID进行独立串行处理
-process_by_user_id = true
 
 talk_frequency_adjust = [
     ["", "8:00,0.5", "12:00,0.6", "18:00,0.8", "01:00,0.3"],

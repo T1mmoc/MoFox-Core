@@ -70,15 +70,12 @@ class ChatterActionPlanner:
             "other_actions_executed": 0,
         }
 
-    async def plan(
-        self, context: "StreamContext" = None, unread_messages: Optional[List[Dict]] = None
-    ) -> Tuple[List[Dict], Optional[Dict]]:
+    async def plan(self, context: "StreamContext" = None) -> Tuple[List[Dict], Optional[Dict]]:
         """
         执行完整的增强版规划流程。
 
         Args:
             context (StreamContext): 包含聊天流消息的上下文对象。
-            unread_messages (Optional[List[Dict]]): (可选) 指定要处理的未读消息列表，用于并发处理
 
         Returns:
             Tuple[List[Dict], Optional[Dict]]: 一个元组，包含：
@@ -88,16 +85,14 @@ class ChatterActionPlanner:
         try:
             self.planner_stats["total_plans"] += 1
 
-            return await self._enhanced_plan_flow(context, unread_messages)
- 
+            return await self._enhanced_plan_flow(context)
+
         except Exception as e:
             logger.error(f"规划流程出错: {e}")
             self.planner_stats["failed_plans"] += 1
             return [], None
 
-    async def _enhanced_plan_flow(
-        self, context: "StreamContext", unread_messages: Optional[List[Dict]] = None
-    ) -> Tuple[List[Dict], Optional[Dict]]:
+    async def _enhanced_plan_flow(self, context: "StreamContext") -> Tuple[List[Dict], Optional[Dict]]:
         """执行增强版规划流程"""
         try:
             # 在规划前，先进行动作修改
@@ -111,10 +106,7 @@ class ChatterActionPlanner:
             # 确保Plan中包含所有当前可用的动作
             initial_plan.available_actions = self.action_manager.get_using_actions()
             
-            # 如果没有提供未读消息列表，则从上下文中获取
-            if unread_messages is None:
-                unread_messages = context.get_unread_messages() if context else []
-                
+            unread_messages = context.get_unread_messages() if context else []
             # 2. 兴趣度评分 - 只对未读消息进行评分
             if unread_messages:
                 bot_nickname = global_config.bot.nickname

@@ -53,13 +53,12 @@ class AffinityChatter(BaseChatter):
         }
         self.last_activity_time = time.time()
 
-    async def execute(self, context: StreamContext, unread_messages: list | None = None) -> dict:
+    async def execute(self, context: StreamContext) -> dict:
         """
         处理StreamContext对象
 
         Args:
             context: StreamContext对象，包含聊天流的所有消息信息
-            unread_messages: (可选) 指定要处理的未读消息列表，用于并发处理
 
         Returns:
             处理结果字典
@@ -69,12 +68,10 @@ class AffinityChatter(BaseChatter):
             learner = expression_learner_manager.get_expression_learner(self.stream_id)
             asyncio.create_task(learner.trigger_learning_for_chat())
 
-            # 如果没有提供未读消息列表，则从上下文中获取
-            if unread_messages is None:
-                unread_messages = context.get_unread_messages()
+            unread_messages = context.get_unread_messages()
 
             # 使用增强版规划器处理消息
-            actions, target_message = await self.planner.plan(context=context, unread_messages=unread_messages)
+            actions, target_message = await self.planner.plan(context=context)
             self.stats["plans_created"] += 1
 
             # 执行动作（如果规划器返回了动作）
