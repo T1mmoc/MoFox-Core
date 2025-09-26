@@ -122,7 +122,7 @@ def _convert_tool_options(tool_options: list[ToolOption]) -> list[dict]:
 
     def _convert_tool_param(param: ToolParam) -> dict:
         """转换工具参数"""
-        result = {
+        result: dict[str, Any] = {
             "type": param.param_type.value,
             "description": param.description,
         }
@@ -132,7 +132,7 @@ def _convert_tool_options(tool_options: list[ToolOption]) -> list[dict]:
 
     def _convert_tool_option_item(tool_option: ToolOption) -> dict:
         """转换单个工具选项"""
-        function_declaration = {
+        function_declaration: dict[str, Any] = {
             "name": tool_option.name,
             "description": tool_option.description,
         }
@@ -500,7 +500,7 @@ class AiohttpGeminiClient(BaseClient):
             # 直接重抛项目定义的异常
             raise
         except Exception as e:
-            logger.debug(e)
+            logger.debug(f"请求处理中发生未知异常: {e}")
             # 其他异常转换为网络连接错误
             raise NetworkConnectionError() from e
 
