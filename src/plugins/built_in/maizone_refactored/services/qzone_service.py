@@ -657,20 +657,30 @@ class QZoneService:
                             end_idx = resp_text.rfind("}") + 1
                             if start_idx != -1 and end_idx != -1:
                                 json_str = resp_text[start_idx:end_idx]
-                                upload_result = eval(json_str)  # 与原版保持一致使用eval
+                                try:
+                                    upload_result = orjson.loads(json_str)
+                                except orjson.JSONDecodeError:
+                                    logger.error(f"图片上传响应JSON解析失败，原始响应: {resp_text}")
+                                    return None
 
-                                logger.info(f"图片上传解析结果: {upload_result}")
+                                logger.debug(f"图片上传解析结果: {upload_result}")
 
                                 if upload_result.get("ret") == 0:
-                                    # 使用原版的参数提取逻辑
-                                    picbo, richval = _get_picbo_and_richval(upload_result)
-                                    logger.info(f"图片 {index + 1} 上传成功: picbo={picbo}")
-                                    return {"pic_bo": picbo, "richval": richval}
+                                    try:
+                                        # 使用原版的参数提取逻辑
+                                        picbo, richval = _get_picbo_and_richval(upload_result)
+                                        logger.info(f"图片 {index + 1} 上传成功: picbo={picbo}")
+                                        return {"pic_bo": picbo, "richval": richval}
+                                    except Exception as e:
+                                        logger.error(
+                                            f"从上传结果中提取图片参数失败: {e}, 上传结果: {upload_result}", exc_info=True
+                                        )
+                                        return None
                                 else:
                                     logger.error(f"图片 {index + 1} 上传失败: {upload_result}")
                                     return None
                             else:
-                                logger.error("无法解析上传响应")
+                                logger.error(f"无法从响应中提取JSON内容: {resp_text}")
                                 return None
                         else:
                             error_text = await response.text()
