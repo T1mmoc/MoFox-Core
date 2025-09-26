@@ -1,7 +1,6 @@
 # mmc/src/common/database/db_migration.py
 
 from sqlalchemy import inspect
-from sqlalchemy.schema import CreateIndex
 from sqlalchemy.sql import text
 
 from src.common.database.sqlalchemy_models import Base, get_engine

@@ -233,6 +233,5 @@ class MessageShield:
 
 def create_default_shield() -> MessageShield:
     """创建默认的消息加盾器"""
-    from .config import default_config
 
     return MessageShield()

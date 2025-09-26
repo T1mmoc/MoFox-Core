@@ -8,7 +8,7 @@ from tomlkit import TOMLDocument
 from tomlkit.items import Table, KeyType
 from rich.traceback import install
 from typing import List, Optional
-from pydantic import Field, field_validator
+from pydantic import Field
 
 from src.common.logger import get_logger
 from src.config.config_base import ValidatedConfigBase

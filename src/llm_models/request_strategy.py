@@ -8,14 +8,13 @@
 """
 import asyncio
 import random
-from typing import List, Tuple, Optional, Dict, Any, Callable, Coroutine
+from typing import Optional, Dict, Any, Callable, Coroutine
 
 from src.common.logger import get_logger
 from src.config.api_ada_configs import TaskConfig
 from .model_client.base_client import APIResponse
 from .model_selector import ModelSelector
 from .payload_content.message import MessageBuilder
-from .payload_content.tool_option import ToolCall
 from .prompt_processor import PromptProcessor
 from .request_executor import RequestExecutor
 

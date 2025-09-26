@@ -1,5 +1,5 @@
 from typing import List, Dict, Any, Literal, Union
-from pydantic import Field, field_validator
+from pydantic import Field
 from threading import Lock
 
 from src.config.config_base import ValidatedConfigBase

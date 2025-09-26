@@ -7,7 +7,6 @@
 from functools import wraps
 from typing import Callable, Optional
 from inspect import iscoroutinefunction
-import inspect
 
 from src.plugin_system.apis.permission_api import permission_api
 from src.plugin_system.apis.send_api import text_to_stream

@@ -2,7 +2,7 @@ import base64
 import time
 from abc import abstractmethod, ABCMeta
 from dataclasses import dataclass
-from typing import Optional, Any, TYPE_CHECKING
+from typing import Optional, Any
 
 import urllib3
 from maim_message import Seg, UserInfo, BaseMessageInfo, MessageBase

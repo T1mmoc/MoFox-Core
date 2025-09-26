@@ -4,7 +4,7 @@ import orjson
 import os
 from datetime import datetime
 
-from typing import List, Dict, Optional, Any, Tuple, Coroutine
+from typing import List, Dict, Optional, Any, Tuple
 
 from src.common.logger import get_logger
 from src.common.database.sqlalchemy_database_api import get_db_session

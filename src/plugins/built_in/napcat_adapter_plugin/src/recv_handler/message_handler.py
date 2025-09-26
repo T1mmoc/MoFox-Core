@@ -26,7 +26,7 @@ import json
 import websockets as Server
 import base64
 from pathlib import Path
-from typing import List, Tuple, Optional, Dict, Any, Coroutine
+from typing import List, Tuple, Optional, Dict, Any
 import uuid
 
 from maim_message import (

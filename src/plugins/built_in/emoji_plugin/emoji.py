@@ -255,7 +255,7 @@ class EmojiAction(BaseAction):
 
             if not success:
                 logger.error(f"{self.log_prefix} 表情包发送失败")
-                await self.store_action_info(action_build_into_prompt = True,action_prompt_display =f"发送了一个表情包,但失败了",action_done= False)
+                await self.store_action_info(action_build_into_prompt = True,action_prompt_display ="发送了一个表情包,但失败了",action_done= False)
                 return False, "表情包发送失败"
 
             # 发送成功后，记录到历史
@@ -264,7 +264,7 @@ class EmojiAction(BaseAction):
             except Exception as e:
                 logger.error(f"{self.log_prefix} 添加表情到历史记录时出错: {e}")
             
-            await self.store_action_info(action_build_into_prompt = True,action_prompt_display =f"发送了一个表情包",action_done= True)
+            await self.store_action_info(action_build_into_prompt = True,action_prompt_display ="发送了一个表情包",action_done= True)
 
             return True, f"发送表情包: {emoji_description}"
 

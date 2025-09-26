@@ -1,7 +1,6 @@
 import asyncio
 import os
 import sys
-import glob
 import orjson
 import datetime
 from pathlib import Path

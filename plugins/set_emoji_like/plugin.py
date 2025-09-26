@@ -10,7 +10,6 @@ from src.plugin_system import (
     ConfigField,
 )
 from src.common.logger import get_logger
-from src.plugin_system.apis import send_api
 from .qq_emoji_list import qq_face
 from src.plugin_system.base.component_types import ChatType
 
