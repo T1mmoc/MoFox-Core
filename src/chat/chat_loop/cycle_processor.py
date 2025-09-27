@@ -206,13 +206,6 @@ class CycleProcessor:
             raise UserWarning(f"插件{result.get_summary().get('stopped_handlers', '')}于规划前中断了内容生成")
         with Timer("规划器", cycle_timers):
             actions, _ = await self.action_planner.plan(mode=mode)
-            
-        # 在这里添加日志，清晰地显示最终选择的动作
-        if actions:
-            chosen_actions = [a.get("action_type", "unknown") for a in actions]
-            logger.info(f"{self.log_prefix} LLM最终选择的动作: {chosen_actions}")
-        else:
-            logger.info(f"{self.log_prefix} LLM最终没有选择任何动作")
         
         async def execute_action(action_info):
             """执行单个动作的通用函数"""
