@@ -106,8 +106,6 @@ class PluginManager:
             if not plugin_dir:
                 return False, 1
 
-            # 同步插件配置
-            self._synchronize_plugin_config(plugin_name, plugin_dir)
 
             plugin_instance = plugin_class(plugin_dir=plugin_dir)  # 实例化插件（可能因为缺少manifest而失败）
             if not plugin_instance:

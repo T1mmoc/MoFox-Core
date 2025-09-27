@@ -53,6 +53,6 @@ class SendFeedCommand(PlusCommand):
                 return False, result.get("message", "未知错误"), True
 
         except Exception as e:
-            logger.error(f"执行发送说说命令时发生未知异常: {e}", exc_info=True)
+            logger.error(f"执行发送说说命令时发生未知异常: {e},它的类型是:{type(e)}", exc_info=True)
             await self.send_text("呜... 发送过程中好像出了点问题。")
             return False, "命令执行异常", True
