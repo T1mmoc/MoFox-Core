@@ -10,7 +10,7 @@ from src.chat.planner_actions.plan_filter import PlanFilter
 from src.chat.planner_actions.plan_generator import PlanGenerator
 from src.common.logger import get_logger
 from src.plugin_system.base.component_types import ChatMode
-import src.chat.planner_actions.planner_prompts #noga
+import src.chat.planner_actions.planner_prompts #noga  # noqa: F401
 # 导入提示词模块以确保其被初始化
 
 logger = get_logger("planner")
