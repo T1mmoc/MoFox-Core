@@ -341,9 +341,9 @@ def process_llm_response(text: str, enable_splitter: bool = True, enable_chinese
             split_sentences = [s.strip() for s in split_sentences_raw if s.strip()]
         else:
             if split_mode == "llm":
-                logger.debug("未检测到 [SPLIT] 标记，本次不进行分割。")
-                split_sentences = [cleaned_text]
-            else: # mode == "punctuation"
+                logger.debug("未检测到 [SPLIT] 标记，回退到基于标点的传统模式进行分割。")
+                split_sentences = split_into_sentences_w_remove_punctuation(cleaned_text)
+            else:  # mode == "punctuation"
                 logger.debug("使用基于标点的传统模式进行分割。")
                 split_sentences = split_into_sentences_w_remove_punctuation(cleaned_text)
     else:
