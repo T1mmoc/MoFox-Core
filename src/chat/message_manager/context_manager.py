@@ -13,7 +13,7 @@ from src.common.logger import get_logger
 from src.config.config import global_config
 from src.common.data_models.database_data_model import DatabaseMessages
 from src.chat.energy_system import energy_manager
-from .distribution_manager import distribution_manager
+from .distribution_manager import stream_loop_manager
 
 logger = get_logger("context_manager")
 
@@ -60,8 +60,9 @@ class SingleStreamContextManager:
             self.last_access_time = time.time()
             if not skip_energy_update:
                 await self._update_stream_energy()
-                distribution_manager.add_stream_message(self.stream_id, 1)
-            logger.debug(f"添加消息到单流上下文: {self.stream_id} (兴趣度: {interest_value:.3f})")
+                # 启动流的循环任务（如果还未启动）
+                await stream_loop_manager.start_stream_loop(self.stream_id)
+            logger.info(f"添加消息到单流上下文: {self.stream_id} (兴趣度: {interest_value:.3f})")
             return True
         except Exception as e:
             logger.error(f"添加消息到单流上下文失败 {self.stream_id}: {e}", exc_info=True)
@@ -293,7 +294,8 @@ class SingleStreamContextManager:
 
             if not skip_energy_update:
                 await self._update_stream_energy()
-                distribution_manager.add_stream_message(self.stream_id, 1)
+                # 启动流的循环任务（如果还未启动）
+                await stream_loop_manager.start_stream_loop(self.stream_id)
 
             logger.debug(f"添加消息到单流上下文(异步): {self.stream_id} (兴趣度: {interest_value:.3f})")
             return True
@@ -356,8 +358,8 @@ class SingleStreamContextManager:
                 stream_id=self.stream_id, messages=combined_messages, user_id=user_id
             )
 
-            # 更新分发管理器
-            distribution_manager.update_stream_energy(self.stream_id, energy)
+            # 更新流循环管理器
+            # 注意：能量更新会通过energy_manager自动同步到流循环管理器
 
         except Exception as e:
             logger.error(f"更新单流能量失败 {self.stream_id}: {e}")

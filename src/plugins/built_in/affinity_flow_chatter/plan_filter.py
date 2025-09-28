@@ -401,13 +401,31 @@ class ChatterPlanFilter:
             for msg_dict in messages:
                 try:
                     # 将字典转换为DatabaseMessages对象
-                    db_message = DatabaseMessages(
-                        message_id=msg_dict.get("message_id", ""),
-                        user_info=msg_dict.get("user_info", {}),
-                        processed_plain_text=msg_dict.get("processed_plain_text", ""),
-                        key_words=msg_dict.get("key_words", "[]"),
-                        is_mentioned=msg_dict.get("is_mentioned", False)
-                    )
+                    # 处理两种可能的数据格式：flatten()返回的平铺字段 或 包含user_info字段的字典
+                    user_info_dict = msg_dict.get("user_info", {})
+                    if isinstance(user_info_dict, dict) and user_info_dict:
+                        # 如果有user_info字段，使用它
+                        db_message = DatabaseMessages(
+                            message_id=msg_dict.get("message_id", ""),
+                            user_id=user_info_dict.get("user_id", ""),
+                            user_nickname=user_info_dict.get("user_nickname", ""),
+                            user_platform=user_info_dict.get("platform", ""),
+                            processed_plain_text=msg_dict.get("processed_plain_text", ""),
+                            key_words=msg_dict.get("key_words", "[]"),
+                            is_mentioned=msg_dict.get("is_mentioned", False),
+                            **{"user_info": user_info_dict}  # 通过kwargs传入user_info
+                        )
+                    else:
+                        # 如果没有user_info字段，使用平铺的字段（flatten()方法返回的格式）
+                        db_message = DatabaseMessages(
+                            message_id=msg_dict.get("message_id", ""),
+                            user_id=msg_dict.get("user_id", ""),
+                            user_nickname=msg_dict.get("user_nickname", ""),
+                            user_platform=msg_dict.get("user_platform", ""),
+                            processed_plain_text=msg_dict.get("processed_plain_text", ""),
+                            key_words=msg_dict.get("key_words", "[]"),
+                            is_mentioned=msg_dict.get("is_mentioned", False)
+                        )
 
                     # 计算消息兴趣度
                     interest_score_obj = await chatter_interest_scoring_system._calculate_single_message_score(
