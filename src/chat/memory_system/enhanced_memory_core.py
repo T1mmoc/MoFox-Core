@@ -46,6 +46,7 @@ class MemorySystemConfig:
     min_memory_length: int = 10
     max_memory_length: int = 500
     memory_value_threshold: float = 0.7
+    min_build_interval_seconds: float = 300.0
 
     # 向量存储配置
     vector_dimension: int = 768
@@ -70,6 +71,7 @@ class MemorySystemConfig:
             min_memory_length=global_config.memory.min_memory_length,
             max_memory_length=global_config.memory.max_memory_length,
             memory_value_threshold=global_config.memory.memory_value_threshold,
+            min_build_interval_seconds=getattr(global_config.memory, "memory_build_interval", 300.0),
 
             # 向量存储配置
             vector_dimension=global_config.memory.vector_dimension,
@@ -113,6 +115,9 @@ class EnhancedMemorySystem:
         self.total_memories = 0
         self.last_build_time = None
         self.last_retrieval_time = None
+
+        # 构建节流记录
+        self._last_memory_build_times: Dict[str, float] = {}
 
         logger.info("EnhancedMemorySystem 初始化开始")
 
@@ -192,8 +197,31 @@ class EnhancedMemorySystem:
         self.status = MemorySystemStatus.BUILDING
         start_time = time.time()
 
+        build_scope_key: Optional[str] = None
+        build_marker_time: Optional[float] = None
+
         try:
             normalized_context = self._normalize_context(context, user_id, timestamp)
+
+            build_scope_key = self._get_build_scope_key(normalized_context, user_id)
+            min_interval = max(0.0, getattr(self.config, "min_build_interval_seconds", 0.0))
+            current_time = time.time()
+
+            if build_scope_key and min_interval > 0:
+                last_time = self._last_memory_build_times.get(build_scope_key)
+                if last_time and (current_time - last_time) < min_interval:
+                    remaining = min_interval - (current_time - last_time)
+                    logger.debug(
+                        "距离上次记忆构建间隔不足，跳过此次构建 | key=%s | 剩余%.2f秒",
+                        build_scope_key,
+                        remaining,
+                    )
+                    self.status = MemorySystemStatus.READY
+                    return []
+
+                build_marker_time = current_time
+                self._last_memory_build_times[build_scope_key] = current_time
+
             conversation_text = self._resolve_conversation_context(conversation_text, normalized_context)
 
             logger.debug(f"开始为用户 {user_id} 构建记忆，文本长度: {len(conversation_text)}")
@@ -228,6 +256,8 @@ class EnhancedMemorySystem:
             # 5. 更新统计
             self.total_memories += len(fused_chunks)
             self.last_build_time = time.time()
+            if build_scope_key:
+                self._last_memory_build_times[build_scope_key] = self.last_build_time
 
             build_time = time.time() - start_time
             logger.info(f"✅ 为用户 {user_id} 构建了 {len(fused_chunks)} 条记忆，耗时 {build_time:.2f}秒")
@@ -236,6 +266,10 @@ class EnhancedMemorySystem:
             return fused_chunks
 
         except Exception as e:
+            if build_scope_key and build_marker_time is not None:
+                recorded_time = self._last_memory_build_times.get(build_scope_key)
+                if recorded_time == build_marker_time:
+                    self._last_memory_build_times.pop(build_scope_key, None)
             self.status = MemorySystemStatus.ERROR
             logger.error(f"❌ 记忆构建失败: {e}", exc_info=True)
             raise
@@ -478,6 +512,21 @@ class EnhancedMemorySystem:
         except Exception as exc:
             logger.warning(f"获取 stream_id={stream_id} 的历史消息失败: {exc}", exc_info=True)
             return fallback_text
+
+    def _get_build_scope_key(self, context: Dict[str, Any], user_id: Optional[str]) -> Optional[str]:
+        """确定用于节流控制的记忆构建作用域"""
+        stream_id = context.get("stream_id")
+        if stream_id:
+            return f"stream::{stream_id}"
+
+        chat_id = context.get("chat_id")
+        if chat_id:
+            return f"chat::{chat_id}"
+
+        if user_id:
+            return f"user::{user_id}"
+
+        return None
 
     def _determine_history_limit(self, context: Dict[str, Any]) -> int:
         """确定历史消息获取数量，限制在30-50之间"""
