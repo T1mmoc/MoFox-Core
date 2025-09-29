@@ -930,7 +930,7 @@ class Prompt:
         person_info_manager = get_person_info_manager()
         person_id = await person_info_manager.get_person_id_by_person_name(sender)
         if person_id:
-            user_id = person_info_manager.get_value(person_id, "user_id")
+            user_id = await person_info_manager.get_value(person_id, "user_id")
             return str(user_id) if user_id else ""
 
         return ""

@@ -779,7 +779,7 @@ class DefaultReplyer:
                         if platform and user_id:
                             person_id = PersonInfoManager.get_person_id(platform, user_id)
                             person_info_manager = get_person_info_manager()
-                            sender_name = person_info_manager.get_value(person_id, "person_name") or "未知用户"
+                            sender_name = await person_info_manager.get_value(person_id, "person_name") or "未知用户"
                         else:
                             sender_name = "未知用户"
 
@@ -878,7 +878,7 @@ class DefaultReplyer:
                 if platform and user_id:
                     person_id = PersonInfoManager.get_person_id(platform, user_id)
                     person_info_manager = get_person_info_manager()
-                    sender_name = person_info_manager.get_value(person_id, "person_name") or "未知用户"
+                    sender_name = await person_info_manager.get_value(person_id, "person_name") or "未知用户"
                 else:
                     sender_name = "未知用户"
 
@@ -1090,7 +1090,7 @@ class DefaultReplyer:
 
             # 检查是否是bot自己的名字，如果是则替换为"(你)"
             bot_user_id = str(global_config.bot.qq_account)
-            current_user_id = person_info_manager.get_value(person_id, "user_id")
+            current_user_id = await person_info_manager.get_value(person_id, "user_id")
             current_platform = reply_message.get("chat_info_platform")
 
             if current_user_id == bot_user_id and current_platform == global_config.bot.platform:
