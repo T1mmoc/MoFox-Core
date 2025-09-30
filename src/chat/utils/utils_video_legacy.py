@@ -461,11 +461,14 @@ class LegacyVideoAnalyzer:
         # logger.info(f"✅ 多帧消息构建完成，包含{len(frames)}张图片")
 
         # 获取模型信息和客户端
-        model_info, api_provider, client = self.video_llm._select_model()
+        selection_result = self.video_llm._model_selector.select_best_available_model(set(), "response")
+        if not selection_result:
+            raise RuntimeError("无法为视频分析选择可用模型 (legacy)。")
+        model_info, api_provider, client = selection_result
         # logger.info(f"使用模型: {model_info.name} 进行多帧分析")
 
         # 直接执行多图片请求
-        api_response = await self.video_llm._execute_request(
+        api_response = await self.video_llm._executor.execute_request(
             api_provider=api_provider,
             client=client,
             request_type=RequestType.RESPONSE,

@@ -759,30 +759,38 @@ async def initialize_database():
 
 
 @asynccontextmanager
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    """异步数据库会话上下文管理器"""
+async def get_db_session() -> AsyncGenerator[Optional[AsyncSession], None]:
+    """
+    异步数据库会话上下文管理器。
+    在初始化失败时会yield None，调用方需要检查会话是否为None。
+    """
     session: Optional[AsyncSession] = None
+    SessionLocal = None
     try:
-        engine, SessionLocal = await initialize_database()
+        _, SessionLocal = await initialize_database()
         if not SessionLocal:
-            raise RuntimeError("Database session not initialized")
-        session = SessionLocal()
+            logger.error("数据库会话工厂 (_SessionLocal) 未初始化。")
+            yield None
+            return
+    except Exception as e:
+        logger.error(f"数据库初始化失败，无法创建会话: {e}")
+        yield None
+        return
 
+    try:
+        session = SessionLocal()
         # 对于 SQLite，在会话开始时设置 PRAGMA
         from src.config.config import global_config
         if global_config.database.database_type == "sqlite":
-            try:
-                await session.execute(text("PRAGMA busy_timeout = 60000"))
-                await session.execute(text("PRAGMA foreign_keys = ON"))
-            except Exception as e:
-                logger.warning(f"[SQLite] 设置会话 PRAGMA 失败: {e}")
+            await session.execute(text("PRAGMA busy_timeout = 60000"))
+            await session.execute(text("PRAGMA foreign_keys = ON"))
 
         yield session
     except Exception as e:
-        logger.error(f"数据库会话错误: {e}")
+        logger.error(f"数据库会话期间发生错误: {e}")
         if session:
             await session.rollback()
-        raise
+        raise  # 将会话期间的错误重新抛出给调用者
     finally:
         if session:
             await session.close()

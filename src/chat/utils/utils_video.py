@@ -209,6 +209,9 @@ class VideoAnalyzer:
         """检查视频是否已经分析过"""
         try:
             async with get_db_session() as session:
+                if not session:
+                    logger.warning("无法获取数据库会话，跳过视频存在性检查。")
+                    return None
                 # 明确刷新会话以确保看到其他事务的最新提交
                 await session.expire_all()
                 stmt = select(Videos).where(Videos.video_hash == video_hash)
@@ -229,6 +232,9 @@ class VideoAnalyzer:
 
         try:
             async with get_db_session() as session:
+                if not session:
+                    logger.warning("无法获取数据库会话，跳过视频结果存储。")
+                    return None
                 # 只根据video_hash查找
                 stmt = select(Videos).where(Videos.video_hash == video_hash)
                 result = await session.execute(stmt)
@@ -345,19 +351,59 @@ class VideoAnalyzer:
         prompt = self.batch_analysis_prompt.format(
             personality_core=self.personality_core, personality_side=self.personality_side
         )
-        if question:
-            prompt += f"\n用户关注: {question}"
-        desc = [
-            (f"第{i+1}帧 (时间: {ts:.2f}s)" if self.enable_frame_timing else f"第{i+1}帧")
-            for i, (_b, ts) in enumerate(frames)
-        ]
-        prompt += "\n帧列表: " + ", ".join(desc)
-        mb = MessageBuilder().set_role(RoleType.User).add_text_content(prompt)
-        for b64, _ in frames:
-            mb.add_image_content("jpeg", b64)
-        message = mb.build()
-        model_info, api_provider, client = self.video_llm._select_model()
-        resp = await self.video_llm._execute_request(
+
+        if user_question:
+            prompt += f"\n\n用户问题: {user_question}"
+
+        # 添加帧信息到提示词
+        frame_info = []
+        for i, (_frame_base64, timestamp) in enumerate(frames):
+            if self.enable_frame_timing:
+                frame_info.append(f"第{i + 1}帧 (时间: {timestamp:.2f}s)")
+            else:
+                frame_info.append(f"第{i + 1}帧")
+
+        prompt += f"\n\n视频包含{len(frames)}帧图像：{', '.join(frame_info)}"
+        prompt += "\n\n请基于所有提供的帧图像进行综合分析，关注并描述视频的完整内容和故事发展。"
+
+        try:
+            # 使用多图片分析
+            response = await self._analyze_multiple_frames(frames, prompt)
+            logger.info("✅ 视频识别完成")
+            return response
+
+        except Exception as e:
+            logger.error(f"❌ 视频识别失败: {e}")
+            raise e
+
+    async def _analyze_multiple_frames(self, frames: List[Tuple[str, float]], prompt: str) -> str:
+        """使用多图片分析方法"""
+        logger.info(f"开始构建包含{len(frames)}帧的分析请求")
+
+        # 导入MessageBuilder用于构建多图片消息
+        from src.llm_models.payload_content.message import MessageBuilder, RoleType
+        from src.llm_models.utils_model import RequestType
+
+        # 构建包含多张图片的消息
+        message_builder = MessageBuilder().set_role(RoleType.User).add_text_content(prompt)
+
+        # 添加所有帧图像
+        for _i, (frame_base64, _timestamp) in enumerate(frames):
+            message_builder.add_image_content("jpeg", frame_base64)
+            # logger.info(f"已添加第{i+1}帧到分析请求 (时间: {timestamp:.2f}s, 图片大小: {len(frame_base64)} chars)")
+
+        message = message_builder.build()
+        # logger.info(f"✅ 多帧消息构建完成，包含{len(frames)}张图片")
+
+        # 获取模型信息和客户端
+        selection_result = self.video_llm._model_selector.select_best_available_model(set(), "response")
+        if not selection_result:
+            raise RuntimeError("无法为视频分析选择可用模型。")
+        model_info, api_provider, client = selection_result
+        # logger.info(f"使用模型: {model_info.name} 进行多帧分析")
+
+        # 直接执行多图片请求
+        api_response = await self.video_llm._executor.execute_request(
             api_provider=api_provider,
             client=client,
             request_type=RequestType.RESPONSE,
