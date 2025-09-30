@@ -246,6 +246,7 @@ class StreamLoopManager:
             success = results.get("success", False)
 
             if success:
+                await self._refresh_focus_energy(stream_id)
                 process_time = time.time() - start_time
                 logger.debug(f"流处理成功: {stream_id} (耗时: {process_time:.2f}s)")
             else:
@@ -338,6 +339,20 @@ class StreamLoopManager:
             "throughput_per_hour": throughput,
             "max_concurrent_streams": self.max_concurrent_streams,
         }
+
+    async def _refresh_focus_energy(self, stream_id: str) -> None:
+        """分发完成后基于历史消息刷新能量值"""
+        try:
+            chat_manager = get_chat_manager()
+            chat_stream = chat_manager.get_stream(stream_id)
+            if not chat_stream:
+                logger.debug(f"刷新能量时未找到聊天流: {stream_id}")
+                return
+
+            await chat_stream.context_manager.refresh_focus_energy_from_history()
+            logger.debug(f"已刷新聊天流 {stream_id} 的聚焦能量")
+        except Exception as e:
+            logger.warning(f"刷新聊天流 {stream_id} 能量失败: {e}")
 
 
 # 全局流循环管理器实例

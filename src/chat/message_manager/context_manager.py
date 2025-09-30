@@ -47,22 +47,20 @@ class SingleStreamContextManager:
 
         Args:
             message: 消息对象
-            skip_energy_update: 是否跳过能量更新
+                skip_energy_update: 是否跳过能量更新（兼容参数，当前忽略）
 
         Returns:
             bool: 是否成功添加
         """
         try:
             self.context.add_message(message)
-            interest_value = await self._calculate_message_interest(message)
-            message.interest_value = interest_value
+            # 推迟兴趣度计算到分发阶段
+            message.interest_value = getattr(message, "interest_value", None)
             self.total_messages += 1
             self.last_access_time = time.time()
-            if not skip_energy_update:
-                await self._update_stream_energy()
-                # 启动流的循环任务（如果还未启动）
-                await stream_loop_manager.start_stream_loop(self.stream_id)
-            logger.info(f"添加消息到单流上下文: {self.stream_id} (兴趣度: {interest_value:.3f})")
+            # 启动流的循环任务（如果还未启动）
+            await stream_loop_manager.start_stream_loop(self.stream_id)
+            logger.info(f"添加消息到单流上下文: {self.stream_id} (兴趣度待计算)")
             return True
         except Exception as e:
             logger.error(f"添加消息到单流上下文失败 {self.stream_id}: {e}", exc_info=True)
@@ -80,8 +78,6 @@ class SingleStreamContextManager:
         """
         try:
             self.context.update_message_info(message_id, **updates)
-            if "interest_value" in updates:
-                await self._update_stream_energy()
             logger.debug(f"更新单流上下文消息: {self.stream_id}/{message_id}")
             return True
         except Exception as e:
@@ -286,18 +282,16 @@ class SingleStreamContextManager:
         try:
             self.context.add_message(message)
 
-            interest_value = await self._calculate_message_interest_async(message)
-            message.interest_value = interest_value
+            # 推迟兴趣度计算到分发阶段
+            message.interest_value = getattr(message, "interest_value", None)
 
             self.total_messages += 1
             self.last_access_time = time.time()
 
-            if not skip_energy_update:
-                await self._update_stream_energy()
-                # 启动流的循环任务（如果还未启动）
-                await stream_loop_manager.start_stream_loop(self.stream_id)
+            # 启动流的循环任务（如果还未启动）
+            await stream_loop_manager.start_stream_loop(self.stream_id)
 
-            logger.debug(f"添加消息到单流上下文(异步): {self.stream_id} (兴趣度: {interest_value:.3f})")
+            logger.debug(f"添加消息到单流上下文(异步): {self.stream_id} (兴趣度待计算)")
             return True
         except Exception as e:
             logger.error(f"添加消息到单流上下文失败 (async) {self.stream_id}: {e}", exc_info=True)
@@ -307,8 +301,6 @@ class SingleStreamContextManager:
         """异步实现的 update_message：更新消息并在需要时 await 能量更新。"""
         try:
             self.context.update_message_info(message_id, **updates)
-            if "interest_value" in updates:
-                await self._update_stream_energy()
 
             logger.debug(f"更新单流上下文消息(异步): {self.stream_id}/{message_id}")
             return True
@@ -339,27 +331,31 @@ class SingleStreamContextManager:
             logger.error(f"清空单流上下文失败 (async) {self.stream_id}: {e}", exc_info=True)
             return False
 
-    async def _update_stream_energy(self):
+    async def refresh_focus_energy_from_history(self) -> None:
+        """基于历史消息刷新聚焦能量"""
+        await self._update_stream_energy(include_unread=False)
+
+    async def _update_stream_energy(self, include_unread: bool = False) -> None:
         """更新流能量"""
         try:
-            # 获取所有消息
-            all_messages = self.get_messages(self.max_context_size)
-            unread_messages = self.get_unread_messages()
-            combined_messages = all_messages + unread_messages
+            history_messages = self.context.get_history_messages(limit=self.max_context_size)
+            messages: List[DatabaseMessages] = list(history_messages)
 
-            # 获取用户ID
+            if include_unread:
+                messages.extend(self.get_unread_messages())
+
+            # 获取用户ID（优先使用最新历史消息）
             user_id = None
-            if combined_messages:
-                last_message = combined_messages[-1]
-                user_id = last_message.user_info.user_id
+            if messages:
+                last_message = messages[-1]
+                if hasattr(last_message, "user_info") and last_message.user_info:
+                    user_id = last_message.user_info.user_id
 
-            # 计算能量
-            energy = await energy_manager.calculate_focus_energy(
-                stream_id=self.stream_id, messages=combined_messages, user_id=user_id
+            await energy_manager.calculate_focus_energy(
+                stream_id=self.stream_id,
+                messages=messages,
+                user_id=user_id,
             )
-
-            # 更新流循环管理器
-            # 注意：能量更新会通过energy_manager自动同步到流循环管理器
 
         except Exception as e:
             logger.error(f"更新单流能量失败 {self.stream_id}: {e}")

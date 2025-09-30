@@ -7,7 +7,7 @@
 import re
 import time
 import orjson
-from typing import Dict, List, Optional, Tuple, Any, Set
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 from dataclasses import dataclass
 from enum import Enum
@@ -16,7 +16,7 @@ from src.common.logger import get_logger
 from src.llm_models.utils_model import LLMRequest
 from src.chat.memory_system.memory_chunk import (
     MemoryChunk, MemoryType, ConfidenceLevel, ImportanceLevel,
-    ContentStructure, MemoryMetadata, create_memory_chunk
+    create_memory_chunk
 )
 
 logger = get_logger(__name__)
@@ -334,6 +334,28 @@ class MemoryBuilder:
 
         return prompt
 
+    def _extract_json_payload(self, response: str) -> Optional[str]:
+        """从模型响应中提取JSON部分，兼容Markdown代码块等格式"""
+        if not response:
+            return None
+
+        stripped = response.strip()
+
+        # 优先处理Markdown代码块格式 ```json ... ```
+        code_block_match = re.search(r"```(?:json)?\s*(.*?)```", stripped, re.IGNORECASE | re.DOTALL)
+        if code_block_match:
+            candidate = code_block_match.group(1).strip()
+            if candidate:
+                return candidate
+
+        # 回退到查找第一个 JSON 对象的大括号范围
+        start = stripped.find("{")
+        end = stripped.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            return stripped[start:end + 1].strip()
+
+        return stripped if stripped.startswith("{") and stripped.endswith("}") else None
+
     def _parse_llm_response(
         self,
         response: str,
@@ -345,7 +367,13 @@ class MemoryBuilder:
         memories = []
 
         try:
-            data = orjson.loads(response)
+            # 提取JSON负载
+            json_payload = self._extract_json_payload(response)
+            if not json_payload:
+                logger.error("未在响应中找到有效的JSON负载")
+                return memories
+
+            data = orjson.loads(json_payload)
             memory_list = data.get("memories", [])
 
             for mem_data in memory_list:
@@ -375,7 +403,8 @@ class MemoryBuilder:
                     continue
 
         except Exception as e:
-            logger.error(f"解析LLM响应失败: {e}, 响应: {response}")
+            preview = response[:200] if response else "空响应"
+            logger.error(f"解析LLM响应失败: {e}, 响应片段: {preview}")
 
         return memories
 
@@ -623,7 +652,7 @@ class MemoryBuilder:
             try:
                 # 尝试解析回字典（如果原来是字典）
                 memory.content.object = eval(obj_str) if obj_str.startswith('{') else obj_str
-            except:
+            except Exception:
                 memory.content.object = obj_str
 
         # 记录时间规范化操作

@@ -5,7 +5,7 @@
 
 from dataclasses import asdict
 import time
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from src.plugins.built_in.affinity_flow_chatter.plan_executor import ChatterPlanExecutor
 from src.plugins.built_in.affinity_flow_chatter.plan_filter import ChatterPlanFilter
@@ -104,45 +104,33 @@ class ChatterActionPlanner:
             score = 0.0
             should_reply = False
             reply_not_available = False
+            interest_updates: List[Dict[str, Any]] = []
 
             if unread_messages:
-                # 为每条消息计算兴趣度
+                # 为每条消息计算兴趣度，并延迟提交数据库更新
                 for message in unread_messages:
                     try:
-                        # 使用插件内部的兴趣度评分系统计算
                         interest_score = await chatter_interest_scoring_system._calculate_single_message_score(
                             message=message,
-                            bot_nickname=global_config.bot.nickname
+                            bot_nickname=global_config.bot.nickname,
                         )
                         message_interest = interest_score.total_score
 
-                        # 更新消息的兴趣度
                         message.interest_value = message_interest
-
-                        # 简单的回复决策逻辑：兴趣度超过阈值则回复
                         message.should_reply = message_interest > global_config.affinity_flow.non_reply_action_interest_threshold
 
-                        logger.info(f"消息 {message.message_id} 兴趣度: {message_interest:.3f}, 应回复: {message.should_reply}")
+                        interest_updates.append(
+                            {
+                                "message_id": message.message_id,
+                                "interest_value": message_interest,
+                                "should_reply": message.should_reply,
+                            }
+                        )
 
-                        # 更新StreamContext中的消息信息并刷新focus_energy
-                        if context:
-                            from src.chat.message_manager.message_manager import message_manager
-                            await message_manager.update_message(
-                                stream_id=self.chat_id,
-                                message_id=message.message_id,
-                                interest_value=message_interest,
-                                should_reply=message.should_reply
-                            )
+                        logger.debug(
+                            f"消息 {message.message_id} 兴趣度: {message_interest:.3f}, 应回复: {message.should_reply}"
+                        )
 
-                        # 更新数据库中的消息记录
-                        try:
-                            from src.chat.message_receive.storage import MessageStorage
-                            await MessageStorage.update_message_interest_value(message.message_id, message_interest)
-                            logger.info(f"已更新数据库中消息 {message.message_id} 的兴趣度为: {message_interest:.3f}")
-                        except Exception as e:
-                            logger.warning(f"更新数据库消息兴趣度失败: {e}")
-                     
-                        # 记录最高分
                         if message_interest > score:
                             score = message_interest
                             if message.should_reply:
@@ -152,9 +140,18 @@ class ChatterActionPlanner:
 
                     except Exception as e:
                         logger.warning(f"计算消息 {message.message_id} 兴趣度失败: {e}")
-                        # 设置默认值
                         message.interest_value = 0.0
                         message.should_reply = False
+                        interest_updates.append(
+                            {
+                                "message_id": message.message_id,
+                                "interest_value": 0.0,
+                                "should_reply": False,
+                            }
+                        )
+
+                if interest_updates:
+                    await self._commit_interest_updates(interest_updates)
 
             # 检查兴趣度是否达到非回复动作阈值
             non_reply_action_interest_threshold = global_config.affinity_flow.non_reply_action_interest_threshold
@@ -193,6 +190,33 @@ class ChatterActionPlanner:
             logger.error(f"增强版规划流程出错: {e}")
             self.planner_stats["failed_plans"] += 1
             return [], None
+
+    async def _commit_interest_updates(self, updates: List[Dict[str, Any]]) -> None:
+        """统一更新消息兴趣度，减少数据库写入次数"""
+        if not updates:
+            return
+
+        try:
+            from src.chat.message_manager.message_manager import message_manager
+
+            await message_manager.bulk_update_messages(self.chat_id, updates)
+        except Exception as e:
+            logger.warning(f"批量更新上下文消息兴趣度失败: {e}")
+
+        try:
+            from src.chat.message_receive.storage import MessageStorage
+
+            interest_map = {item["message_id"]: item["interest_value"] for item in updates if "interest_value" in item}
+            reply_map = {item["message_id"]: item["should_reply"] for item in updates if "should_reply" in item}
+
+            await MessageStorage.bulk_update_interest_values(
+                interest_map=interest_map,
+                reply_map=reply_map if reply_map else None,
+            )
+
+            logger.debug(f"已批量更新 {len(interest_map)} 条消息的兴趣度")
+        except Exception as e:
+            logger.warning(f"批量更新数据库兴趣度失败: {e}")
 
     def _update_stats_from_execution_result(self, execution_result: Dict[str, any]):
         """根据执行结果更新规划器统计"""

@@ -6,7 +6,7 @@
 import asyncio
 import random
 import time
-from typing import Dict, Optional, Any, TYPE_CHECKING
+from typing import Dict, Optional, Any, TYPE_CHECKING, List
 
 from src.common.logger import get_logger
 from src.common.data_models.database_data_model import DatabaseMessages
@@ -124,6 +124,44 @@ class MessageManager:
                     logger.warning(f"更新消息 {message_id} 失败")
         except Exception as e:
             logger.error(f"更新消息 {message_id} 时发生错误: {e}")
+
+    async def bulk_update_messages(self, stream_id: str, updates: List[Dict[str, Any]]) -> int:
+        """批量更新消息信息，降低更新频率"""
+        if not updates:
+            return 0
+
+        try:
+            chat_manager = get_chat_manager()
+            chat_stream = chat_manager.get_stream(stream_id)
+            if not chat_stream:
+                logger.warning(f"MessageManager.bulk_update_messages: 聊天流 {stream_id} 不存在")
+                return 0
+
+            updated_count = 0
+            for item in updates:
+                message_id = item.get("message_id")
+                if not message_id:
+                    continue
+
+                payload = {
+                    key: value
+                    for key, value in item.items()
+                    if key != "message_id" and value is not None
+                }
+
+                if not payload:
+                    continue
+
+                success = await chat_stream.context_manager.update_message(message_id, payload)
+                if success:
+                    updated_count += 1
+
+            if updated_count:
+                logger.debug(f"批量更新消息 {updated_count} 条 (stream={stream_id})")
+            return updated_count
+        except Exception as e:
+            logger.error(f"批量更新聊天流 {stream_id} 消息失败: {e}")
+            return 0
 
     async def add_action(self, stream_id: str, message_id: str, action: str):
         """添加动作到消息"""

@@ -212,7 +212,11 @@ class MessageStorage:
                 return match.group(0)
 
     @staticmethod
-    async def update_message_interest_value(message_id: str, interest_value: float) -> None:
+    async def update_message_interest_value(
+        message_id: str,
+        interest_value: float,
+        should_reply: bool | None = None,
+    ) -> None:
         """
         更新数据库中消息的interest_value字段
 
@@ -223,7 +227,11 @@ class MessageStorage:
         try:
             async with get_db_session() as session:
                 # 更新消息的interest_value字段
-                stmt = update(Messages).where(Messages.message_id == message_id).values(interest_value=interest_value)
+                values = {"interest_value": interest_value}
+                if should_reply is not None:
+                    values["should_reply"] = should_reply
+
+                stmt = update(Messages).where(Messages.message_id == message_id).values(**values)
                 result = await session.execute(stmt)
                 await session.commit()
 
@@ -234,6 +242,31 @@ class MessageStorage:
 
         except Exception as e:
             logger.error(f"更新消息 {message_id} 的interest_value失败: {e}")
+            raise
+
+    @staticmethod
+    async def bulk_update_interest_values(
+        interest_map: dict[str, float],
+        reply_map: dict[str, bool] | None = None,
+    ) -> None:
+        """批量更新消息的兴趣度与回复标记"""
+        if not interest_map:
+            return
+
+        try:
+            async with get_db_session() as session:
+                for message_id, interest_value in interest_map.items():
+                    values = {"interest_value": interest_value}
+                    if reply_map and message_id in reply_map:
+                        values["should_reply"] = reply_map[message_id]
+
+                    stmt = update(Messages).where(Messages.message_id == message_id).values(**values)
+                    await session.execute(stmt)
+
+                await session.commit()
+                logger.debug(f"批量更新兴趣度 {len(interest_map)} 条记录")
+        except Exception as e:
+            logger.error(f"批量更新消息兴趣度失败: {e}")
             raise
 
     @staticmethod

@@ -728,8 +728,6 @@ async def initialize_database():
                     "autocommit": config.mysql_autocommit,
                     "charset": config.mysql_charset,
                     "connect_timeout": config.connection_timeout,
-                    "read_timeout": 30,
-                    "write_timeout": 30,
                 },
             }
         )
