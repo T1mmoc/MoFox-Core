@@ -63,7 +63,7 @@ class ReminderTask(AsyncTask):
             success, reply_set, _ = await generator_api.generate_reply(
                 chat_stream=self.chat_stream,
                 extra_info=extra_info,
-                reply_message=self.chat_stream.context.get_last_message().to_dict(),
+                reply_message=self.chat_stream.context_manager.context.get_last_message().to_dict(),
                 request_type="plugin.reminder.remind_message",
             )
 
@@ -476,11 +476,12 @@ class RemindAction(BaseAction):
 
             # 4. 生成并发送确认消息
             extra_info = f"你已经成功设置了一个提醒，请以一种符合你人设的、俏皮的方式回复用户。\n提醒时间: {target_time.strftime('%Y-%m-%d %H:%M:%S')}\n提醒对象: {user_name_to_remind}\n提醒内容: {event_details}"
-            last_message = self.chat_stream.context.get_last_message()
+            last_message = self.chat_stream.context_manager.context.get_last_message()
+            reply_message_dict = last_message.flatten() if last_message else None
             success, reply_set, _ = await generator_api.generate_reply(
                 chat_stream=self.chat_stream,
                 extra_info=extra_info,
-                reply_message=last_message.to_dict(),
+                reply_message=reply_message_dict,
                 request_type="plugin.reminder.confirm_message",
             )
             if success and reply_set:
