@@ -140,7 +140,7 @@ class PokeAction(BaseAction):
     # === 基本信息（必须填写）===
     action_name = "poke_user"
     action_description = "向用户发送戳一戳"
-    activation_type = ActionActivationType.ALWAYS
+    activation_type = ActionActivationType.LLM_JUDGE
     parallel_action = True
 
     # === 功能描述（必须填写）===
