@@ -220,138 +220,126 @@ class SetEmojiLikeAction(BaseAction):
     # === 基本信息（必须填写）===
     action_name = "set_emoji_like"
     action_description = "为某条已经存在的消息添加‘贴表情’回应（类似点赞），而不是发送新消息。可以在觉得某条消息非常有趣、值得赞同或者需要特殊情感回应时主动使用。"
-    activation_type = ActionActivationType.ALWAYS  # 消息接收时激活(?)
+    activation_type = ActionActivationType.ALWAYS
     chat_type_allow = ChatType.GROUP
     parallel_action = True
 
     # === 功能描述（必须填写）===
-    # 从 qq_face 字典中提取所有表情名称用于提示
-    emoji_options = []
-    for name in qq_face.values():
-        match = re.search(r"\[表情：(.+?)\]", name)
-        if match:
-            emoji_options.append(match.group(1))
-
     action_parameters = {
         "set": "是否设置回应 (True/False)",
     }
     action_require = [
         "当需要对一个已存在消息进行‘贴表情’回应时使用",
         "这是一个对旧消息的操作，而不是发送新消息",
-        "如果你想发送一个新的表情包消息，请使用 'emoji' 动作",
     ]
     llm_judge_prompt = """
     判定是否需要使用贴表情动作的条件：
-    1. 用户明确要求使用贴表情包
-    2. 这是一个适合表达强烈情绪的场合
-    3. 不要发送太多表情包，如果你已经发送过多个表情包则回答"否"
-    
+    1. 这是一个适合表达强烈情绪的场合，例如非常有趣、赞同、惊讶等。
+    2. 不要发送太多表情包，如果最近已经发送过表情包，请回答"否"。
+    3. 仅在群聊中使用。
+
     请回答"是"或"否"。
     """
     associated_types = ["text"]
+
+    # 重新启用完整的表情库
+    emoji_options = []
+    for name in qq_face.values():
+        match = re.search(r"\[表情：(.+?)\]", name)
+        if match:
+            emoji_options.append(match.group(1))
 
     async def execute(self) -> Tuple[bool, str]:
         """执行设置表情回应的动作"""
         message_id = None
         set_like = self.action_data.get("set", True)
-        if self.has_action_message:
-            logger.debug(str(self.action_message))
-            if isinstance(self.action_message, dict):
-                message_id = self.action_message.get("message_id")
+
+        if self.has_action_message and isinstance(self.action_message, dict):
+            message_id = self.action_message.get("message_id")
             logger.info(f"获取到的消息ID: {message_id}")
         else:
-            logger.error("未提供消息ID")
-            await self.store_action_info(
-                action_build_into_prompt=True,
-                action_prompt_display=f"执行了set_emoji_like动作：{self.action_name},失败: 未提供消息ID",
-                action_done=False,
-            )
+            logger.error("未提供有效的消息或消息ID")
+            await self.store_action_info(action_prompt_display="贴表情失败: 未提供消息ID", action_done=False)
             return False, "未提供消息ID"
+
+        if not message_id:
+            logger.error("消息ID为空")
+            await self.store_action_info(action_prompt_display="贴表情失败: 消息ID为空", action_done=False)
+            return False, "消息ID为空"
+
         available_models = llm_api.get_available_models()
         if "utils_small" not in available_models:
-                logger.error("未找到 'utils_small' 模型配置，无法选择表情")
-                return False, "表情选择功能配置错误"
+            logger.error("未找到 'utils_small' 模型配置，无法选择表情")
+            return False, "表情选择功能配置错误"
 
         model_to_use = available_models["utils_small"]
-            
-        # 获取最近的对话历史作为上下文
-        context_text = ""
-        if self.action_message:
-            context_text = self.action_message.get("processed_plain_text", "")
-        else:
-            logger.error("无法找到动作选择的原始消息")
-            return False, "无法找到动作选择的原始消息"
-        
+
+        context_text = self.action_message.get("processed_plain_text", "")
+        if not context_text:
+            logger.error("无法找到动作选择的原始消息文本")
+            return False, "无法找到动作选择的原始消息文本"
+
         prompt = (
-                f"根据以下这条消息，从列表中选择一个最合适的表情名称来回应这条消息。\n"
-                f"消息内容: '{context_text}'\n"
-                f"可用表情列表: {', '.join(self.emoji_options)}\n"
-                f"你的任务是：只输出你选择的表情的名称，不要包含任何其他文字或标点。\n"
-                f"例如，如果觉得应该用'赞'，就只输出'赞'。"
-            )
+            f"**任务：**\n"
+            f"根据以下消息，从“可用表情列表”中选择一个最合适的表情名称来回应。\n\n"
+            f"**规则（必须严格遵守）：**\n"
+            f"1.  **只能**从下面的“可用表情列表”中选择一个表情名称。\n"
+            f"2.  你的回答**必须**只包含你选择的表情名称，**不能**有任何其他文字、标点、解释或空格。\n"
+            f"3.  你的回答**不能**包含 `[表情：]` 或 `[]` 等符号。\n\n"
+            f"**消息内容：**\n"
+            f"'{context_text}'\n\n"
+            f"**可用表情列表：**\n"
+            f"{', '.join(self.emoji_options)}\n\n"
+            f"**示例：**\n"
+            f"-   如果认为“赞”最合适，你的回答**必须**是：`赞`\n"
+            f"-   如果认为“笑哭”最合适，你的回答**必须**是：`笑哭`\n\n"
+            f"**你的回答：**"
+        )
 
         success, response, _, _ = await llm_api.generate_with_model(
-                prompt, model_config=model_to_use, request_type="plugin.set_emoji_like.select_emoji"
-            )
+            prompt, model_config=model_to_use, request_type="plugin.set_emoji_like.select_emoji"
+        )
 
         if not success or not response:
-                logger.error("二级LLM未能选择有效的表情。")
-                return False, "无法找到合适的表情。"
+            logger.error("表情选择模型未能返回有效的表情名称。")
+            return False, "无法选择合适的表情。"
 
         chosen_emoji_name = response.strip()
-        logger.info(f"二级LLM选择的表情是: '{chosen_emoji_name}'")
+        logger.info(f"模型选择的表情是: '{chosen_emoji_name}'")
+
         emoji_id = get_emoji_id(chosen_emoji_name)
 
         if not emoji_id:
-                logger.error(f"二级LLM选择的表情 '{chosen_emoji_name}' 仍然无法匹配到有效的表情ID。")
-                await self.store_action_info(
-                    action_build_into_prompt=True,
-                    action_prompt_display=f"执行了set_emoji_like动作：{self.action_name},失败: 找不到表情: '{chosen_emoji_name}'",
-                    action_done=False,
-                )
-                return False, f"找不到表情: '{chosen_emoji_name}'。"
-
-        # 4. 使用适配器API发送命令
-        if not message_id:
-            logger.error("未提供消息ID")
+            logger.error(f"模型选择的表情 '{chosen_emoji_name}' 无法匹配到有效的表情ID。可能是模型违反了规则。")
             await self.store_action_info(
-                action_build_into_prompt=True,
-                action_prompt_display=f"执行了set_emoji_like动作：{self.action_name},失败: 未提供消息ID",
+                action_prompt_display=f"贴表情失败: 找不到表情 '{chosen_emoji_name}'",
                 action_done=False,
             )
-            return False, "未提供消息ID"
+            return False, f"找不到表情: '{chosen_emoji_name}'"
 
         try:
-            # 使用适配器API发送贴表情命令
             success = await self.send_command(
                 command_name="set_msg_emoji_like",
                 args={"message_id": message_id, "emoji_id": emoji_id, "set": set_like},
                 storage_message=False,
             )
             if success:
-                logger.info("设置表情回应成功")
+                display_message = f"贴上了表情: {chosen_emoji_name}"
+                logger.info(display_message)
                 await self.store_action_info(
                     action_build_into_prompt=True,
-                    action_prompt_display=f"执行了set_emoji_like动作,{chosen_emoji_name},设置表情回应: {emoji_id}, 是否设置: {set_like}",
+                    action_prompt_display=display_message,
                     action_done=True,
                 )
                 return True, "成功设置表情回应"
             else:
-                logger.error("设置表情回应失败")
-                await self.store_action_info(
-                    action_build_into_prompt=True,
-                    action_prompt_display=f"执行了set_emoji_like动作：{self.action_name},失败",
-                    action_done=False,
-                )
+                logger.error("通过适配器设置表情回应失败")
+                await self.store_action_info(action_prompt_display="贴表情失败: 适配器返回失败", action_done=False)
                 return False, "设置表情回应失败"
 
         except Exception as e:
-            logger.error(f"设置表情回应失败: {e}")
-            await self.store_action_info(
-                action_build_into_prompt=True,
-                action_prompt_display=f"执行了set_emoji_like动作：{self.action_name},失败: {e}",
-                action_done=False,
-            )
+            logger.error(f"设置表情回应时发生异常: {e}", exc_info=True)
+            await self.store_action_info(action_prompt_display=f"贴表情失败: {e}", action_done=False)
             return False, f"设置表情回应失败: {e}"
 
 
