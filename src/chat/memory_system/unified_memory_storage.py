@@ -133,21 +133,21 @@ class UnifiedMemoryStorage:
 
         try:
             # 使用嵌入模型生成向量
-            response, _ = await self.embedding_model.generate_response_async(
-                f"请为以下文本生成语义向量表示：{text}",
-                temperature=0.1
-            )
-
-            # 这里需要实际的嵌入模型调用逻辑
-            # 暂时返回随机向量作为占位符
-            embedding = np.random.random(self.config.dimension).astype(np.float32)
-
+            embedding, _ = await self.embedding_model.get_embedding(text)
+            
+            if embedding is None:
+                logger.warning(f"嵌入模型返回空向量，文本: {text[:50]}...")
+                return None
+            
+            # 转换为numpy数组
+            embedding_array = np.array(embedding, dtype=np.float32)
+            
             # 归一化向量
-            norm = np.linalg.norm(embedding)
+            norm = np.linalg.norm(embedding_array)
             if norm > 0:
-                embedding = embedding / norm
+                embedding_array = embedding_array / norm
 
-            return embedding
+            return embedding_array
 
         except Exception as e:
             logger.error(f"生成向量失败: {e}")

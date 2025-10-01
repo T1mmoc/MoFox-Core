@@ -245,5 +245,7 @@ class MemoryActivator:
 # 创建全局实例
 memory_activator = MemoryActivator()
 
+# 兼容性别名
+enhanced_memory_activator = memory_activator
 
 init_prompt()

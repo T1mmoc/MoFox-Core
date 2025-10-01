@@ -60,7 +60,7 @@ class SingleStreamContextManager:
             self.last_access_time = time.time()
             # 启动流的循环任务（如果还未启动）
             await stream_loop_manager.start_stream_loop(self.stream_id)
-            logger.info(f"添加消息{message.processed_plain_text}到单流上下文: {self.stream_id}")
+            logger.debug(f"添加消息{message.processed_plain_text}到单流上下文: {self.stream_id}")
             return True
         except Exception as e:
             logger.error(f"添加消息到单流上下文失败 {self.stream_id}: {e}", exc_info=True)

@@ -48,7 +48,8 @@ from .memory_manager import (
 # 激活器
 from .enhanced_memory_activator import (
     MemoryActivator,
-    memory_activator
+    memory_activator,
+    enhanced_memory_activator
 )
 
 # 格式化器
@@ -98,6 +99,7 @@ __all__ = [
     # 激活器
     "MemoryActivator",
     "memory_activator",
+    "enhanced_memory_activator",  # 兼容性别名
 
     # 格式化器
     "MemoryFormatter",
