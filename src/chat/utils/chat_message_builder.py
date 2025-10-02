@@ -466,9 +466,7 @@ async def get_raw_msg_before_timestamp_with_chat(chat_id: str, timestamp: float,
     return await find_messages(message_filter=filter_query, sort=sort_order, limit=limit)
 
 
-async def get_raw_msg_before_timestamp_with_users(
-    timestamp: float, person_ids: list, limit: int = 0
-) -> List[Dict[str, Any]]:
+async def get_raw_msg_before_timestamp_with_users(timestamp: float, person_ids: list, limit: int = 0) -> List[Dict[str, Any]]:
     """获取指定时间戳之前的消息，按时间升序排序，返回消息列表
     limit: 限制返回的消息数量，0为不限制
     """
@@ -644,7 +642,7 @@ async def _build_readable_messages_internal(
             person_name = f"{person_name}({user_id})"
 
         # 使用独立函数处理用户引用格式
-        content = replace_user_references_sync(content, platform, replace_bot_name=replace_bot_name)
+        content = await replace_user_references_async(content, platform, replace_bot_name=replace_bot_name)
 
         target_str = "这是QQ的一个功能，用于提及某人，但没那么明显"
         if target_str in content and random.random() < 0.6:
@@ -1221,13 +1219,15 @@ async def build_anonymous_messages(messages: List[Dict[str, Any]]) -> str:
             # print(f"anon_name:{anon_name}")
 
             # 使用独立函数处理用户引用格式，传入自定义的匿名名称解析器
-            def anon_name_resolver(platform: str, user_id: str) -> str:
+            async def anon_name_resolver(platform: str, user_id: str) -> str:
                 try:
                     return get_anon_name(platform, user_id)
                 except Exception:
                     return "?"
 
-            content = replace_user_references_sync(content, platform, anon_name_resolver, replace_bot_name=False)
+            content = await replace_user_references_async(
+                content, platform, anon_name_resolver, replace_bot_name=False
+            )
 
             header = f"{anon_name}说 "
             output_lines.append(header)

@@ -221,7 +221,7 @@ class QZoneService:
 
                 for chat_id in group.chat_ids:
                     # 使用正确的函数获取历史消息
-                    messages = get_raw_msg_by_timestamp_with_chat(
+                    messages = await get_raw_msg_by_timestamp_with_chat(
                         chat_id=chat_id,
                         timestamp_start=start_time,
                         timestamp_end=end_time,

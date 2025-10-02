@@ -103,7 +103,7 @@ class ChatMood:
         logger.debug(
             f"{self.log_prefix} 更新情绪状态，感兴趣度: {interested_rate:.2f}, 更新概率: {update_probability:.2f}"
         )
-        message_list_before_now = get_raw_msg_by_timestamp_with_chat_inclusive(
+        message_list_before_now = await get_raw_msg_by_timestamp_with_chat_inclusive(
             chat_id=self.chat_id,
             timestamp_start=self.last_change_time,
             timestamp_end=message_time,
