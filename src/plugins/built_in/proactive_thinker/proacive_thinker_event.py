@@ -72,9 +72,9 @@ class ColdStartTask(AsyncTask):
                         
                         # 【关键步骤】主动创建聊天流。
                         # 创建后，该用户就进入了机器人的“好友列表”，后续将由 ProactiveThinkingTask 接管
-                        await self.chat_manager.get_or_create_stream(platform, user_info)
+                        stream = await self.chat_manager.get_or_create_stream(platform, user_info)
 
-                        await self.executor.execute_cold_start(user_info)
+                        await self.executor.execute(stream_id=stream.stream_id, start_mode="cold_start")
                         logger.info(f"【冷启动】已为新用户 {chat_id} (昵称: {user_nickname}) 创建聊天流并发送问候。")
 
                     except ValueError:
@@ -177,7 +177,7 @@ class ProactiveThinkingTask(AsyncTask):
                     if time_since_last_active > next_interval:
                         logger.info(f"【日常唤醒】聊天流 {stream.stream_id} 已冷却 {time_since_last_active:.2f} 秒，触发主动对话。")
                         
-                        await self.executor.execute_wakeup(stream.stream_id)
+                        await self.executor.execute(stream_id=stream.stream_id, start_mode="wake_up")
                         
                         # 【关键步骤】在触发后，立刻更新活跃时间并保存。
                         # 这可以防止在同一个检查周期内，对同一个目标因为意外的延迟而发送多条消息。
