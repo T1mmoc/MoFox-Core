@@ -128,3 +128,50 @@ async def get_message_stats_by_chat(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/messages/bot_stats_by_chat")
+async def get_bot_message_stats_by_chat(
+    days: int = Query(1, ge=1, description="指定查询过去多少天的数据"),
+    format: bool = Query(False, description="是否格式化输出，包含群聊和用户信息"),
+):
+    """
+    获取BOT在指定天数内按聊天流统计的已发送消息数据。
+    """
+    try:
+        end_time = time.time()
+        start_time = end_time - (days * 24 * 3600)
+        messages = await message_api.get_messages_by_time(start_time, end_time)
+        bot_qq = str(global_config.bot.qq_account)
+
+        # 筛选出机器人发送的消息
+        bot_messages = [msg for msg in messages if msg.get("user_id") == bot_qq]
+
+        stats = {}
+        for msg in bot_messages:
+            chat_id = msg.get("chat_id", "unknown")
+            if chat_id not in stats:
+                stats[chat_id] = 0
+            stats[chat_id] = 1
+
+        if format:
+            chat_manager = get_chat_manager()
+            formatted_stats = {}
+            for chat_id, count in stats.items():
+                stream = chat_manager.streams.get(chat_id)
+                chat_name = f"未知会话 ({chat_id})"
+                if stream:
+                    if stream.group_info and stream.group_info.group_name:
+                        chat_name = stream.group_info.group_name
+                    elif stream.user_info and stream.user_info.user_nickname:
+                        chat_name = stream.user_info.user_nickname
+                
+                formatted_stats[chat_id] = {
+                    "chat_name": chat_name,
+                    "count": count
+                }
+            return formatted_stats
+
+        return stats
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
