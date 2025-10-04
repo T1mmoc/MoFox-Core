@@ -1,5 +1,5 @@
 [inner]
-version = "7.1.7"
+version = "7.1.8"
 
 #----以下是给开发人员阅读的，如果你只是部署了MoFox-Bot，不需要阅读----
 #如果你想要修改配置文件，请递增version的值
@@ -232,7 +232,7 @@ enable_memory = true # 是否启用记忆系统
 memory_build_interval = 600 # 记忆构建间隔（秒）。间隔越低，学习越频繁，但可能产生更多冗余信息
 
 # === 记忆采样系统配置 ===
-memory_sampling_mode = "precision" # 记忆采样模式：adaptive(自适应)，hippocampus(海马体双峰采样)，precision(精准记忆)
+memory_sampling_mode = "immediate" # 记忆采样模式：'immediate'(即时采样), 'hippocampus'(海马体定时采样) or 'all'(双模式)
 
 # 海马体双峰采样配置
 enable_hippocampus_sampling = true # 启用海马体双峰采样策略
