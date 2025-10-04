@@ -151,7 +151,7 @@ async def get_bot_message_stats_by_chat(
             chat_id = msg.get("chat_id", "unknown")
             if chat_id not in stats:
                 stats[chat_id] = 0
-            stats[chat_id] = 1
+            stats[chat_id] += 1
 
         if format:
             chat_manager = get_chat_manager()

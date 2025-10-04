@@ -72,7 +72,6 @@ class BatchDatabaseWriter:
 
         self.is_running = True
         self.writer_task = asyncio.create_task(self._batch_writer_loop(), name="batch_database_writer")
-        logger.info("批量数据库写入器已启动")
 
     async def stop(self):
         """停止批量写入器"""

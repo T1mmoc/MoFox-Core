@@ -110,7 +110,6 @@ class AdaptiveStreamManager:
         self.is_running = True
         self.monitor_task = asyncio.create_task(self._system_monitor_loop(), name="system_monitor")
         self.adjustment_task = asyncio.create_task(self._adjustment_loop(), name="limit_adjustment")
-        logger.info("自适应流管理器已启动")
 
     async def stop(self):
         """停止自适应管理器"""

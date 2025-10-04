@@ -59,7 +59,6 @@ class StreamLoopManager:
             return
 
         self.is_running = True
-        logger.info("流循环管理器已启动")
 
     async def stop(self) -> None:
         """停止流循环管理器"""

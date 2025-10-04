@@ -72,7 +72,6 @@ class TieredStreamCache:
 
         self.is_running = True
         self.cleanup_task = asyncio.create_task(self._cleanup_loop(), name="stream_cache_cleanup")
-        logger.info("分层流缓存管理器已启动")
 
     async def stop(self):
         """停止缓存管理器"""
