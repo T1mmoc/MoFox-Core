@@ -1,5 +1,5 @@
 [inner]
-version = "7.2.2"
+version = "7.2.3"
 
 #----以下是给开发人员阅读的，如果你只是部署了MoFox-Bot，不需要阅读----
 #如果你想要修改配置文件，请递增version的值
@@ -545,10 +545,6 @@ insomnia_duration_minutes = [30, 60] # 单次失眠状态的持续时间范围�
 # --- 睡后失眠 ---
 # 入睡后，经过一段延迟后触发失眠判定的延迟时间（分钟），设置为范围以增加随机性
 insomnia_trigger_delay_minutes = [15, 45]
-
-[server]
-host = "127.0.0.1"
-port = 8000
 
 [cross_context] # 跨群聊/私聊上下文共享配置
 # 这是总开关，用于一键启用或禁用此功能
