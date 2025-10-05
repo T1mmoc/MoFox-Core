@@ -17,13 +17,8 @@ import bs4
 import json5
 import orjson
 
-from src.chat.message_receive.chat_stream import get_chat_manager
-from src.chat.utils.chat_message_builder import (
-    build_readable_messages_with_id,
-    get_raw_msg_by_timestamp_with_chat,
-)
 from src.common.logger import get_logger
-from src.plugin_system.apis import config_api, person_api
+from src.plugin_system.apis import config_api, cross_context_api, person_api
 
 from .content_service import ContentService
 from .cookie_service import CookieService
@@ -192,61 +187,10 @@ class QZoneService:
 
     async def _get_intercom_context(self, stream_id: str) -> str | None:
         """
-        根据 stream_id 查找其所属的互通组，并构建该组的聊天上下文。
-
-        Args:
-            stream_id: 需要查找的当前聊天流ID。
-
-        Returns:
-            如果找到匹配的组，则返回一个包含聊天记录的字符串；否则返回 None。
+        获取互通组的聊天上下文。
         """
-        intercom_config = config_api.get_global_config("maizone_intercom")
-        if not (intercom_config and intercom_config.enable):
-            return None
-
-        chat_manager = get_chat_manager()
-        bot_platform = config_api.get_global_config("bot.platform")
-
-        for group in intercom_config.groups:
-            # 使用集合以优化查找效率
-            group_stream_ids = {chat_manager.get_stream_id(bot_platform, chat_id, True) for chat_id in group.chat_ids}
-
-            if stream_id in group_stream_ids:
-                logger.debug(
-                    f"Stream ID '{stream_id}' 在互通组 '{getattr(group, 'name', 'Unknown')}' 中找到，正在构建上下文。"
-                )
-
-                all_messages = []
-                end_time = time.time()
-                start_time = end_time - (3 * 24 * 60 * 60)  # 获取过去3天的消息
-
-                for chat_id in group.chat_ids:
-                    # 使用正确的函数获取历史消息
-                    messages = await get_raw_msg_by_timestamp_with_chat(
-                        chat_id=chat_id,
-                        timestamp_start=start_time,
-                        timestamp_end=end_time,
-                        limit=20,  # 每个聊天最多获取20条
-                        limit_mode="latest",
-                    )
-                    all_messages.extend(messages)
-
-                if not all_messages:
-                    return None
-
-                # 按时间戳对所有消息进行排序
-                all_messages.sort(key=lambda x: x.get("time", 0))
-
-                # 限制总消息数，例如最多100条
-                if len(all_messages) > 100:
-                    all_messages = all_messages[-100:]
-
-                # build_readable_messages_with_id 返回一个元组 (formatted_string, message_id_list)
-                formatted_string, _ = await build_readable_messages_with_id(all_messages)
-                return formatted_string
-
-        logger.debug(f"Stream ID '{stream_id}' 未在任何互通组中找到。")
-        return None
+        # 实际的逻辑已迁移到 cross_context_api
+        return await cross_context_api.get_intercom_group_context_by_name("maizone_context_group")
 
     async def _reply_to_own_feed_comments(self, feed: dict, api_client: dict):
         """处理对自己说说的评论并进行回复"""
