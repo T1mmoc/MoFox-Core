@@ -9,7 +9,7 @@ class ReplyerManager:
     def __init__(self):
         self._repliers: dict[str, DefaultReplyer] = {}
 
-    def get_replyer(
+    async def get_replyer(
         self,
         chat_stream: ChatStream | None = None,
         chat_id: str | None = None,
@@ -37,7 +37,7 @@ class ReplyerManager:
         target_stream = chat_stream
         if not target_stream:
             if chat_manager := get_chat_manager():
-                target_stream = chat_manager.get_stream(stream_id)
+                target_stream = await chat_manager.get_stream(stream_id)
 
         if not target_stream:
             logger.warning(f"[ReplyerManager] 未找到 stream_id='{stream_id}' 的聊天流，无法创建回复器。")

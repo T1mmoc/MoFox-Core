@@ -494,7 +494,7 @@ class Prompt:
             from src.plugin_system.apis.generator_api import get_replyer
 
             # 创建临时生成器实例来使用其方法
-            temp_generator = get_replyer(None, chat_id, request_type="prompt_building")
+            temp_generator = await get_replyer(None, chat_id, request_type="prompt_building")
             return await temp_generator.build_s4u_chat_history_prompts(
                 message_list_before_now, target_user_id, sender, chat_id
             )

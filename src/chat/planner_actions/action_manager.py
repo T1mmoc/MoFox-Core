@@ -615,6 +615,7 @@ class ChatterActionManager:
         """禁用批量存储模式"""
         self._batch_storage_enabled = False
         self._current_chat_id = None
+        self._pending_actions = []  # 清空队列
         logger.debug("已禁用批量存储模式")
 
     def add_action_to_batch(self, action_name: str, action_data: dict, thinking_id: str = "",

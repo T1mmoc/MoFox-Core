@@ -441,7 +441,7 @@ class ChatterPlanExecutor:
             # 通过 chat_id 获取真实的 chat_stream 对象
             from src.plugin_system.apis.chat_api import get_chat_manager
             chat_manager = get_chat_manager()
-            chat_stream = chat_manager.get_stream(plan.chat_id)
+            chat_stream = await chat_manager.get_stream(plan.chat_id)
 
             if chat_stream:
                 # 调用 action_manager 的批量存储

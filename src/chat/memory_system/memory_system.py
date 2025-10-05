@@ -1111,7 +1111,7 @@ class MemorySystem:
                 from src.chat.message_receive.chat_stream import get_chat_manager
 
                 chat_manager = get_chat_manager()
-                chat_stream = chat_manager.get_stream(stream_id)
+                chat_stream = await chat_manager.get_stream(stream_id)
                 if chat_stream and hasattr(chat_stream, "context_manager"):
                     history_limit = self._determine_history_limit(context)
                     messages = chat_stream.context_manager.get_messages(limit=history_limit, include_unread=True)
