@@ -215,6 +215,12 @@ class ShutdownManager:
             logger.info("正在优雅关闭麦麦...")
             start_time = time.time()
 
+            # 停止WebUI开发服务（如果有）
+            try:
+                await WebUIManager.stop_dev_server()
+            except Exception as e:
+                logger.warning(f"停止WebUI开发服务时出错: {e}")
+
             # 停止异步任务
             tasks_stopped = await TaskManager.stop_async_tasks()
 
@@ -355,6 +361,169 @@ class EasterEgg:
         logger.info(rainbow_text)
 
 
+class WebUIManager:
+    """WebUI 开发服务器管理"""
+
+    _process = None
+    _drain_task = None
+
+    @staticmethod
+    async def start_dev_server(timeout: float = 60.0) -> bool:
+        """启动 ../webui 的 `npm run dev` 并在超时内检测是否启动成功。
+
+        返回 True 表示检测到成功信号；False 表示失败/超时/进程退出。
+        """
+        try:
+            webui_dir = Path(__file__).resolve().parent.parent / "webui"
+            if not webui_dir.exists():
+                logger.error(f"未找到 webui 目录: {webui_dir}")
+                return False
+
+            if WebUIManager._process and WebUIManager._process.returncode is None:
+                logger.info("WebUI 开发服务器已在运行，跳过重复启动")
+                return True
+
+            logger.info(f"正在启动 WebUI 开发服务器: npm run dev (cwd={webui_dir})")
+            npm_exe = "npm.cmd" if platform.system().lower() == "windows" else "npm"
+            proc = await asyncio.create_subprocess_exec(
+                npm_exe,
+                "run",
+                "dev",
+                cwd=str(webui_dir),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            WebUIManager._process = proc
+
+            success_keywords = [
+                "compiled successfully",
+                "ready in",
+                "local:",
+                "listening on",
+                "running at:",
+                "started server",
+                "app running at:",
+                "ready - started server",
+            ]
+            failure_keywords = [
+                "err!",
+                "error",
+                "eaddrinuse",
+                "address already in use",
+                "syntaxerror",
+                "fatal",
+            ]
+
+            start_ts = time.time()
+            detected_success = False
+
+            async def _drain_and_detect():
+                nonlocal detected_success
+                try:
+                    while True:
+                        line = await proc.stdout.readline()
+                        if not line:
+                            break
+                        text = line.decode(errors="ignore").rstrip()
+                        logger.info(f"[webui] {text}")
+                        low = text.lower()
+                        if any(k in low for k in success_keywords):
+                            detected_success = True
+                            break
+                        if any(k in low for k in failure_keywords):
+                            detected_success = False
+                            break
+                except Exception as e:
+                    logger.debug(f"webui 输出读取异常: {e}")
+
+            # 在检测窗口内读取输出判定成功/失败
+            while True:
+                if proc.returncode is not None:
+                    if proc.returncode != 0:
+                        logger.error(f"WebUI 进程提前退出，退出码: {proc.returncode}")
+                    else:
+                        logger.warning("WebUI 进程已退出")
+                    break
+
+                # 使用短期读取以便及时检查超时
+                try:
+                    line = await asyncio.wait_for(proc.stdout.readline(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    line = b""
+
+                if line:
+                    text = line.decode(errors="ignore").rstrip()
+                    logger.info(f"[webui] {text}")
+                    low = text.lower()
+                    if any(k in low for k in success_keywords):
+                        detected_success = True
+                        break
+                    if any(k in low for k in failure_keywords):
+                        detected_success = False
+                        break
+
+                if time.time() - start_ts > timeout:
+                    logger.warning("WebUI 启动检测超时")
+                    break
+
+            # 后台持续清空输出，避免缓冲区阻塞
+            async def _drain_rest():
+                try:
+                    while True:
+                        line = await proc.stdout.readline()
+                        if not line:
+                            break
+                        text = line.decode(errors="ignore").rstrip()
+                        logger.info(f"[webui] {text}")
+                except Exception as e:
+                    logger.debug(f"webui 日志读取停止: {e}")
+
+            WebUIManager._drain_task = asyncio.create_task(_drain_rest())
+
+            return bool(detected_success)
+
+        except FileNotFoundError:
+            logger.error("未找到 npm，请确认已安装 Node.js 并将 npm 加入 PATH")
+            return False
+        except Exception as e:
+            logger.error(f"启动 WebUI 开发服务器失败: {e}")
+            return False
+
+    @staticmethod
+    async def stop_dev_server(timeout: float = 5.0) -> bool:
+        """停止 WebUI 开发服务器（如果在运行）。"""
+        proc = WebUIManager._process
+        if not proc:
+            return True
+        try:
+            if proc.returncode is None:
+                try:
+                    proc.terminate()
+                except ProcessLookupError:
+                    pass
+                except Exception as e:
+                    logger.debug(f"发送终止信号失败: {e}")
+
+                try:
+                    await asyncio.wait_for(proc.wait(), timeout=timeout)
+                except asyncio.TimeoutError:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+            # 处理输出清空任务
+            if WebUIManager._drain_task and not WebUIManager._drain_task.done():
+                WebUIManager._drain_task.cancel()
+                try:
+                    await WebUIManager._drain_task
+                except Exception:
+                    pass
+            logger.info("WebUI 开发服务器已停止")
+            return True
+        finally:
+            WebUIManager._process = None
+            WebUIManager._drain_task = None
+
 class MaiBotMain:
     """麦麦机器人主程序类"""
 
@@ -454,6 +623,13 @@ async def main_async():
         try:
             # 确保环境文件存在
             ConfigManager.ensure_env_file()
+
+            # 启动 WebUI 开发服务器
+            webui_ok = await WebUIManager.start_dev_server(timeout=60)
+            if webui_ok:
+                logger.info("WebUI 启动成功，继续下一步骤")
+            else:
+                logger.error("WebUI 启动失败，继续下一步骤")
 
             # 创建主程序实例并执行初始化
             maibot = MaiBotMain()

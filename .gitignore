@@ -340,6 +340,9 @@ MaiBot.code-workspace
 src/chat/planner_actions/planner (2).py
 rust_video/Cargo.lock
 .claude/settings.local.json
-package-lock.json
-package.json
+/package-lock.json
+/package.json
 src/chat/planner_actions/新建 文本文档.txt
+# WebUI不忽略
+!/webui/
+!/webui/**
