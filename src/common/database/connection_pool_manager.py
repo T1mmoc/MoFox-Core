@@ -55,6 +55,8 @@ class ConnectionInfo:
         try:
             await self.session.close()
             logger.debug("连接已关闭")
+        except asyncio.CancelledError:
+            logger.warning("关闭连接时任务被取消")
         except Exception as e:
             logger.warning(f"关闭连接时出错: {e}")
 
