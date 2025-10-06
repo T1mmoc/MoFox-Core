@@ -332,14 +332,13 @@ class MessageManager:
 
     async def _check_and_handle_interruption(self, chat_stream: ChatStream | None = None):
         """检查并处理消息打断"""
-        if not global_config.chat.interruption_enabled:
+        if not global_config.chat.interruption_enabled or not chat_stream:
             return
 
-        # 检查是否有正在进行的处理任务
-        if (
-            chat_stream.context_manager.context.processing_task
-            and not chat_stream.context_manager.context.processing_task.done()
-        ):
+        # 从 chatter_manager 检查是否有正在进行的处理任务
+        processing_task = self.chatter_manager.get_processing_task(chat_stream.stream_id)
+
+        if processing_task and not processing_task.done():
             # 计算打断概率
             interruption_probability = chat_stream.context_manager.context.calculate_interruption_probability(
                 global_config.chat.interruption_max_limit, global_config.chat.interruption_probability_factor
@@ -357,11 +356,11 @@ class MessageManager:
                 logger.info(f"聊天流 {chat_stream.stream_id} 触发消息打断，打断概率: {interruption_probability:.2f}")
 
                 # 取消现有任务
-                chat_stream.context_manager.context.processing_task.cancel()
+                processing_task.cancel()
                 try:
-                    await chat_stream.context_manager.context.processing_task
+                    await processing_task
                 except asyncio.CancelledError:
-                    pass
+                    logger.debug(f"消息打断成功取消任务: {chat_stream.stream_id}")
 
                 # 增加打断计数并应用afc阈值降低
                 await chat_stream.context_manager.context.increment_interruption_count()
