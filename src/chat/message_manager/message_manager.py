@@ -6,6 +6,7 @@
 import asyncio
 import random
 import time
+from collections import defaultdict, deque
 from typing import TYPE_CHECKING, Any
 
 from src.chat.chatter_manager import ChatterManager
@@ -46,6 +47,14 @@ class MessageManager:
         self.sleep_manager = SleepManager()
         self.wakeup_manager = WakeUpManager(self.sleep_manager)
 
+        # 消息缓存系统 - 直接集成到消息管理器
+        self.message_caches: Dict[str, deque] = defaultdict(deque)  # 每个流的消息缓存
+        self.stream_processing_status: Dict[str, bool] = defaultdict(bool)  # 流的处理状态
+        self.cache_stats = {
+            "total_cached_messages": 0,
+            "total_flushed_messages": 0,
+        }
+
         # 不再需要全局上下文管理器，直接通过 ChatManager 访问各个 ChatStream 的 context_manager
 
     async def start(self):
@@ -71,6 +80,9 @@ class MessageManager:
             await init_stream_cache_manager()
         except Exception as e:
             logger.error(f"启动流缓存管理器失败: {e}")
+
+        # 启动消息缓存系统（内置）
+        logger.info("📦 消息缓存系统已启动")
 
         # 启动自适应流管理器
         try:
@@ -114,6 +126,11 @@ class MessageManager:
             logger.info("🗄️ 流缓存管理器已停止")
         except Exception as e:
             logger.error(f"停止流缓存管理器失败: {e}")
+
+        # 停止消息缓存系统（内置）
+        self.message_caches.clear()
+        self.stream_processing_status.clear()
+        logger.info("📦 消息缓存系统已停止")
 
         # 停止自适应流管理器
         try:
@@ -428,6 +445,115 @@ class MessageManager:
 
         except Exception as e:
             logger.error(f"清除流 {stream_id} 的未读消息时发生错误: {e}")
+
+    # ===== 消息缓存系统方法 =====
+
+    def add_message_to_cache(self, stream_id: str, message: DatabaseMessages) -> bool:
+        """添加消息到缓存
+
+        Args:
+            stream_id: 流ID
+            message: 消息对象
+
+        Returns:
+            bool: 是否成功添加到缓存
+        """
+        try:
+            if not self.is_running:
+                return False
+
+            self.message_caches[stream_id].append(message)
+            self.cache_stats["total_cached_messages"] += 1
+
+            logger.debug(f"消息已添加到缓存: stream={stream_id}, content={message.processed_plain_text[:50]}...")
+            return True
+        except Exception as e:
+            logger.error(f"添加消息到缓存失败: stream={stream_id}, error={e}")
+            return False
+
+    def flush_cached_messages(self, stream_id: str) -> list[DatabaseMessages]:
+        """刷新缓存消息到未读消息列表
+
+        Args:
+            stream_id: 流ID
+
+        Returns:
+            List[DatabaseMessages]: 缓存的消息列表
+        """
+        try:
+            if stream_id not in self.message_caches:
+                return []
+
+            cached_messages = list(self.message_caches[stream_id])
+            self.message_caches[stream_id].clear()
+
+            self.cache_stats["total_flushed_messages"] += len(cached_messages)
+
+            logger.debug(f"刷新缓存消息: stream={stream_id}, 数量={len(cached_messages)}")
+            return cached_messages
+        except Exception as e:
+            logger.error(f"刷新缓存消息失败: stream={stream_id}, error={e}")
+            return []
+
+    def set_stream_processing_status(self, stream_id: str, is_processing: bool):
+        """设置流的处理状态
+
+        Args:
+            stream_id: 流ID
+            is_processing: 是否正在处理
+        """
+        try:
+            self.stream_processing_status[stream_id] = is_processing
+            logger.debug(f"设置流处理状态: stream={stream_id}, processing={is_processing}")
+        except Exception as e:
+            logger.error(f"设置流处理状态失败: stream={stream_id}, error={e}")
+
+    def get_stream_processing_status(self, stream_id: str) -> bool:
+        """获取流的处理状态
+
+        Args:
+            stream_id: 流ID
+
+        Returns:
+            bool: 是否正在处理
+        """
+        return self.stream_processing_status.get(stream_id, False)
+
+    def has_cached_messages(self, stream_id: str) -> bool:
+        """检查流是否有缓存消息
+
+        Args:
+            stream_id: 流ID
+
+        Returns:
+            bool: 是否有缓存消息
+        """
+        return stream_id in self.message_caches and len(self.message_caches[stream_id]) > 0
+
+    def get_cached_messages_count(self, stream_id: str) -> int:
+        """获取流的缓存消息数量
+
+        Args:
+            stream_id: 流ID
+
+        Returns:
+            int: 缓存消息数量
+        """
+        return len(self.message_caches.get(stream_id, []))
+
+    def get_cache_stats(self) -> dict[str, Any]:
+        """获取缓存统计信息
+
+        Returns:
+            Dict[str, Any]: 缓存统计信息
+        """
+        return {
+            "total_cached_messages": self.cache_stats["total_cached_messages"],
+            "total_flushed_messages": self.cache_stats["total_flushed_messages"],
+            "active_caches": len(self.message_caches),
+            "cached_streams": len([s for s in self.message_caches.keys() if self.message_caches[s]]),
+            "processing_streams": len([s for s in self.stream_processing_status.keys() if self.stream_processing_status[s]]),
+        }
 
 
 # 创建全局消息管理器实例

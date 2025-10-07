@@ -55,7 +55,51 @@ class SingleStreamContextManager:
             bool: 是否成功添加
         """
         try:
-            # 直接操作上下文的消息列表
+            # 使用MessageManager的内置缓存系统
+            try:
+                from .message_manager import message_manager
+
+                # 如果MessageManager正在运行，使用缓存系统
+                if message_manager.is_running:
+                    # 先计算兴趣值（需要在缓存前计算）
+                    await self._calculate_message_interest(message)
+                    message.is_read = False
+
+                    # 添加到缓存而不是直接添加到未读消息
+                    cache_success = message_manager.add_message_to_cache(self.stream_id, message)
+
+                    if cache_success:
+                        # 自动检测和更新chat type
+                        self._detect_chat_type(message)
+
+                        self.total_messages += 1
+                        self.last_access_time = time.time()
+
+                        # 检查当前是否正在处理消息
+                        is_processing = message_manager.get_stream_processing_status(self.stream_id)
+
+                        if not is_processing:
+                            # 如果当前没有在处理，立即刷新缓存到未读消息
+                            cached_messages = message_manager.flush_cached_messages(self.stream_id)
+                            for cached_msg in cached_messages:
+                                self.context.unread_messages.append(cached_msg)
+                            logger.debug(f"立即刷新缓存到未读消息: stream={self.stream_id}, 数量={len(cached_messages)}")
+                        else:
+                            logger.debug(f"消息已缓存，等待当前处理完成: stream={self.stream_id}")
+
+                        # 启动流的循环任务（如果还未启动）
+                        asyncio.create_task(stream_loop_manager.start_stream_loop(self.stream_id))
+                        logger.debug(f"添加消息到缓存系统: {self.stream_id}")
+                        return True
+                    else:
+                        logger.warning(f"消息缓存系统添加失败，回退到直接添加: {self.stream_id}")
+
+            except ImportError:
+                logger.debug("MessageManager不可用，使用直接添加模式")
+            except Exception as e:
+                logger.warning(f"消息缓存系统异常，回退到直接添加: {self.stream_id}, error={e}")
+
+            # 回退方案：直接添加到未读消息
             message.is_read = False
             self.context.unread_messages.append(message)
 

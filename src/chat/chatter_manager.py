@@ -110,7 +110,23 @@ class ChatterManager:
         self.stats["streams_processed"] += 1
         try:
             result = await self.instances[stream_id].execute(context)
-            self.stats["successful_executions"] += 1
+
+            # 检查执行结果是否真正成功
+            success = result.get("success", False)
+
+            if success:
+                self.stats["successful_executions"] += 1
+
+                # 只有真正成功时才清空未读消息
+                try:
+                    from src.chat.message_manager.message_manager import message_manager
+                    await message_manager.clear_stream_unread_messages(stream_id)
+                    logger.debug(f"流 {stream_id} 处理成功，已清空未读消息")
+                except Exception as clear_e:
+                    logger.error(f"清除流 {stream_id} 未读消息时发生错误: {clear_e}")
+            else:
+                self.stats["failed_executions"] += 1
+                logger.warning(f"流 {stream_id} 处理失败，不清空未读消息")
 
             # 从 mood_manager 获取最新的 chat_stream 并同步回 StreamContext
             try:
@@ -124,19 +140,14 @@ class ChatterManager:
                 logger.error(f"同步 chat_stream 回 StreamContext 失败: {sync_e}")
 
             # 记录处理结果
-            success = result.get("success", False)
             actions_count = result.get("actions_count", 0)
             logger.debug(f"流 {stream_id} 处理完成: 成功={success}, 动作数={actions_count}")
 
-            # 在处理完成后，清除该流的未读消息
-            try:
-                from src.chat.message_manager.message_manager import message_manager
-
-                await message_manager.clear_stream_unread_messages(stream_id)
-            except Exception as clear_e:
-                logger.error(f"清除流 {stream_id} 未读消息时发生错误: {clear_e}")
-
             return result
+        except asyncio.CancelledError:
+            self.stats["failed_executions"] += 1
+            logger.info(f"流 {stream_id} 处理被取消，不清空未读消息")
+            raise
         except Exception as e:
             self.stats["failed_executions"] += 1
             logger.error(f"处理流 {stream_id} 时发生错误: {e}")

@@ -364,8 +364,16 @@ class StreamLoopManager:
             logger.warning(f"Chatter管理器未设置: {stream_id}")
             return False
 
+        # 设置处理状态为正在处理
+        self._set_stream_processing_status(stream_id, True)
+
         try:
             start_time = time.time()
+
+            # 在处理开始前，先刷新缓存到未读消息
+            cached_messages = await self._flush_cached_messages_to_unread(stream_id)
+            if cached_messages:
+                logger.info(f"处理开始前刷新缓存消息: stream={stream_id}, 数量={len(cached_messages)}")
 
             # 直接调用chatter_manager处理流上下文
             task = asyncio.create_task(self.chatter_manager.process_stream_context(stream_id, context))
@@ -374,6 +382,11 @@ class StreamLoopManager:
             success = results.get("success", False)
 
             if success:
+                # 处理成功后，再次刷新缓存中可能的新消息
+                additional_messages = await self._flush_cached_messages_to_unread(stream_id)
+                if additional_messages:
+                    logger.info(f"处理完成后刷新新消息: stream={stream_id}, 数量={len(additional_messages)}")
+
                 asyncio.create_task(self._refresh_focus_energy(stream_id))
                 process_time = time.time() - start_time
                 logger.debug(f"流处理成功: {stream_id} (耗时: {process_time:.2f}s)")
@@ -385,6 +398,57 @@ class StreamLoopManager:
         except Exception as e:
             logger.error(f"流处理异常: {stream_id} - {e}", exc_info=True)
             return False
+        finally:
+            # 无论成功或失败，都要设置处理状态为未处理
+            self._set_stream_processing_status(stream_id, False)
+
+    def _set_stream_processing_status(self, stream_id: str, is_processing: bool) -> None:
+        """设置流的处理状态"""
+        try:
+            from .message_manager import message_manager
+
+            if message_manager.is_running:
+                message_manager.set_stream_processing_status(stream_id, is_processing)
+                logger.debug(f"设置流处理状态: stream={stream_id}, processing={is_processing}")
+
+        except ImportError:
+            logger.debug("MessageManager不可用，跳过状态设置")
+        except Exception as e:
+            logger.warning(f"设置流处理状态失败: stream={stream_id}, error={e}")
+
+    async def _flush_cached_messages_to_unread(self, stream_id: str) -> list:
+        """将缓存消息刷新到未读消息列表"""
+        try:
+            from .message_manager import message_manager
+
+            if message_manager.is_running and message_manager.has_cached_messages(stream_id):
+                # 获取缓存消息
+                cached_messages = message_manager.flush_cached_messages(stream_id)
+
+                if cached_messages:
+                    # 获取聊天流并添加到未读消息
+                    from src.plugin_system.apis.chat_api import get_chat_manager
+
+                    chat_manager = get_chat_manager()
+                    chat_stream = await chat_manager.get_stream(stream_id)
+
+                    if chat_stream:
+                        for message in cached_messages:
+                            chat_stream.context_manager.context.unread_messages.append(message)
+                        logger.debug(f"刷新缓存消息到未读列表: stream={stream_id}, 数量={len(cached_messages)}")
+                    else:
+                        logger.warning(f"无法找到聊天流: {stream_id}")
+
+                return cached_messages
+
+            return []
+
+        except ImportError:
+            logger.debug("MessageManager不可用，跳过缓存刷新")
+            return []
+        except Exception as e:
+            logger.warning(f"刷新缓存消息失败: stream={stream_id}, error={e}")
+            return []
 
     async def _calculate_interval(self, stream_id: str, has_messages: bool) -> float:
         """计算下次检查间隔
