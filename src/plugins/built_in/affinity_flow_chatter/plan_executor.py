@@ -171,8 +171,20 @@ class ChatterPlanExecutor:
         try:
             logger.info(f"执行回复动作: {action_info.action_type} (原因: {action_info.reasoning})")
 
-            # 获取用户ID
-            user_id = action_info.action_message.user_info.user_id if action_info.action_message else None
+            # 获取用户ID - 兼容对象和字典
+            if action_info.action_message:
+                # DatabaseMessages对象情况
+                user_id = action_info.action_message.user_info.user_id
+            if not user_id:
+                logger.error("在action_message里面找不到userid,无法执行回复")
+                return {
+                    "action_type": action_info.action_type,
+                    "success": False,
+                    "error_message": "在action_message里面找不到userid",
+                    "execution_time": 0,
+                    "reasoning": action_info.reasoning,
+                    "reply_content": "",
+                }
 
             if user_id and user_id == str(global_config.bot.qq_account):
                 logger.warning("尝试回复自己，跳过此动作以防止死循环。")
@@ -270,28 +282,6 @@ class ChatterPlanExecutor:
             logger.info(f"执行其他动作: {action_info.action_type} (原因: {action_info.reasoning})")
 
             action_data = action_info.action_data or {}
-
-            # 针对 poke_user 动作，特殊处理
-            if action_info.action_type == "poke_user":
-                target_message = action_info.action_message
-                if target_message:
-                    user_id = target_message.user_info.user_id
-                    user_name = target_message.user_info.user_nickname
-                    message_id = target_message.message_id
-
-                    if user_id:
-                        action_data["user_id"] = user_id
-                        logger.info(f"检测到戳一戳动作，目标用户ID: {user_id}")
-                    elif user_name:
-                        action_data["user_name"] = user_name
-                        logger.info(f"检测到戳一戳动作，目标用户: {user_name}")
-                    else:
-                        logger.warning("无法从戳一戳消息中获取用户ID或昵称。")
-
-                    # 传递原始消息ID以支持引用
-                    if message_id:
-                        action_data["target_message_id"] = message_id
-
             # 构建动作参数
             action_params = {
                 "chat_id": plan.chat_id,
@@ -368,9 +358,13 @@ class ChatterPlanExecutor:
                 user_cardname=bot_nickname,
                 user_platform="qq",
                 # 聊天上下文信息
-                chat_info_user_id=chat_stream.user_info.user_id if chat_stream.user_info else bot_user_id,
-                chat_info_user_nickname=chat_stream.user_info.user_nickname if chat_stream.user_info else bot_nickname,
-                chat_info_user_cardname=chat_stream.user_info.user_cardname if chat_stream.user_info else bot_nickname,
+                chat_info_user_id=(chat_stream.user_info.user_id or bot_user_id) if chat_stream.user_info else bot_user_id,
+                chat_info_user_nickname=(chat_stream.user_info.user_nickname or bot_nickname)
+                if chat_stream.user_info
+                else bot_nickname,
+                chat_info_user_cardname=(chat_stream.user_info.user_cardname or bot_nickname)
+                if chat_stream.user_info
+                else bot_nickname,
                 chat_info_user_platform=chat_stream.platform,
                 chat_info_stream_id=chat_stream.stream_id,
                 chat_info_platform=chat_stream.platform,
