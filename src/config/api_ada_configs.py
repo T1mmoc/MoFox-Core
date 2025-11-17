@@ -70,7 +70,7 @@ class ModelInfo(ValidatedConfigBase):
     price_out: float = Field(default=0.0, ge=0, description="每M token输出价格")
     force_stream_mode: bool = Field(default=False, description="是否强制使用流式输出模式")
     extra_params: dict[str, Any] = Field(default_factory=dict, description="额外参数（用于API调用时的额外配置）")
-    anti_truncation: bool = Field(default=False, description="是否启用反截断功能，防止模型输出被截断")
+    anti_truncation: bool = Field(default=False, alias="use_anti_truncation", description="是否启用反截断功能，防止模型输出被截断")
     enable_prompt_perturbation: bool = Field(default=False, description="是否启用提示词扰动（合并了内容混淆和注意力优化）")
     perturbation_strength: Literal["light", "medium", "heavy"] = Field(
         default="light", description="扰动强度（light/medium/heavy）"
