@@ -590,6 +590,7 @@ class DefaultReplyer:
             search_result = await unified_manager.search_memories(
                 query_text=target,
                 use_judge=True,
+                recent_chat_history=chat_history,  # 传递最近聊天历史
             )
 
             if not search_result:
@@ -609,7 +610,7 @@ class DefaultReplyer:
                 for block in perceptual_blocks[:2]:  # 最多显示2个块
                     messages = block.messages if hasattr(block, 'messages') else []
                     if messages:
-                        block_content = " → ".join([
+                        block_content = "\n".join([
                             f"{msg.get('sender_name', msg.get('sender_id', ''))}: {msg.get('content', '')[:30]}" 
                             for msg in messages[:3]
                         ])
@@ -1304,7 +1305,6 @@ class DefaultReplyer:
                     "expression_habits": "",
                     "relation_info": "",
                     "memory_block": "",
-                    "three_tier_memory": "",
                     "tool_info": "",
                     "prompt_info": "",
                     "cross_context": "",
@@ -1328,7 +1328,6 @@ class DefaultReplyer:
             "expression_habits": "选取表达方式",
             "relation_info": "感受关系",
             "memory_block": "回忆",
-            "three_tier_memory": "三层记忆检索",
             "tool_info": "使用工具",
             "prompt_info": "获取知识",
         }
@@ -1347,23 +1346,13 @@ class DefaultReplyer:
         expression_habits_block = results_dict["expression_habits"]
         relation_info = results_dict["relation_info"]
         memory_block = results_dict["memory_block"]
-        three_tier_memory_block = results_dict["three_tier_memory"]
         tool_info = results_dict["tool_info"]
         prompt_info = results_dict["prompt_info"]
         cross_context_block = results_dict["cross_context"]
         notice_block = results_dict["notice_block"]
 
-        # 合并三层记忆和原记忆图记忆
-        # 如果三层记忆系统启用且有内容，优先使用三层记忆，否则使用原记忆图
-        if three_tier_memory_block:
-            # 三层记忆系统启用，使用新系统的结果
-            combined_memory_block = three_tier_memory_block
-            if memory_block:
-                # 如果原记忆图也有内容，附加到后面
-                combined_memory_block += "\n" + memory_block
-        else:
-            # 三层记忆系统未启用或无内容，使用原记忆图
-            combined_memory_block = memory_block
+        # 使用统一的记忆块（已整合三层记忆系统）
+        combined_memory_block = memory_block if memory_block else ""
 
         # 检查是否为视频分析结果，并注入引导语
         if target and ("[视频内容]" in target or "好的，我将根据您提供的" in target):
