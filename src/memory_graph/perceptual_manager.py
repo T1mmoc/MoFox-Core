@@ -52,7 +52,7 @@ class PerceptualMemoryManager:
             recall_top_k: 召回时返回的最大块数
             recall_similarity_threshold: 召回的相似度阈值
         """
-        self.data_dir = data_dir or Path("data/memory_graph/three_tier")
+        self.data_dir = data_dir or Path("data/memory_graph")
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
         # 配置参数

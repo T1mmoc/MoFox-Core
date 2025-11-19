@@ -35,6 +35,7 @@ class UnifiedMemoryManager:
     def __init__(
         self,
         data_dir: Path | None = None,
+        memory_manager: MemoryManager | None = None,
         # 感知记忆配置
         perceptual_max_blocks: int = 50,
         perceptual_block_size: int = 5,
@@ -70,7 +71,7 @@ class UnifiedMemoryManager:
             long_term_auto_transfer_interval: 自动转移间隔（秒）
             judge_confidence_threshold: 裁判模型的置信度阈值
         """
-        self.data_dir = data_dir or Path("data/memory_graph/three_tier")
+        self.data_dir = data_dir or Path("data/memory_graph")
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
         # 配置参数
@@ -82,7 +83,7 @@ class UnifiedMemoryManager:
         self.long_term_manager: LongTermMemoryManager
 
         # 底层 MemoryManager（长期记忆）
-        self.memory_manager: MemoryManager
+        self.memory_manager: MemoryManager = memory_manager
 
         # 配置参数存储（用于初始化）
         self._config = {
@@ -124,8 +125,17 @@ class UnifiedMemoryManager:
             logger.info("开始初始化统一记忆管理器...")
 
             # 初始化底层 MemoryManager（长期记忆）
-            self.memory_manager = MemoryManager(data_dir=self.data_dir.parent)
-            await self.memory_manager.initialize()
+            if self.memory_manager is None:
+                # 如果未提供外部 MemoryManager，则创建一个新的
+                # 假设 data_dir 是 three_tier 子目录，则 MemoryManager 使用父目录
+                # 如果 data_dir 是根目录，则 MemoryManager 使用该目录
+                self.memory_manager = MemoryManager(data_dir=self.data_dir)
+                await self.memory_manager.initialize()
+            else:
+                logger.info("使用外部提供的 MemoryManager")
+                # 确保外部 MemoryManager 已初始化
+                if not getattr(self.memory_manager, "_initialized", False):
+                    await self.memory_manager.initialize()
 
             # 初始化感知记忆层
             self.perceptual_manager = PerceptualMemoryManager(

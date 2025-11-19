@@ -148,8 +148,13 @@ async def initialize_unified_memory_manager():
         config = global_config.memory
 
         # 创建管理器实例
+        # 注意：我们将 data_dir 指向 three_tier 子目录，以隔离感知/短期记忆数据
+        # 同时传入全局 _memory_manager 以共享长期记忆图存储
+        base_data_dir = Path(getattr(config, "data_dir", "data/memory_graph"))
+        
         _unified_memory_manager = UnifiedMemoryManager(
-            data_dir=Path(getattr(config, "data_dir", "data/memory_graph")),
+            data_dir=base_data_dir,
+            memory_manager=_memory_manager,
             # 感知记忆配置
             perceptual_max_blocks=getattr(config, "perceptual_max_blocks", 50),
             perceptual_block_size=getattr(config, "perceptual_block_size", 5),

@@ -53,7 +53,7 @@ class ShortTermMemoryManager:
             transfer_importance_threshold: 转移到长期记忆的重要性阈值
             llm_temperature: LLM 决策的温度参数
         """
-        self.data_dir = data_dir or Path("data/memory_graph/three_tier")
+        self.data_dir = data_dir or Path("data/memory_graph")
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
         # 配置参数

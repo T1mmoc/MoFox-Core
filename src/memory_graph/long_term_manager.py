@@ -821,6 +821,14 @@ class LongTermMemoryManager:
         if not source_id or not target_id:
             logger.warning(f"创建边失败: 缺少节点ID ({source_id} -> {target_id})")
             return
+
+        # 检查节点是否存在
+        if not self.memory_manager.graph_store or not self.memory_manager.graph_store.graph.has_node(source_id):
+            logger.warning(f"创建边失败: 源节点不存在 ({source_id})")
+            return
+        if not self.memory_manager.graph_store or not self.memory_manager.graph_store.graph.has_node(target_id):
+            logger.warning(f"创建边失败: 目标节点不存在 ({target_id})")
+            return
             
         edge_id = self.memory_manager.graph_store.add_edge(
             source_id=source_id,
