@@ -379,6 +379,7 @@ class LongTermMemoryManager:
 
 1. **CREATE_MEMORY** - 创建新记忆
    参数: subject, topic, object, memory_type, importance, attributes
+   *注意：target_id 请使用临时ID（如 "TEMP_MEM_1"），后续操作可引用此ID*
 
 2. **UPDATE_MEMORY** - 更新现有记忆
    参数: memory_id, updated_fields (包含要更新的字段)
@@ -388,6 +389,7 @@ class LongTermMemoryManager:
 
 4. **CREATE_NODE** - 创建新节点
    参数: content, node_type, memory_id (所属记忆ID)
+   *注意：target_id 请使用临时ID（如 "TEMP_NODE_1"），后续操作可引用此ID*
 
 5. **UPDATE_NODE** - 更新节点
    参数: node_id, updated_content
@@ -404,6 +406,12 @@ class LongTermMemoryManager:
 9. **DELETE_EDGE** - 删除边
    参数: edge_id
 
+**ID 引用规则（非常重要）：**
+1. 对于**新创建**的对象（记忆、节点），请在 `target_id` 字段指定一个唯一的临时ID（例如 "TEMP_MEM_1", "TEMP_NODE_1"）。
+2. 在后续的操作中（如 `CREATE_NODE` 需要 `memory_id`，或 `CREATE_EDGE` 需要 `source_node_id`），请直接使用这些临时ID。
+3. 系统会自动将临时ID解析为真实的UUID。
+4. **严禁**使用中文描述作为ID（如"新创建的记忆ID"），必须使用英文临时ID。
+
 **任务要求：**
 1. 分析短期记忆与候选长期记忆的关系
 2. 决定最佳的图更新策略：
@@ -417,16 +425,25 @@ class LongTermMemoryManager:
 ```json
 [
   {{
-    "operation_type": "CREATE_MEMORY/UPDATE_MEMORY/MERGE_MEMORIES/...",
-    "target_id": "目标记忆/节点/边的ID（如适用）",
+    "operation_type": "CREATE_MEMORY",
+    "target_id": "TEMP_MEM_1",
     "parameters": {{
-      "参数名": "参数值",
+      "subject": "...",
       ...
     }},
-    "reason": "操作原因和推理过程",
-    "confidence": 0.85
+    "reason": "创建新记忆",
+    "confidence": 0.9
   }},
-  ...
+  {{
+    "operation_type": "CREATE_NODE",
+    "target_id": "TEMP_NODE_1",
+    "parameters": {{
+      "content": "...",
+      "memory_id": "TEMP_MEM_1"
+    }},
+    "reason": "为新记忆添加节点",
+    "confidence": 0.9
+  }}
 ]
 ```
 
