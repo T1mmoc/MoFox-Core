@@ -586,10 +586,16 @@ class PluginManager:
 
             # 从组件注册表中移除插件的所有组件
             try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    fut = asyncio.run_coroutine_threadsafe(component_registry.unregister_plugin(plugin_name), loop)
-                    fut.result(timeout=5)
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = None
+
+                if loop and loop.is_running():
+                    # 如果在运行的事件循环中，直接创建任务，不等待结果以避免死锁
+                    # 注意：这意味着我们无法确切知道卸载是否成功完成，但避免了阻塞
+                    logger.warning(f"unload_plugin 在异步上下文中被调用 ({plugin_name})，将异步执行组件卸载。建议使用 remove_registered_plugin。")
+                    loop.create_task(component_registry.unregister_plugin(plugin_name))
                 else:
                     asyncio.run(component_registry.unregister_plugin(plugin_name))
             except Exception as e:  # 捕获并记录卸载阶段协程调用错误

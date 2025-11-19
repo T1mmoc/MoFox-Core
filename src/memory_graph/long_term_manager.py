@@ -207,23 +207,69 @@ class LongTermMemoryManager:
         """
         在长期记忆中检索与短期记忆相似的记忆
 
-        Args:
-            stm: 短期记忆
-
-        Returns:
-            相似的长期记忆列表
+        优化：不仅检索内容相似的，还利用图结构获取上下文相关的记忆
         """
         try:
-            # 使用短期记忆的内容进行检索
+            from src.config.config import global_config
+
+            # 检查是否启用了高级路径扩展算法
+            use_path_expansion = getattr(global_config.memory, "enable_path_expansion", False)
+            
+            # 1. 检索记忆
+            # 如果启用了路径扩展，search_memories 内部会自动使用 PathScoreExpansion
+            # 我们只需要传入合适的 expand_depth
+            expand_depth = getattr(global_config.memory, "path_expansion_max_hops", 2) if use_path_expansion else 0
+
             memories = await self.memory_manager.search_memories(
                 query=stm.content,
                 top_k=self.search_top_k,
                 include_forgotten=False,
                 use_multi_query=False,  # 不使用多查询，避免过度扩展
+                expand_depth=expand_depth
             )
 
-            logger.debug(f"为短期记忆 {stm.id} 找到 {len(memories)} 个相似长期记忆")
-            return memories
+            # 2. 图结构扩展 (Graph Expansion)
+            # 如果已经使用了高级路径扩展算法，就不需要再做简单的手动扩展了
+            if use_path_expansion:
+                logger.debug(f"已使用路径扩展算法检索到 {len(memories)} 条记忆")
+                return memories
+
+            # 如果未启用高级算法，使用简单的 1 跳邻居扩展作为保底
+            expanded_memories = []
+            seen_ids = {m.id for m in memories}
+            
+            for mem in memories:
+                expanded_memories.append(mem)
+                
+                # 获取该记忆的直接关联记忆（1跳邻居）
+                try:
+                    # 利用 MemoryManager 的底层图遍历能力
+                    related_ids = self.memory_manager._get_related_memories(mem.id, max_depth=1)
+                    
+                    # 限制每个记忆扩展的邻居数量，避免上下文爆炸
+                    max_neighbors = 2
+                    neighbor_count = 0
+                    
+                    for rid in related_ids:
+                        if rid not in seen_ids:
+                            related_mem = await self.memory_manager.get_memory(rid)
+                            if related_mem:
+                                expanded_memories.append(related_mem)
+                                seen_ids.add(rid)
+                                neighbor_count += 1
+                                
+                        if neighbor_count >= max_neighbors:
+                            break
+                            
+                except Exception as e:
+                    logger.warning(f"获取关联记忆失败: {e}")
+                
+                # 总数限制
+                if len(expanded_memories) >= self.search_top_k * 2:
+                    break
+
+            logger.debug(f"为短期记忆 {stm.id} 找到 {len(expanded_memories)} 个长期记忆 (含简单图扩展)")
+            return expanded_memories
 
         except Exception as e:
             logger.error(f"检索相似长期记忆失败: {e}", exc_info=True)
@@ -465,8 +511,24 @@ class LongTermMemoryManager:
                         await self._execute_create_node(op)
                         success_count += 1
 
+                    elif op.operation_type == GraphOperationType.UPDATE_NODE:
+                        await self._execute_update_node(op)
+                        success_count += 1
+
+                    elif op.operation_type == GraphOperationType.MERGE_NODES:
+                        await self._execute_merge_nodes(op)
+                        success_count += 1
+
                     elif op.operation_type == GraphOperationType.CREATE_EDGE:
                         await self._execute_create_edge(op)
+                        success_count += 1
+
+                    elif op.operation_type == GraphOperationType.UPDATE_EDGE:
+                        await self._execute_update_edge(op)
+                        success_count += 1
+
+                    elif op.operation_type == GraphOperationType.DELETE_EDGE:
+                        await self._execute_delete_edge(op)
                         success_count += 1
 
                     else:
@@ -525,7 +587,7 @@ class LongTermMemoryManager:
     async def _execute_merge_memories(
         self, op: GraphOperation, source_stm: ShortTermMemory
     ) -> None:
-        """执行合并记忆操作"""
+        """执行合并记忆操作 (智能合并版)"""
         source_ids = op.parameters.get("source_memory_ids", [])
         merged_content = op.parameters.get("merged_content", "")
         merged_importance = op.parameters.get("merged_importance", source_stm.importance)
@@ -534,38 +596,191 @@ class LongTermMemoryManager:
             logger.warning("合并操作缺少源记忆ID，跳过")
             return
 
-        # 简化实现：更新第一个记忆，删除其他记忆
+        # 目标记忆（保留的那个）
         target_id = source_ids[0]
-        success = await self.memory_manager.update_memory(
-            target_id,
-            metadata={
-                "merged_content": merged_content,
-                "merged_from": source_ids[1:],
-                "merged_from_stm": source_stm.id,
-            },
-            importance=merged_importance,
-        )
+        
+        # 待合并记忆（将被删除的）
+        memories_to_merge = source_ids[1:]
+        
+        logger.info(f"开始智能合并记忆: {memories_to_merge} -> {target_id}")
 
-        if success:
-            # 删除其他记忆
-            for mem_id in source_ids[1:]:
-                await self.memory_manager.delete_memory(mem_id)
+        # 1. 调用 GraphStore 的合并功能（转移节点和边）
+        merge_success = self.memory_manager.graph_store.merge_memories(target_id, memories_to_merge)
 
-            logger.info(f"✅ 合并记忆: {source_ids} → {target_id}")
+        if merge_success:
+            # 2. 更新目标记忆的元数据
+            await self.memory_manager.update_memory(
+                target_id,
+                metadata={
+                    "merged_content": merged_content,
+                    "merged_from": memories_to_merge,
+                    "merged_from_stm": source_stm.id,
+                    "merge_time": datetime.now().isoformat()
+                },
+                importance=merged_importance,
+            )
+            
+            # 3. 异步保存
+            asyncio.create_task(self.memory_manager._async_save_graph_store("合并记忆"))
+            logger.info(f"✅ 合并记忆完成: {source_ids} -> {target_id}")
         else:
             logger.error(f"合并记忆失败: {source_ids}")
 
     async def _execute_create_node(self, op: GraphOperation) -> None:
         """执行创建节点操作"""
-        # 注意：当前 MemoryManager 不直接支持单独创建节点
-        # 这里记录操作，实际执行需要扩展 MemoryManager API
-        logger.info(f"创建节点操作（待实现）: {op.parameters}")
+        params = op.parameters
+        content = params.get("content")
+        node_type = params.get("node_type", "OBJECT")
+        memory_id = params.get("memory_id")
+        
+        if not content or not memory_id:
+            logger.warning(f"创建节点失败: 缺少必要参数 (content={content}, memory_id={memory_id})")
+            return
+
+        import uuid
+        node_id = str(uuid.uuid4())
+        
+        success = self.memory_manager.graph_store.add_node(
+            node_id=node_id,
+            content=content,
+            node_type=node_type,
+            memory_id=memory_id,
+            metadata={"created_by": "long_term_manager"}
+        )
+        
+        if success:
+            # 尝试为新节点生成 embedding (异步)
+            asyncio.create_task(self._generate_node_embedding(node_id, content))
+            logger.info(f"✅ 创建节点: {content} ({node_type}) -> {memory_id}")
+        else:
+            logger.error(f"创建节点失败: {op}")
+
+    async def _execute_update_node(self, op: GraphOperation) -> None:
+        """执行更新节点操作"""
+        node_id = op.target_id
+        params = op.parameters
+        updated_content = params.get("updated_content")
+        
+        if not node_id:
+            logger.warning("更新节点失败: 缺少 node_id")
+            return
+            
+        success = self.memory_manager.graph_store.update_node(
+            node_id=node_id,
+            content=updated_content
+        )
+        
+        if success:
+            logger.info(f"✅ 更新节点: {node_id}")
+        else:
+            logger.error(f"更新节点失败: {node_id}")
+
+    async def _execute_merge_nodes(self, op: GraphOperation) -> None:
+        """执行合并节点操作"""
+        params = op.parameters
+        source_node_ids = params.get("source_node_ids", [])
+        merged_content = params.get("merged_content")
+        
+        if not source_node_ids or len(source_node_ids) < 2:
+            logger.warning("合并节点失败: 需要至少两个节点")
+            return
+            
+        target_id = source_node_ids[0]
+        sources = source_node_ids[1:]
+        
+        # 更新目标节点内容
+        if merged_content:
+            self.memory_manager.graph_store.update_node(target_id, content=merged_content)
+            
+        # 合并其他节点到目标节点
+        for source_id in sources:
+            self.memory_manager.graph_store.merge_nodes(source_id, target_id)
+            
+        logger.info(f"✅ 合并节点: {sources} -> {target_id}")
 
     async def _execute_create_edge(self, op: GraphOperation) -> None:
         """执行创建边操作"""
-        # 注意：当前 MemoryManager 不直接支持单独创建边
-        # 这里记录操作，实际执行需要扩展 MemoryManager API
-        logger.info(f"创建边操作（待实现）: {op.parameters}")
+        params = op.parameters
+        source_id = params.get("source_node_id")
+        target_id = params.get("target_node_id")
+        relation = params.get("relation", "related")
+        edge_type = params.get("edge_type", "RELATION")
+        importance = params.get("importance", 0.5)
+        
+        if not source_id or not target_id:
+            logger.warning(f"创建边失败: 缺少节点ID ({source_id} -> {target_id})")
+            return
+            
+        edge_id = self.memory_manager.graph_store.add_edge(
+            source_id=source_id,
+            target_id=target_id,
+            relation=relation,
+            edge_type=edge_type,
+            importance=importance,
+            metadata={"created_by": "long_term_manager"}
+        )
+        
+        if edge_id:
+            logger.info(f"✅ 创建边: {source_id} -> {target_id} ({relation})")
+        else:
+            logger.error(f"创建边失败: {op}")
+
+    async def _execute_update_edge(self, op: GraphOperation) -> None:
+        """执行更新边操作"""
+        edge_id = op.target_id
+        params = op.parameters
+        updated_relation = params.get("updated_relation")
+        updated_importance = params.get("updated_importance")
+        
+        if not edge_id:
+            logger.warning("更新边失败: 缺少 edge_id")
+            return
+            
+        success = self.memory_manager.graph_store.update_edge(
+            edge_id=edge_id,
+            relation=updated_relation,
+            importance=updated_importance
+        )
+        
+        if success:
+            logger.info(f"✅ 更新边: {edge_id}")
+        else:
+            logger.error(f"更新边失败: {edge_id}")
+
+    async def _execute_delete_edge(self, op: GraphOperation) -> None:
+        """执行删除边操作"""
+        edge_id = op.target_id
+        
+        if not edge_id:
+            logger.warning("删除边失败: 缺少 edge_id")
+            return
+            
+        success = self.memory_manager.graph_store.remove_edge(edge_id)
+        
+        if success:
+            logger.info(f"✅ 删除边: {edge_id}")
+        else:
+            logger.error(f"删除边失败: {edge_id}")
+
+    async def _generate_node_embedding(self, node_id: str, content: str) -> None:
+        """为新节点生成 embedding 并存入向量库"""
+        try:
+            if not self.memory_manager.vector_store or not self.memory_manager.embedding_generator:
+                return
+                
+            embedding = await self.memory_manager.embedding_generator.generate(content)
+            if embedding is not None:
+                # 需要构造一个 MemoryNode 对象来调用 add_node
+                from src.memory_graph.models import MemoryNode, NodeType
+                node = MemoryNode(
+                    id=node_id,
+                    content=content,
+                    node_type=NodeType.OBJECT, # 默认
+                    embedding=embedding
+                )
+                await self.memory_manager.vector_store.add_node(node)
+        except Exception as e:
+            logger.warning(f"生成节点 embedding 失败: {e}")
 
     async def apply_long_term_decay(self) -> dict[str, Any]:
         """

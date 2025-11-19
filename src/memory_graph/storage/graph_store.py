@@ -82,6 +82,374 @@ class GraphStore:
             logger.error(f"添加记忆失败: {e}", exc_info=True)
             raise
 
+    def add_node(
+        self,
+        node_id: str,
+        content: str,
+        node_type: str,
+        memory_id: str,
+        metadata: dict | None = None,
+    ) -> bool:
+        """
+        添加单个节点到图和指定记忆
+
+        Args:
+            node_id: 节点ID
+            content: 节点内容
+            node_type: 节点类型
+            memory_id: 所属记忆ID
+            metadata: 元数据
+
+        Returns:
+            是否添加成功
+        """
+        try:
+            # 1. 检查记忆是否存在
+            if memory_id not in self.memory_index:
+                logger.warning(f"添加节点失败: 记忆不存在 {memory_id}")
+                return False
+
+            memory = self.memory_index[memory_id]
+
+            # 2. 添加节点到图
+            if not self.graph.has_node(node_id):
+                from datetime import datetime
+                self.graph.add_node(
+                    node_id,
+                    content=content,
+                    node_type=node_type,
+                    created_at=datetime.now().isoformat(),
+                    metadata=metadata or {},
+                )
+            else:
+                # 如果节点已存在，更新内容（可选）
+                pass
+
+            # 3. 更新节点到记忆的映射
+            if node_id not in self.node_to_memories:
+                self.node_to_memories[node_id] = set()
+            self.node_to_memories[node_id].add(memory_id)
+
+            # 4. 更新记忆对象的 nodes 列表
+            # 检查是否已在列表中
+            if not any(n.id == node_id for n in memory.nodes):
+                from src.memory_graph.models import MemoryNode, NodeType
+                # 尝试转换 node_type 字符串为枚举
+                try:
+                    node_type_enum = NodeType(node_type)
+                except ValueError:
+                    node_type_enum = NodeType.OBJECT # 默认
+
+                new_node = MemoryNode(
+                    id=node_id,
+                    content=content,
+                    node_type=node_type_enum,
+                    metadata=metadata or {}
+                )
+                memory.nodes.append(new_node)
+
+            logger.debug(f"添加节点成功: {node_id} -> {memory_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"添加节点失败: {e}", exc_info=True)
+            return False
+
+    def update_node(
+        self,
+        node_id: str,
+        content: str | None = None,
+        metadata: dict | None = None
+    ) -> bool:
+        """
+        更新节点信息
+
+        Args:
+            node_id: 节点ID
+            content: 新内容
+            metadata: 要更新的元数据
+
+        Returns:
+            是否更新成功
+        """
+        if not self.graph.has_node(node_id):
+            logger.warning(f"更新节点失败: 节点不存在 {node_id}")
+            return False
+
+        try:
+            # 更新图中的节点数据
+            if content is not None:
+                self.graph.nodes[node_id]["content"] = content
+            
+            if metadata:
+                if "metadata" not in self.graph.nodes[node_id]:
+                    self.graph.nodes[node_id]["metadata"] = {}
+                self.graph.nodes[node_id]["metadata"].update(metadata)
+
+            # 同步更新所有相关记忆中的节点对象
+            if node_id in self.node_to_memories:
+                for mem_id in self.node_to_memories[node_id]:
+                    memory = self.memory_index.get(mem_id)
+                    if memory:
+                        for node in memory.nodes:
+                            if node.id == node_id:
+                                if content is not None:
+                                    node.content = content
+                                if metadata:
+                                    node.metadata.update(metadata)
+                                break
+            
+            return True
+        except Exception as e:
+            logger.error(f"更新节点失败: {e}", exc_info=True)
+            return False
+
+    def add_edge(
+        self,
+        source_id: str,
+        target_id: str,
+        relation: str,
+        edge_type: str,
+        importance: float = 0.5,
+        metadata: dict | None = None,
+    ) -> str | None:
+        """
+        添加边到图
+
+        Args:
+            source_id: 源节点ID
+            target_id: 目标节点ID
+            relation: 关系描述
+            edge_type: 边类型
+            importance: 重要性
+            metadata: 元数据
+
+        Returns:
+            新边的ID，失败返回 None
+        """
+        if not self.graph.has_node(source_id) or not self.graph.has_node(target_id):
+            logger.warning(f"添加边失败: 节点不存在 ({source_id}, {target_id})")
+            return None
+
+        try:
+            import uuid
+            from datetime import datetime
+            from src.memory_graph.models import MemoryEdge, EdgeType
+
+            edge_id = str(uuid.uuid4())
+            created_at = datetime.now().isoformat()
+
+            # 1. 添加到图
+            self.graph.add_edge(
+                source_id,
+                target_id,
+                edge_id=edge_id,
+                relation=relation,
+                edge_type=edge_type,
+                importance=importance,
+                metadata=metadata or {},
+                created_at=created_at,
+            )
+
+            # 2. 同步到相关记忆
+            # 找到包含源节点或目标节点的记忆
+            related_memory_ids = set()
+            if source_id in self.node_to_memories:
+                related_memory_ids.update(self.node_to_memories[source_id])
+            if target_id in self.node_to_memories:
+                related_memory_ids.update(self.node_to_memories[target_id])
+
+            # 尝试转换 edge_type
+            try:
+                edge_type_enum = EdgeType(edge_type)
+            except ValueError:
+                edge_type_enum = EdgeType.RELATION
+
+            new_edge = MemoryEdge(
+                id=edge_id,
+                source_id=source_id,
+                target_id=target_id,
+                relation=relation,
+                edge_type=edge_type_enum,
+                importance=importance,
+                metadata=metadata or {}
+            )
+
+            for mem_id in related_memory_ids:
+                memory = self.memory_index.get(mem_id)
+                if memory:
+                    memory.edges.append(new_edge)
+
+            logger.debug(f"添加边成功: {source_id} -> {target_id} ({relation})")
+            return edge_id
+
+        except Exception as e:
+            logger.error(f"添加边失败: {e}", exc_info=True)
+            return None
+
+    def update_edge(
+        self,
+        edge_id: str,
+        relation: str | None = None,
+        importance: float | None = None
+    ) -> bool:
+        """
+        更新边信息
+
+        Args:
+            edge_id: 边ID
+            relation: 新关系描述
+            importance: 新重要性
+
+        Returns:
+            是否更新成功
+        """
+        # NetworkX 的边是通过 (u, v) 索引的，没有直接的 edge_id 索引
+        # 需要遍历查找（或者维护一个 edge_id -> (u, v) 的映射，这里简化处理）
+        target_edge = None
+        source_node = None
+        target_node = None
+
+        for u, v, data in self.graph.edges(data=True):
+            if data.get("edge_id") == edge_id or data.get("id") == edge_id:
+                target_edge = data
+                source_node = u
+                target_node = v
+                break
+        
+        if not target_edge:
+            logger.warning(f"更新边失败: 边不存在 {edge_id}")
+            return False
+
+        try:
+            # 更新图数据
+            if relation is not None:
+                self.graph[source_node][target_node]["relation"] = relation
+            if importance is not None:
+                self.graph[source_node][target_node]["importance"] = importance
+
+            # 同步更新记忆中的边对象
+            related_memory_ids = set()
+            if source_node in self.node_to_memories:
+                related_memory_ids.update(self.node_to_memories[source_node])
+            if target_node in self.node_to_memories:
+                related_memory_ids.update(self.node_to_memories[target_node])
+
+            for mem_id in related_memory_ids:
+                memory = self.memory_index.get(mem_id)
+                if memory:
+                    for edge in memory.edges:
+                        if edge.id == edge_id:
+                            if relation is not None:
+                                edge.relation = relation
+                            if importance is not None:
+                                edge.importance = importance
+                            break
+            
+            return True
+        except Exception as e:
+            logger.error(f"更新边失败: {e}", exc_info=True)
+            return False
+
+    def remove_edge(self, edge_id: str) -> bool:
+        """
+        删除边
+
+        Args:
+            edge_id: 边ID
+
+        Returns:
+            是否删除成功
+        """
+        target_edge = None
+        source_node = None
+        target_node = None
+
+        for u, v, data in self.graph.edges(data=True):
+            if data.get("edge_id") == edge_id or data.get("id") == edge_id:
+                target_edge = data
+                source_node = u
+                target_node = v
+                break
+        
+        if not target_edge:
+            logger.warning(f"删除边失败: 边不存在 {edge_id}")
+            return False
+
+        try:
+            # 从图中删除
+            self.graph.remove_edge(source_node, target_node)
+
+            # 从相关记忆中删除
+            related_memory_ids = set()
+            if source_node in self.node_to_memories:
+                related_memory_ids.update(self.node_to_memories[source_node])
+            if target_node in self.node_to_memories:
+                related_memory_ids.update(self.node_to_memories[target_node])
+
+            for mem_id in related_memory_ids:
+                memory = self.memory_index.get(mem_id)
+                if memory:
+                    memory.edges = [e for e in memory.edges if e.id != edge_id]
+
+            return True
+        except Exception as e:
+            logger.error(f"删除边失败: {e}", exc_info=True)
+            return False
+
+    def merge_memories(self, target_memory_id: str, source_memory_ids: list[str]) -> bool:
+        """
+        合并多个记忆到目标记忆
+
+        将源记忆的所有节点和边转移到目标记忆，然后删除源记忆。
+
+        Args:
+            target_memory_id: 目标记忆ID
+            source_memory_ids: 源记忆ID列表
+
+        Returns:
+            是否合并成功
+        """
+        if target_memory_id not in self.memory_index:
+            logger.error(f"合并失败: 目标记忆不存在 {target_memory_id}")
+            return False
+
+        target_memory = self.memory_index[target_memory_id]
+
+        try:
+            for source_id in source_memory_ids:
+                if source_id not in self.memory_index:
+                    continue
+                
+                source_memory = self.memory_index[source_id]
+                
+                # 1. 转移节点
+                for node in source_memory.nodes:
+                    # 更新映射
+                    if node.id in self.node_to_memories:
+                        self.node_to_memories[node.id].discard(source_id)
+                        self.node_to_memories[node.id].add(target_memory_id)
+                    
+                    # 添加到目标记忆（如果不存在）
+                    if not any(n.id == node.id for n in target_memory.nodes):
+                        target_memory.nodes.append(node)
+
+                # 2. 转移边
+                for edge in source_memory.edges:
+                    # 添加到目标记忆（如果不存在）
+                    if not any(e.id == edge.id for e in target_memory.edges):
+                        target_memory.edges.append(edge)
+
+                # 3. 删除源记忆（不清理孤立节点，因为节点已转移）
+                del self.memory_index[source_id]
+            
+            logger.info(f"成功合并记忆: {source_memory_ids} -> {target_memory_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"合并记忆失败: {e}", exc_info=True)
+            return False
+
     def get_memory_by_id(self, memory_id: str) -> Memory | None:
         """
         根据ID获取记忆
