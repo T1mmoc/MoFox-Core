@@ -575,7 +575,7 @@ class DefaultReplyer:
             str: 记忆信息字符串
         """
         # 检查是否启用三层记忆系统
-        if not (global_config.three_tier_memory and global_config.three_tier_memory.enable):
+        if not (global_config.memory and global_config.memory.enable):
             return ""
 
         try:

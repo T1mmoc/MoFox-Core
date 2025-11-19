@@ -492,6 +492,28 @@ class ShortTermMemoryManager:
             logger.error(f"生成向量失败: {e}", exc_info=True)
             return None
 
+    async def _generate_embeddings_batch(self, texts: list[str]) -> list[np.ndarray | None]:
+        """
+        批量生成文本向量
+
+        Args:
+            texts: 文本列表
+
+        Returns:
+            向量列表，与输入一一对应
+        """
+        try:
+            if not self.embedding_generator:
+                logger.error("嵌入生成器未初始化")
+                return [None] * len(texts)
+
+            embeddings = await self.embedding_generator.generate_batch(texts)
+            return embeddings
+
+        except Exception as e:
+            logger.error(f"批量生成向量失败: {e}", exc_info=True)
+            return [None] * len(texts)
+
     def _parse_json_response(self, response: str) -> dict[str, Any] | None:
         """解析 LLM 的 JSON 响应"""
         try:
@@ -684,11 +706,29 @@ class ShortTermMemoryManager:
         """重新生成记忆的向量"""
         logger.info("重新生成短期记忆向量...")
 
-        for memory in self.memories:
-            if memory.embedding is None and memory.content:
-                memory.embedding = await self._generate_embedding(memory.content)
+        memories_to_process = []
+        texts_to_process = []
 
-        logger.info(f"✅ 向量重新生成完成（{len(self.memories)} 条记忆）")
+        for memory in self.memories:
+            if memory.embedding is None and memory.content and memory.content.strip():
+                memories_to_process.append(memory)
+                texts_to_process.append(memory.content)
+
+        if not memories_to_process:
+            logger.info("没有需要重新生成向量的短期记忆")
+            return
+
+        logger.info(f"开始批量生成 {len(memories_to_process)} 条短期记忆的向量...")
+
+        embeddings = await self._generate_embeddings_batch(texts_to_process)
+
+        success_count = 0
+        for memory, embedding in zip(memories_to_process, embeddings):
+            if embedding is not None:
+                memory.embedding = embedding
+                success_count += 1
+
+        logger.info(f"✅ 向量重新生成完成（成功: {success_count}/{len(memories_to_process)}）")
 
     async def shutdown(self) -> None:
         """关闭管理器"""

@@ -118,7 +118,7 @@ class SingleStreamContextManager:
 
                 # 三层记忆系统集成：将消息添加到感知记忆层
                 try:
-                    if global_config.three_tier_memory and global_config.three_tier_memory.enable:
+                    if global_config.memory and global_config.memory.enable:
                         unified_manager = _get_unified_memory_manager()
                         if unified_manager:
                             # 构建消息字典

@@ -479,7 +479,7 @@ MoFox_Bot(第三方修改版)
 
         # 初始化三层记忆系统（如果启用）
         try:
-            if global_config.three_tier_memory and global_config.three_tier_memory.enable:
+            if global_config.memory and global_config.memory.enable:
                 from src.memory_graph.manager_singleton import initialize_unified_memory_manager
                 logger.info("三层记忆系统已启用，正在初始化...")
                 await initialize_unified_memory_manager()

@@ -138,20 +138,24 @@ class MemoryManager:
             )
 
             # 检查配置值
-            expand_depth = self.config.search_max_expand_depth
-            expand_semantic_threshold = self.config.search_expand_semantic_threshold
-            search_top_k = self.config.search_top_k
+            # 兼容性处理：如果配置项不存在，使用默认值或映射到新配置项
+            expand_depth = getattr(self.config, "path_expansion_max_hops", 2)
+            expand_semantic_threshold = getattr(self.config, "search_similarity_threshold", 0.5)
+            search_top_k = getattr(self.config, "search_top_k", 10)
+            
             # 读取权重配置
-            search_vector_weight = self.config.search_vector_weight
-            search_importance_weight = self.config.search_importance_weight
-            search_recency_weight = self.config.search_recency_weight
+            search_vector_weight = getattr(self.config, "vector_weight", 0.65)
+            # context_weight 近似映射为 importance_weight
+            search_importance_weight = getattr(self.config, "context_weight", 0.25)
+            search_recency_weight = getattr(self.config, "recency_weight", 0.10)
+            
             # 读取阈值过滤配置
-            search_min_importance = self.config.search_min_importance
-            search_similarity_threshold = self.config.search_similarity_threshold
+            search_min_importance = getattr(self.config, "search_min_importance", 0.3)
+            search_similarity_threshold = getattr(self.config, "search_similarity_threshold", 0.5)
 
             logger.info(
-                f"📊 配置检查: search_max_expand_depth={expand_depth}, "
-                f"search_expand_semantic_threshold={expand_semantic_threshold}, "
+                f"📊 配置检查: expand_depth={expand_depth}, "
+                f"expand_semantic_threshold={expand_semantic_threshold}, "
                 f"search_top_k={search_top_k}"
             )
             logger.info(
@@ -422,7 +426,7 @@ class MemoryManager:
                 "query": query,
                 "top_k": top_k,
                 "use_multi_query": use_multi_query,
-                "expand_depth": expand_depth or global_config.memory.search_max_expand_depth,  # 传递图扩展深度
+                "expand_depth": expand_depth or getattr(global_config.memory, "path_expansion_max_hops", 2),  # 传递图扩展深度
                 "context": context,
                 "prefer_node_types": prefer_node_types or [],  # 🆕 传递偏好节点类型
             }

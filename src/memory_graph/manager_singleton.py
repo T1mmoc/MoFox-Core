@@ -139,29 +139,29 @@ async def initialize_unified_memory_manager():
         from src.memory_graph.unified_manager import UnifiedMemoryManager
 
         # 检查是否启用三层记忆系统
-        if not hasattr(global_config, "three_tier_memory") or not getattr(
-            global_config.three_tier_memory, "enable", False
+        if not hasattr(global_config, "memory") or not getattr(
+            global_config.memory, "enable", False
         ):
             logger.warning("三层记忆系统未启用，跳过初始化")
             return None
 
-        config = global_config.three_tier_memory
+        config = global_config.memory
 
         # 创建管理器实例
         _unified_memory_manager = UnifiedMemoryManager(
-            data_dir=Path(getattr(config, "data_dir", "data/memory_graph/three_tier")),
+            data_dir=Path(getattr(config, "data_dir", "data/memory_graph")),
             # 感知记忆配置
             perceptual_max_blocks=getattr(config, "perceptual_max_blocks", 50),
             perceptual_block_size=getattr(config, "perceptual_block_size", 5),
             perceptual_activation_threshold=getattr(config, "perceptual_activation_threshold", 3),
-            perceptual_recall_top_k=getattr(config, "perceptual_recall_top_k", 5),
-            perceptual_recall_threshold=getattr(config, "perceptual_recall_threshold", 0.55),
+            perceptual_recall_top_k=getattr(config, "perceptual_topk", 5),
+            perceptual_recall_threshold=getattr(config, "perceptual_similarity_threshold", 0.55),
             # 短期记忆配置
             short_term_max_memories=getattr(config, "short_term_max_memories", 30),
             short_term_transfer_threshold=getattr(config, "short_term_transfer_threshold", 0.6),
             # 长期记忆配置
             long_term_batch_size=getattr(config, "long_term_batch_size", 10),
-            long_term_search_top_k=getattr(config, "long_term_search_top_k", 5),
+            long_term_search_top_k=getattr(config, "search_top_k", 5),
             long_term_decay_factor=getattr(config, "long_term_decay_factor", 0.95),
             long_term_auto_transfer_interval=getattr(config, "long_term_auto_transfer_interval", 600),
             # 智能检索配置

@@ -39,7 +39,6 @@ from src.config.official_configs import (
     ReactionConfig,
     ResponsePostProcessConfig,
     ResponseSplitterConfig,
-    ThreeTierMemoryConfig,
     ToolConfig,
     VideoAnalysisConfig,
     VoiceConfig,
@@ -382,7 +381,6 @@ class Config(ValidatedConfigBase):
     emoji: EmojiConfig = Field(..., description="表情配置")
     expression: ExpressionConfig = Field(..., description="表达配置")
     memory: MemoryConfig | None = Field(default=None, description="记忆配置")
-    three_tier_memory: ThreeTierMemoryConfig | None = Field(default=None, description="三层记忆系统配置")
     mood: MoodConfig = Field(..., description="情绪配置")
     reaction: ReactionConfig = Field(default_factory=ReactionConfig, description="反应规则配置")
     chinese_typo: ChineseTypoConfig = Field(..., description="中文错别字配置")

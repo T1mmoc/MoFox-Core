@@ -279,6 +279,28 @@ class PerceptualMemoryManager:
             logger.error(f"生成向量失败: {e}", exc_info=True)
             return None
 
+    async def _generate_embeddings_batch(self, texts: list[str]) -> list[np.ndarray | None]:
+        """
+        批量生成文本向量
+
+        Args:
+            texts: 文本列表
+
+        Returns:
+            向量列表，与输入一一对应
+        """
+        try:
+            if not self.embedding_generator:
+                logger.error("嵌入生成器未初始化")
+                return [None] * len(texts)
+
+            embeddings = await self.embedding_generator.generate_batch(texts)
+            return embeddings
+
+        except Exception as e:
+            logger.error(f"批量生成向量失败: {e}", exc_info=True)
+            return [None] * len(texts)
+
     async def recall_blocks(
         self,
         query_text: str,
@@ -528,11 +550,29 @@ class PerceptualMemoryManager:
 
         logger.info("重新生成记忆块向量...")
 
-        for block in self.perceptual_memory.blocks:
-            if block.embedding is None and block.combined_text:
-                block.embedding = await self._generate_embedding(block.combined_text)
+        blocks_to_process = []
+        texts_to_process = []
 
-        logger.info(f"✅ 向量重新生成完成（{len(self.perceptual_memory.blocks)} 个块）")
+        for block in self.perceptual_memory.blocks:
+            if block.embedding is None and block.combined_text and block.combined_text.strip():
+                blocks_to_process.append(block)
+                texts_to_process.append(block.combined_text)
+
+        if not blocks_to_process:
+            logger.info("没有需要重新生成向量的块")
+            return
+
+        logger.info(f"开始批量生成 {len(blocks_to_process)} 个块的向量...")
+
+        embeddings = await self._generate_embeddings_batch(texts_to_process)
+
+        success_count = 0
+        for block, embedding in zip(blocks_to_process, embeddings):
+            if embedding is not None:
+                block.embedding = embedding
+                success_count += 1
+
+        logger.info(f"✅ 向量重新生成完成（成功: {success_count}/{len(blocks_to_process)}）")
 
     async def shutdown(self) -> None:
         """关闭管理器"""

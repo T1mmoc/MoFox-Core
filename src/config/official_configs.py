@@ -434,8 +434,6 @@ class MemoryConfig(ValidatedConfigBase):
     search_top_k: int = Field(default=10, description="默认检索返回数量")
     search_min_importance: float = Field(default=0.3, description="最小重要性阈值")
     search_similarity_threshold: float = Field(default=0.5, description="向量相似度阈值")
-    search_max_expand_depth: int = Field(default=2, description="检索时图扩展深度（0-3）")
-    search_expand_semantic_threshold: float = Field(default=0.3, description="图扩展时语义相似度阈值（建议0.3-0.5，过低可能引入无关记忆，过高无法扩展）")
     enable_query_optimization: bool = Field(default=True, description="启用查询优化")
 
     # 路径扩展配置 (新算法)
@@ -452,30 +450,6 @@ class MemoryConfig(ValidatedConfigBase):
     # 🆕 路径扩展 - 记忆去重配置
     enable_memory_deduplication: bool = Field(default=True, description="启用检索结果去重（合并相似记忆）")
     memory_deduplication_threshold: float = Field(default=0.85, description="记忆相似度阈值（0.85表示85%相似即合并）")
-
-    # 检索权重配置 (记忆图系统)
-    search_vector_weight: float = Field(default=0.4, description="向量相似度权重")
-    search_graph_distance_weight: float = Field(default=0.2, description="图距离权重")
-    search_importance_weight: float = Field(default=0.2, description="重要性权重")
-    search_recency_weight: float = Field(default=0.2, description="时效性权重")
-
-    # 记忆整合配置
-    consolidation_enabled: bool = Field(default=False, description="是否启用记忆整合")
-    consolidation_interval_hours: float = Field(default=2.0, description="整合任务执行间隔（小时）")
-    consolidation_deduplication_threshold: float = Field(default=0.93, description="相似记忆去重阈值")
-    consolidation_time_window_hours: float = Field(default=2.0, description="整合时间窗口（小时）- 统一用于去重和关联")
-    consolidation_max_batch_size: int = Field(default=30, description="单次最多处理的记忆数量")
-
-    # 记忆关联配置（整合功能的子模块）
-    consolidation_linking_enabled: bool = Field(default=True, description="是否启用记忆关联建立")
-    consolidation_linking_max_candidates: int = Field(default=10, description="每个记忆最多关联的候选数")
-    consolidation_linking_max_memories: int = Field(default=20, description="单次最多处理的记忆总数")
-    consolidation_linking_min_importance: float = Field(default=0.5, description="最低重要性阈值")
-    consolidation_linking_pre_filter_threshold: float = Field(default=0.7, description="向量相似度预筛选阈值")
-    consolidation_linking_max_pairs_for_llm: int = Field(default=5, description="最多发送给LLM分析的候选对数")
-    consolidation_linking_min_confidence: float = Field(default=0.7, description="LLM分析最低置信度阈值")
-    consolidation_linking_llm_temperature: float = Field(default=0.2, description="LLM分析温度参数")
-    consolidation_linking_llm_max_tokens: int = Field(default=1500, description="LLM分析最大输出长度")
 
     # 遗忘配置 (记忆图系统)
     forgetting_enabled: bool = Field(default=True, description="是否启用自动遗忘")
@@ -500,26 +474,13 @@ class MemoryConfig(ValidatedConfigBase):
     node_merger_context_match_required: bool = Field(default=True, description="节点合并是否要求上下文匹配")
     node_merger_merge_batch_size: int = Field(default=50, description="节点合并批量处理大小")
 
-
-class MoodConfig(ValidatedConfigBase):
-    """情绪配置类"""
-
-    enable_mood: bool = Field(default=False, description="启用情绪")
-    mood_update_threshold: float = Field(default=1.0, description="情绪更新阈值")
-
-
-class ThreeTierMemoryConfig(ValidatedConfigBase):
-    """三层记忆系统配置类"""
-
-    enable: bool = Field(default=False, description="启用三层记忆系统（实验性功能）")
-    data_dir: str = Field(default="data/memory_graph/three_tier", description="数据存储目录")
-
+    # ==================== 三层记忆系统配置 (Three-Tier Memory System) ====================
     # 感知记忆层配置
     perceptual_max_blocks: int = Field(default=50, description="记忆堆最大容量（全局）")
     perceptual_block_size: int = Field(default=5, description="每个记忆块包含的消息数量")
     perceptual_similarity_threshold: float = Field(default=0.55, description="相似度阈值（0-1）")
     perceptual_topk: int = Field(default=3, description="TopK召回数量")
-    activation_threshold: int = Field(default=3, description="激活阈值（召回次数→短期）")
+    perceptual_activation_threshold: int = Field(default=3, description="激活阈值（召回次数→短期）")
 
     # 短期记忆层配置
     short_term_max_memories: int = Field(default=30, description="短期记忆最大数量")
@@ -532,10 +493,12 @@ class ThreeTierMemoryConfig(ValidatedConfigBase):
     long_term_decay_factor: float = Field(default=0.95, description="衰减因子")
     long_term_auto_transfer_interval: int = Field(default=60, description="自动转移间隔（秒）")
 
-    # Judge模型配置
-    judge_model_name: str = Field(default="utils_small", description="用于决策的LLM模型")
-    judge_temperature: float = Field(default=0.1, description="Judge模型的温度参数")
-    enable_judge_retrieval: bool = Field(default=True, description="启用智能检索判断")
+
+class MoodConfig(ValidatedConfigBase):
+    """情绪配置类"""
+
+    enable_mood: bool = Field(default=False, description="启用情绪")
+    mood_update_threshold: float = Field(default=1.0, description="情绪更新阈值")
 
 
 class ReactionRuleConfig(ValidatedConfigBase):
