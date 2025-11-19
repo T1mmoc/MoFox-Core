@@ -218,21 +218,21 @@ max_tokens = 800
 #------------记忆系统专用模型------------
 
 [model_task_config.memory_short_term_builder] # 短期记忆构建模型（感知→短期格式化）
-model_list = ["siliconflow-deepseek-ai/DeepSeek-V3.2-Exp"]
+model_list = ["siliconflow-Qwen/Qwen3-Next-80B-A3B-Instruct"]
 temperature = 0.2
 max_tokens = 800
 
 [model_task_config.memory_short_term_decider] # 短期记忆决策模型（决定合并/更新/新建/丢弃）
-model_list = ["siliconflow-deepseek-ai/DeepSeek-V3.2-Exp"]
+model_list = ["siliconflow-Qwen/Qwen3-Next-80B-A3B-Instruct"]
 temperature = 0.2
 max_tokens = 1000
 
 [model_task_config.memory_long_term_builder] # 长期记忆构建模型（短期→长期图结构）
-model_list = ["siliconflow-Qwen/Qwen3-Next-80B-A3B-Instruct"]
+model_list = ["siliconflow-deepseek-ai/DeepSeek-V3.2-Exp"]
 temperature = 0.2
 max_tokens = 1500
 
 [model_task_config.memory_judge] # 记忆检索裁判模型（判断检索是否充足）
-model_list = ["siliconflow-THUDM/GLM-4-9B-0414"]
+model_list = ["qwen3-14b"]
 temperature = 0.1
 max_tokens = 600

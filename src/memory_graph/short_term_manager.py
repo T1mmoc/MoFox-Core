@@ -187,7 +187,9 @@ class ShortTermMemoryManager:
   "importance": 0.7,
   "attributes": {{
     "time": "时间信息",
-    "location": "地点信息"
+    "attribute1": "其他属性1"
+    "attribute2": "其他属性2"
+    ...
   }}
 }}
 ```
