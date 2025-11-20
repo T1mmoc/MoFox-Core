@@ -359,9 +359,13 @@ class MemoryManager:
                 return False
 
             # 从向量存储删除节点
-            for node in memory.nodes:
-                if node.embedding is not None:
-                    await self.vector_store.delete_node(node.id)
+            if self.vector_store:
+                for node in memory.nodes:
+                    if getattr(node, "has_vector", False):
+                        await self.vector_store.delete_node(node.id)
+                        node.has_vector = False
+                        if self.graph_store.graph.has_node(node.id):
+                            self.graph_store.graph.nodes[node.id]["has_vector"] = False
 
             # 从图存储删除记忆
             self.graph_store.remove_memory(memory_id)
@@ -900,13 +904,17 @@ class MemoryManager:
 
             # 1. 从向量存储删除节点的嵌入向量
             deleted_vectors = 0
-            for node in memory.nodes:
-                if node.embedding is not None:
-                    try:
-                        await self.vector_store.delete_node(node.id)
-                        deleted_vectors += 1
-                    except Exception as e:
-                        logger.warning(f"删除节点向量失败 {node.id}: {e}")
+            if self.vector_store:
+                for node in memory.nodes:
+                    if getattr(node, "has_vector", False):
+                        try:
+                            await self.vector_store.delete_node(node.id)
+                            deleted_vectors += 1
+                            node.has_vector = False
+                            if self.graph_store.graph.has_node(node.id):
+                                self.graph_store.graph.nodes[node.id]["has_vector"] = False
+                        except Exception as e:
+                            logger.warning(f"删除节点向量失败 {node.id}: {e}")
 
             # 2. 从图存储删除记忆
             success = self.graph_store.remove_memory(memory_id, cleanup_orphans=False)

@@ -53,6 +53,7 @@ class GraphStore:
                         node_type=node.node_type.value,
                         created_at=node.created_at.isoformat(),
                         metadata=node.metadata,
+                        has_vector=node.has_vector,
                     )
 
                 # 更新节点到记忆的映射
@@ -120,6 +121,7 @@ class GraphStore:
                     node_type=node_type,
                     created_at=datetime.now().isoformat(),
                     metadata=metadata or {},
+                    has_vector=(metadata or {}).get("has_vector", False),
                 )
             else:
                 # 如果节点已存在，更新内容（可选）
@@ -144,7 +146,8 @@ class GraphStore:
                     id=node_id,
                     content=content,
                     node_type=node_type_enum,
-                    metadata=metadata or {}
+                    metadata=metadata or {},
+                    has_vector=(metadata or {}).get("has_vector", False)
                 )
                 memory.nodes.append(new_node)
 

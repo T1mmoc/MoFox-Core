@@ -169,6 +169,30 @@ def _estimate_recursive(obj: Any, depth: int, seen: set, sample_large: bool) -> 
     return size
 
 
+def estimate_cache_item_size(obj: Any) -> int:
+    """
+    估算缓存条目的大小。
+
+    结合深度递归和 pickle 大小，选择更保守的估值，
+    以避免大量嵌套对象被低估。
+    """
+    try:
+        smart_size = estimate_size_smart(obj, max_depth=10, sample_large=False)
+    except Exception:
+        smart_size = 0
+
+    try:
+        deep_size = get_accurate_size(obj)
+    except Exception:
+        deep_size = 0
+
+    pickle_size = get_pickle_size(obj)
+
+    best = max(smart_size, deep_size, pickle_size)
+    # 至少返回基础大小，避免 0
+    return best or sys.getsizeof(obj)
+
+
 def format_size(size_bytes: int) -> str:
     """
     格式化字节数为人类可读的格式

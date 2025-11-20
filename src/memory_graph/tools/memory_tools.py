@@ -1211,6 +1211,9 @@ class MemoryTools:
         for node in memory.nodes:
             if node.embedding is not None:
                 await self.vector_store.add_node(node)
+                node.mark_vector_stored()
+                if self.graph_store.graph.has_node(node.id):
+                    self.graph_store.graph.nodes[node.id]["has_vector"] = True
 
     async def _find_memory_by_description(self, description: str) -> Memory | None:
         """
