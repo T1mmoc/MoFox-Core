@@ -121,6 +121,7 @@ class MemoryNode:
     node_type: NodeType  # 节点类型
     embedding: np.ndarray | None = None  # 语义向量（仅主题/客体需要）
     metadata: dict[str, Any] = field(default_factory=dict)  # 扩展元数据
+    has_vector: bool = False  # 是否已写入向量存储
     created_at: datetime = field(default_factory=datetime.now)
 
     def __post_init__(self):
@@ -137,6 +138,7 @@ class MemoryNode:
             "node_type": self.node_type.value,
             "metadata": self.metadata,
             "created_at": self.created_at.isoformat(),
+            "has_vector": self.has_vector,
         }
 
     @classmethod
@@ -150,11 +152,17 @@ class MemoryNode:
             embedding=None,  # 向量数据需要从向量数据库中单独加载
             metadata=data.get("metadata", {}),
             created_at=datetime.fromisoformat(data["created_at"]),
+            has_vector=data.get("has_vector", False),
         )
 
     def has_embedding(self) -> bool:
-        """是否有语义向量"""
+        """是否持有可用的语义向量数据"""
         return self.embedding is not None
+
+    def mark_vector_stored(self) -> None:
+        """标记该节点已写入向量存储，并清理内存中的 embedding 数据。"""
+        self.has_vector = True
+        self.embedding = None
 
     def __str__(self) -> str:
         return f"Node({self.node_type.value}: {self.content})"

@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
 from src.common.logger import get_logger
-from src.common.memory_utils import estimate_size_smart
+from src.common.memory_utils import estimate_cache_item_size
 
 logger = get_logger("cache_manager")
 
@@ -237,7 +237,7 @@ class LRUCache(Generic[T]):
         使用深度递归估算，比 sys.getsizeof() 更准确
         """
         try:
-            return estimate_size_smart(value)
+            return estimate_cache_item_size(value)
         except (TypeError, AttributeError):
             # 无法获取大小，返回默认值
             return 1024
@@ -345,7 +345,7 @@ class MultiLevelCache:
         """
         # 估算数据大小（如果未提供）
         if size is None:
-            size = estimate_size_smart(value)
+            size = estimate_cache_item_size(value)
 
         # 检查单个条目大小是否超过限制
         if size > self.max_item_size_bytes:

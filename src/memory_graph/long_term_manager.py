@@ -922,6 +922,9 @@ class LongTermMemoryManager:
                     embedding=embedding
                 )
                 await self.memory_manager.vector_store.add_node(node)
+                node.mark_vector_stored()
+                if self.memory_manager.graph_store.graph.has_node(node_id):
+                    self.memory_manager.graph_store.graph.nodes[node_id]["has_vector"] = True
         except Exception as e:
             logger.warning(f"生成节点 embedding 失败: {e}")
 

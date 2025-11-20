@@ -379,6 +379,7 @@ class MemoryBuilder:
                     node_type=NodeType(node_data["node_type"]),
                     embedding=None,  # 图存储不包含 embedding，需要从向量数据库获取
                     metadata=node_data.get("metadata", {}),
+                    has_vector=node_data.get("has_vector", False),
                 )
 
         return None
@@ -424,6 +425,7 @@ class MemoryBuilder:
                         node_type=NodeType(node_data["node_type"]),
                         embedding=None,  # 图存储不包含 embedding，需要从向量数据库获取
                         metadata=node_data.get("metadata", {}),
+                        has_vector=node_data.get("has_vector", False),
                     )
                     # 添加当前记忆ID到元数据
                     return existing_node
@@ -474,6 +476,7 @@ class MemoryBuilder:
                         node_type=NodeType(node_data["node_type"]),
                         embedding=None,  # 图存储不包含 embedding，需要从向量数据库获取
                         metadata=node_data.get("metadata", {}),
+                        has_vector=node_data.get("has_vector", False),
                     )
                     return existing_node
 
