@@ -15,13 +15,14 @@
 """
 
 import asyncio
+import heapq
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from src.common.logger import get_logger
-from src.memory_graph.utils.similarity import cosine_similarity
+from src.memory_graph.utils.similarity import cosine_similarity_async
 
 if TYPE_CHECKING:
     import numpy as np
@@ -273,9 +274,8 @@ class PathScoreExpansion:
                     f"⚠️  路径数量超限 ({len(next_paths)} > {self.config.max_active_paths})，"
                     f"保留 top {self.config.top_paths_retain}"
                 )
-                next_paths = sorted(next_paths, key=lambda p: p.score, reverse=True)[
-                    : self.config.top_paths_retain
-                ]
+                retain = min(self.config.top_paths_retain, len(next_paths))
+                next_paths = heapq.nlargest(retain, next_paths, key=lambda p: p.score)
 
             # 🚀 早停检测：如果路径增长很少，提前终止
             prev_path_count = len(active_paths)
@@ -398,22 +398,14 @@ class PathScoreExpansion:
         if node_id in self._neighbor_cache:
             return self._neighbor_cache[node_id]
 
-        edges = []
+        edges = self.graph_store.get_edges_for_node(node_id)
 
-        # 从图存储中获取与该节点相关的所有边
-        # 需要遍历所有记忆找到包含该节点的边
-        for memory_id in self.graph_store.node_to_memories.get(node_id, []):
-            memory = self.graph_store.get_memory_by_id(memory_id)
-            if memory:
-                for edge in memory.edges:
-                    if edge.source_id == node_id or edge.target_id == node_id:
-                        edges.append(edge)
-
-        # 去重（同一条边可能出现多次）
-        unique_edges = list({(e.source_id, e.target_id, e.edge_type): e for e in edges}.values())
+        if not edges:
+            self._neighbor_cache[node_id] = []
+            return []
 
         # 按边权重排序
-        unique_edges.sort(key=lambda e: self._get_edge_weight(e), reverse=True)
+        unique_edges = sorted(edges, key=lambda e: self._get_edge_weight(e), reverse=True)
 
         # 🚀 存入缓存
         self._neighbor_cache[node_id] = unique_edges
@@ -461,7 +453,7 @@ class PathScoreExpansion:
                 base_score = 0.3  # 无向量的节点给低分
             else:
                 node_embedding = node_data["embedding"]
-                similarity = cosine_similarity(query_embedding, node_embedding)
+                similarity = await cosine_similarity_async(query_embedding, node_embedding)
                 base_score = max(0.0, min(1.0, similarity))  # 限制在[0, 1]
 
         # 🆕 偏好类型加成
@@ -522,14 +514,8 @@ class PathScoreExpansion:
                 node_metadata_map[nid] = node_data.get("metadata", {})
 
         if valid_embeddings:
-            # 批量计算相似度（使用矩阵运算）
-            embeddings_matrix = np.array(valid_embeddings)
-            query_norm = np.linalg.norm(query_embedding)
-            embeddings_norms = np.linalg.norm(embeddings_matrix, axis=1)
-
-            # 向量化计算余弦相似度
-            similarities = np.dot(embeddings_matrix, query_embedding) / (embeddings_norms * query_norm + 1e-8)
-            similarities = np.clip(similarities, 0.0, 1.0)
+            # 批量计算相似度（使用矩阵运算）- 移至to_thread执行
+            similarities = await asyncio.to_thread(self._batch_compute_similarities, valid_embeddings, query_embedding)
 
             # 应用偏好类型加成
             for nid, sim in zip(valid_node_ids, similarities):
@@ -706,11 +692,7 @@ class PathScoreExpansion:
 
         # 🚀 批量获取记忆对象（如果graph_store支持批量获取）
         # 注意：这里假设逐个获取，如果有批量API可以进一步优化
-        memory_cache: dict[str, Any] = {}
-        for mem_id in all_memory_ids:
-            memory = self.graph_store.get_memory_by_id(mem_id)
-            if memory:
-                memory_cache[mem_id] = memory
+        memory_cache: dict[str, Any] = self.graph_store.get_memories_by_ids(all_memory_ids)
 
         # 构建映射关系
         for path in paths:
@@ -749,30 +731,31 @@ class PathScoreExpansion:
         node_type_cache: dict[str, str | None] = {}
 
         if self.prefer_node_types:
-            # 收集所有需要查询的节点ID
-            all_node_ids = set()
+            # 收集所有需要查询的节点ID，并记录记忆中的类型提示
+            all_node_ids: set[str] = set()
+            node_type_hints: dict[str, str | None] = {}
             for memory, _ in memory_paths.values():
                 memory_nodes = getattr(memory, "nodes", [])
                 for node in memory_nodes:
                     node_id = node.id if hasattr(node, "id") else str(node)
                     all_node_ids.add(node_id)
+                    if node_id not in node_type_hints:
+                        node_obj_type = getattr(node, "node_type", None)
+                        if node_obj_type is not None:
+                            node_type_hints[node_id] = getattr(node_obj_type, "value", str(node_obj_type))
 
-            # 批量获取节点数据
             if all_node_ids:
-                logger.debug(f"🔍 批量预加载 {len(all_node_ids)} 个节点的类型信息")
-                node_data_list = await asyncio.gather(
-                    *[self.vector_store.get_node_by_id(nid) for nid in all_node_ids],
-                    return_exceptions=True
-                )
+                logger.info(f"🧠 预处理 {len(all_node_ids)} 个节点的类型信息")
+                for nid in all_node_ids:
+                    node_attrs = self.graph_store.graph.nodes.get(nid, {}) if hasattr(self.graph_store, "graph") else {}
+                    metadata = node_attrs.get("metadata", {}) if isinstance(node_attrs, dict) else {}
+                    node_type = metadata.get("node_type") or node_attrs.get("node_type")
 
-                # 构建类型缓存
-                for nid, node_data in zip(all_node_ids, node_data_list):
-                    if isinstance(node_data, Exception) or not node_data or not isinstance(node_data, dict):
-                        node_type_cache[nid] = None
-                    else:
-                        metadata = node_data.get("metadata", {})
-                        node_type_cache[nid] = metadata.get("node_type")
+                    if not node_type:
+                        # 回退到记忆中的节点定义
+                        node_type = node_type_hints.get(nid)
 
+                    node_type_cache[nid] = node_type
         # 遍历所有记忆进行评分
         for mem_id, (memory, paths) in memory_paths.items():
             # 1. 聚合路径分数
@@ -867,6 +850,34 @@ class PathScoreExpansion:
         recency_score = 1.0 / (1.0 + age_days / 30)
 
         return recency_score
+
+    def _batch_compute_similarities(
+        self,
+        valid_embeddings: list["np.ndarray"],
+        query_embedding: "np.ndarray"
+    ) -> "np.ndarray":
+        """
+        批量计算向量相似度（CPU密集型操作，移至to_thread中执行）
+
+        Args:
+            valid_embeddings: 有效的嵌入向量列表
+            query_embedding: 查询向量
+
+        Returns:
+            相似度数组
+        """
+        import numpy as np
+
+        # 批量计算相似度（使用矩阵运算）
+        embeddings_matrix = np.array(valid_embeddings)
+        query_norm = np.linalg.norm(query_embedding)
+        embeddings_norms = np.linalg.norm(embeddings_matrix, axis=1)
+
+        # 向量化计算余弦相似度
+        similarities = np.dot(embeddings_matrix, query_embedding) / (embeddings_norms * query_norm + 1e-8)
+        similarities = np.clip(similarities, 0.0, 1.0)
+
+        return similarities
 
 
 __all__ = ["Path", "PathExpansionConfig", "PathScoreExpansion"]

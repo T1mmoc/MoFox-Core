@@ -21,7 +21,7 @@ import numpy as np
 from src.common.logger import get_logger
 from src.memory_graph.models import MemoryBlock, PerceptualMemory
 from src.memory_graph.utils.embeddings import EmbeddingGenerator
-from src.memory_graph.utils.similarity import cosine_similarity
+from src.memory_graph.utils.similarity import cosine_similarity_async, batch_cosine_similarity_async
 
 logger = get_logger(__name__)
 
@@ -430,14 +430,22 @@ class PerceptualMemoryManager:
                 logger.warning("查询向量生成失败，返回空列表")
                 return []
 
-            # 计算所有块的相似度
+            # 批量计算所有块的相似度（使用异步版本）
+            blocks_with_embeddings = [
+                block for block in self.perceptual_memory.blocks
+                if block.embedding is not None
+            ]
+
+            if not blocks_with_embeddings:
+                return []
+
+            # 批量计算相似度
+            block_embeddings = [block.embedding for block in blocks_with_embeddings]
+            similarities = await batch_cosine_similarity_async(query_embedding, block_embeddings)
+
+            # 过滤和排序
             scored_blocks = []
-            for block in self.perceptual_memory.blocks:
-                if block.embedding is None:
-                    continue
-
-                similarity = cosine_similarity(query_embedding, block.embedding)
-
+            for block, similarity in zip(blocks_with_embeddings, similarities):
                 # 过滤低于阈值的块
                 if similarity >= similarity_threshold:
                     scored_blocks.append((block, similarity))

@@ -228,9 +228,14 @@ class UnifiedMemoryManager:
             }
 
             # 步骤1: 检索感知记忆和短期记忆
-            perceptual_blocks = await self.perceptual_manager.recall_blocks(query_text)
-            short_term_memories = await self.short_term_manager.search_memories(query_text)
+            perceptual_blocks_task = asyncio.create_task(self.perceptual_manager.recall_blocks(query_text))
+            short_term_memories_task = asyncio.create_task(self.short_term_manager.search_memories(query_text))
 
+            perceptual_blocks, short_term_memories = await asyncio.gather(
+                perceptual_blocks_task,
+                short_term_memories_task,
+            )
+            
             # 步骤1.5: 检查需要转移的感知块，推迟到后台处理
             blocks_to_transfer = [
                 block

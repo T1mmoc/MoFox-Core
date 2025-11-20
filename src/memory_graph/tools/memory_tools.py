@@ -1171,8 +1171,10 @@ class MemoryTools:
             query_embeddings = []
             query_weights = []
 
-            for sub_query, weight in multi_queries:
-                embedding = await self.builder.embedding_generator.generate(sub_query)
+            batch_texts = [sub_query for sub_query, _ in multi_queries]
+            batch_embeddings = await self.builder.embedding_generator.generate_batch(batch_texts)
+
+            for (sub_query, weight), embedding in zip(multi_queries, batch_embeddings):
                 if embedding is not None:
                     query_embeddings.append(embedding)
                     query_weights.append(weight)

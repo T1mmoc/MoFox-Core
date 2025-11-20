@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 import networkx as nx
 
 from src.common.logger import get_logger
@@ -33,8 +35,50 @@ class GraphStore:
 
         # 索引：节点ID -> 所属记忆ID集合
         self.node_to_memories: dict[str, set[str]] = {}
+        
+        # 节点 -> {memory_id: [MemoryEdge]}，用于快速获取邻接边
+        self.node_edge_index: dict[str, dict[str, list[MemoryEdge]]] = {}
 
         logger.info("初始化图存储")
+
+
+    def _register_memory_edges(self, memory: Memory) -> None:
+        """在记忆中的边加入邻接索引"""
+        for edge in memory.edges:
+            self._register_edge_reference(memory.id, edge)
+
+    def _register_edge_reference(self, memory_id: str, edge: MemoryEdge) -> None:
+        """在节点邻接索引中登记一条边"""
+        for node_id in (edge.source_id, edge.target_id):
+            node_edges = self.node_edge_index.setdefault(node_id, {})
+            edge_list = node_edges.setdefault(memory_id, [])
+            if not any(existing.id == edge.id for existing in edge_list):
+                edge_list.append(edge)
+
+    def _unregister_memory_edges(self, memory: Memory) -> None:
+        """从节点邻接索引中移除记忆相关的边"""
+        for edge in memory.edges:
+            self._unregister_edge_reference(memory.id, edge)
+
+    def _unregister_edge_reference(self, memory_id: str, edge: MemoryEdge) -> None:
+        """在节点邻接索引中删除一条边"""
+        for node_id in (edge.source_id, edge.target_id):
+            node_edges = self.node_edge_index.get(node_id)
+            if not node_edges:
+                continue
+            if memory_id not in node_edges:
+                continue
+            node_edges[memory_id] = [e for e in node_edges[memory_id] if e.id != edge.id]
+            if not node_edges[memory_id]:
+                del node_edges[memory_id]
+            if not node_edges:
+                del self.node_edge_index[node_id]
+
+    def _rebuild_node_edge_index(self) -> None:
+        """重建节点邻接索引"""
+        self.node_edge_index.clear()
+        for memory in self.memory_index.values():
+            self._register_memory_edges(memory)
 
     def add_memory(self, memory: Memory) -> None:
         """
@@ -77,6 +121,9 @@ class GraphStore:
             # 3. 保存记忆对象
             self.memory_index[memory.id] = memory
 
+            # 4. 注册记忆中的边到邻接索引
+            self._register_memory_edges(memory)
+
             logger.debug(f"添加记忆到图: {memory}")
 
         except Exception as e:
@@ -111,6 +158,12 @@ class GraphStore:
                 return False
 
             memory = self.memory_index[memory_id]
+
+            # 1.5. 注销记忆中的边的邻接索引记录
+            self._unregister_memory_edges(memory)
+
+            # 1.5. 注销记忆中的边的邻接索引记录
+            self._unregister_memory_edges(memory)
 
             # 2. 添加节点到图
             if not self.graph.has_node(node_id):
@@ -282,6 +335,7 @@ class GraphStore:
                 memory = self.memory_index.get(mem_id)
                 if memory:
                     memory.edges.append(new_edge)
+                    self._register_edge_reference(mem_id, new_edge)
 
             logger.debug(f"添加边成功: {source_id} -> {target_id} ({relation})")
             return edge_id
@@ -393,6 +447,10 @@ class GraphStore:
             for mem_id in related_memory_ids:
                 memory = self.memory_index.get(mem_id)
                 if memory:
+                    removed_edges = [e for e in memory.edges if e.id == edge_id]
+                    if removed_edges:
+                        for edge_obj in removed_edges:
+                            self._unregister_edge_reference(mem_id, edge_obj)
                     memory.edges = [e for e in memory.edges if e.id != edge_id]
 
             return True
@@ -440,8 +498,11 @@ class GraphStore:
                 # 2. 转移边
                 for edge in source_memory.edges:
                     # 添加到目标记忆（如果不存在）
-                    if not any(e.id == edge.id for e in target_memory.edges):
+                    already_exists = any(e.id == edge.id for e in target_memory.edges)
+                    self._unregister_edge_reference(source_id, edge)
+                    if not already_exists:
                         target_memory.edges.append(edge)
+                        self._register_edge_reference(target_memory_id, edge)
 
                 # 3. 删除源记忆（不清理孤立节点，因为节点已转移）
                 del self.memory_index[source_id]
@@ -464,6 +525,32 @@ class GraphStore:
             记忆对象或 None
         """
         return self.memory_index.get(memory_id)
+
+    def get_memories_by_ids(self, memory_ids: Iterable[str]) -> dict[str, Memory]:
+        """
+        根据一组ID批量获取记忆
+
+        Args:
+            memory_ids: 记忆ID集合
+
+        Returns:
+            {memory_id: Memory} 映射
+        """
+        result: dict[str, Memory] = {}
+        missing_ids: list[str] = []
+
+        # dict.fromkeys 可以保持参数序列的原始顺序同时帮忙去重
+        for mem_id in dict.fromkeys(memory_ids):
+            memory = self.memory_index.get(mem_id)
+            if memory is not None:
+                result[mem_id] = memory
+            else:
+                missing_ids.append(mem_id)
+
+        if missing_ids:
+            logger.debug(f"批量获取记忆: 未找到 {missing_ids}")
+
+        return result
 
     def get_all_memories(self) -> list[Memory]:
         """
@@ -489,6 +576,32 @@ class GraphStore:
 
         memory_ids = self.node_to_memories[node_id]
         return [self.memory_index[mid] for mid in memory_ids if mid in self.memory_index]
+
+    def get_edges_for_node(self, node_id: str) -> list[MemoryEdge]:
+        """
+        获取节点相关的全部边（包含入边和出边）
+
+        Args:
+            node_id: 节点ID
+
+        Returns:
+            MemoryEdge 列表
+        """
+        node_edges = self.node_edge_index.get(node_id)
+        if not node_edges:
+            return []
+
+        unique_edges: dict[str | tuple[str, str, str, str], MemoryEdge] = {}
+        for edges in node_edges.values():
+            for edge in edges:
+                key: str | tuple[str, str, str, str]
+                if edge.id:
+                    key = edge.id
+                else:
+                    key = (edge.source_id, edge.target_id, edge.relation, edge.edge_type.value)
+                unique_edges[key] = edge
+
+        return list(unique_edges.values())
 
     def get_edges_from_node(self, node_id: str, relation_types: list[str] | None = None) -> list[dict]:
         """
@@ -762,6 +875,8 @@ class GraphStore:
         except Exception:
             logger.exception("同步图边到记忆.edges 失败")
 
+        store._rebuild_node_edge_index()
+
         logger.info(f"从字典加载图: {store.get_statistics()}")
         return store
 
@@ -829,6 +944,7 @@ class GraphStore:
                 existing_edges.setdefault(mid, set()).add(mem_edge.id)
 
         logger.info("已将图中的边同步到 Memory.edges（保证 graph 与 memory 对象一致）")
+        self._rebuild_node_edge_index()
 
     def remove_memory(self, memory_id: str, cleanup_orphans: bool = True) -> bool:
         """
@@ -877,4 +993,5 @@ class GraphStore:
         self.graph.clear()
         self.memory_index.clear()
         self.node_to_memories.clear()
+        self.node_edge_index.clear()
         logger.warning("图存储已清空")

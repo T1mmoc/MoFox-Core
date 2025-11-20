@@ -25,7 +25,7 @@ from src.memory_graph.models import (
     ShortTermOperation,
 )
 from src.memory_graph.utils.embeddings import EmbeddingGenerator
-from src.memory_graph.utils.similarity import cosine_similarity
+from src.memory_graph.utils.similarity import cosine_similarity_async, batch_cosine_similarity_async
 
 logger = get_logger(__name__)
 
@@ -457,7 +457,7 @@ class ShortTermMemoryManager:
                 if existing_mem.embedding is None:
                     continue
 
-                similarity = cosine_similarity(memory.embedding, existing_mem.embedding)
+                similarity = await cosine_similarity_async(memory.embedding, existing_mem.embedding)
                 scored.append((existing_mem, similarity))
 
             # 按相似度降序排序
@@ -567,7 +567,7 @@ class ShortTermMemoryManager:
                 if memory.embedding is None:
                     continue
 
-                similarity = cosine_similarity(query_embedding, memory.embedding)
+                similarity = await cosine_similarity_async(query_embedding, memory.embedding)
                 if similarity >= similarity_threshold:
                     scored.append((memory, similarity))
 

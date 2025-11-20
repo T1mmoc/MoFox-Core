@@ -137,56 +137,69 @@ class EmbeddingGenerator:
 
         raise ValueError("无法确定嵌入向量维度，请确保已正确配置 embedding API")
 
+
     async def generate_batch(self, texts: list[str]) -> list[np.ndarray | None]:
-        """
-        批量生成嵌入向量
-
-        Args:
-            texts: 文本列表
-
-        Returns:
-            嵌入向量列表，失败的项目为 None
-        """
+        """保留输入顺序的批量嵌入生成"""
         if not texts:
             return []
 
         try:
-            # 过滤空文本
-            valid_texts = [t for t in texts if t and t.strip()]
-            if not valid_texts:
-                logger.debug("所有文本为空，返回 None 列表")
-                return [None for _ in texts]
+            results: list[np.ndarray | None] = [None] * len(texts)
+            valid_entries = [
+                (idx, text) for idx, text in enumerate(texts) if text and text.strip()
+            ]
+            if not valid_entries:
+                logger.debug('批量文本为空，返回空列表')
+                return results
 
-            # 使用 API 批量生成（如果可用）
+            batch_texts = [text for _, text in valid_entries]
+            batch_embeddings: list[np.ndarray | None] | None = None
+
             if self.use_api:
-                results = await self._generate_batch_with_api(valid_texts)
-                if results:
-                    return results
+                batch_embeddings = await self._generate_batch_with_api(batch_texts)
 
-            # 回退到逐个生成
-            results = []
-            for text in valid_texts:
-                embedding = await self.generate(text)
-                results.append(embedding)
+            if not batch_embeddings:
+                batch_embeddings = []
+                for _, text in valid_entries:
+                    batch_embeddings.append(await self.generate(text))
+
+            for (idx, _), embedding in zip(valid_entries, batch_embeddings):
+                results[idx] = embedding
 
             success_count = sum(1 for r in results if r is not None)
-            logger.debug(f"✅ 批量生成嵌入: {success_count}/{len(texts)} 个成功")
+            logger.debug(f"批量生成嵌入: {success_count}/{len(texts)}")
             return results
 
         except Exception as e:
-            logger.error(f"❌ 批量嵌入生成失败: {e}", exc_info=True)
+            logger.error(f"批量生成嵌入失败: {e}", exc_info=True)
             return [None for _ in texts]
 
     async def _generate_batch_with_api(self, texts: list[str]) -> list[np.ndarray | None] | None:
-        """使用 API 批量生成"""
+        """使用嵌入 API 在单次请求中生成向量"""
+        if not texts:
+            return []
+
         try:
-            # 对于大多数 API，批量调用就是多次单独调用
-            # 这里保持简单，逐个调用
-            results = []
-            for text in texts:
-                embedding = await self._generate_with_api(text)
-                results.append(embedding)  # 失败的项目为 None，不中断整个批量处理
+            if not self._api_available:
+                await self._initialize_api()
+
+            if not self._api_available or not self._llm_request:
+                return None
+
+            embeddings, model_name = await self._llm_request.get_embedding(texts)
+            if not embeddings:
+                return None
+
+            results: list[np.ndarray | None] = []
+            for emb in embeddings:
+                if emb:
+                    results.append(np.array(emb, dtype=np.float32))
+                else:
+                    results.append(None)
+
+            logger.debug(f"API 批量生成 {len(texts)} 个嵌入向量，使用模型: {model_name}")
             return results
+
         except Exception as e:
             logger.debug(f"API 批量生成失败: {e}")
             return None

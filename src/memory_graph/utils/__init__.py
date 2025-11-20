@@ -4,7 +4,12 @@
 
 from src.memory_graph.utils.embeddings import EmbeddingGenerator, get_embedding_generator
 from src.memory_graph.utils.path_expansion import Path, PathExpansionConfig, PathScoreExpansion
-from src.memory_graph.utils.similarity import cosine_similarity
+from src.memory_graph.utils.similarity import (
+    cosine_similarity,
+    cosine_similarity_async,
+    batch_cosine_similarity,
+    batch_cosine_similarity_async
+)
 from src.memory_graph.utils.time_parser import TimeParser
 
 __all__ = [
@@ -14,5 +19,8 @@ __all__ = [
     "PathScoreExpansion",
     "TimeParser",
     "cosine_similarity",
+    "cosine_similarity_async",
+    "batch_cosine_similarity",
+    "batch_cosine_similarity_async",
     "get_embedding_generator",
 ]
