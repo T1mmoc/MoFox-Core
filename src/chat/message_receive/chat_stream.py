@@ -2,7 +2,7 @@ import asyncio
 import hashlib
 import time
 
-from maim_message import GroupInfo, UserInfo
+from mofox_bus import GroupInfo, UserInfo
 from rich.traceback import install
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -358,7 +358,7 @@ class ChatManager:
     def register_message(self, message: DatabaseMessages):
         """注册消息到聊天流"""
         # 从 DatabaseMessages 提取平台和用户/群组信息
-        from maim_message import GroupInfo, UserInfo
+        from mofox_bus import GroupInfo, UserInfo
 
         user_info = UserInfo(
             platform=message.user_info.platform,

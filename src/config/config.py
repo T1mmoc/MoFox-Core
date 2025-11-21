@@ -26,7 +26,7 @@ from src.config.official_configs import (
     ExperimentalConfig,
     ExpressionConfig,
     LPMMKnowledgeConfig,
-    MaimMessageConfig,
+    MessageBusConfig,
     MemoryConfig,
     MessageReceiveConfig,
     MoodConfig,
@@ -392,7 +392,7 @@ class Config(ValidatedConfigBase):
     response_post_process: ResponsePostProcessConfig = Field(..., description="响应后处理配置")
     response_splitter: ResponseSplitterConfig = Field(..., description="响应分割配置")
     experimental: ExperimentalConfig = Field(default_factory=lambda: ExperimentalConfig(), description="实验性功能配置")
-    maim_message: MaimMessageConfig = Field(..., description="Maim消息配置")
+    message_bus: MessageBusConfig = Field(..., description="消息总线配置")
     lpmm_knowledge: LPMMKnowledgeConfig = Field(..., description="LPMM知识配置")
     tool: ToolConfig = Field(..., description="工具配置")
     debug: DebugConfig = Field(..., description="调试配置")

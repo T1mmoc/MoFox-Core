@@ -15,7 +15,6 @@ filetype
 slowapi
 rjieba
 jsonlines
-maim_message
 quick_algo
 matplotlib
 networkx

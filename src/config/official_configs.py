@@ -574,8 +574,18 @@ class ExperimentalConfig(ValidatedConfigBase):
     pfc_chatting: bool = Field(default=False, description="启用PFC聊天")
 
 
-class MaimMessageConfig(ValidatedConfigBase):
-    """maim_message配置类"""
+class MessageBusConfig(ValidatedConfigBase):
+    """mofox_bus 消息服务配置"""
+
+    use_custom: bool = Field(default=False, description="是否使用自定义地址")
+    host: str = Field(default="127.0.0.1", description="消息服务主机")
+    port: int = Field(default=8090, description="消息服务端口")
+    mode: Literal["ws", "tcp"] = Field(default="ws", description="传输模式")
+    use_wss: bool = Field(default=False, description="是否启用 WSS")
+    cert_file: str = Field(default="", description="证书文件路径")
+    key_file: str = Field(default="", description="密钥文件路径")
+    auth_token: list[str] = Field(default_factory=lambda: [], description="认证 token 列表")
+
 
     use_custom: bool = Field(default=False, description="启用自定义")
     host: str = Field(default="127.0.0.1", description="主机")

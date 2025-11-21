@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 import rjieba
-from maim_message import UserInfo
+from mofox_bus import UserInfo
 
 from src.chat.message_receive.chat_stream import get_chat_manager
 

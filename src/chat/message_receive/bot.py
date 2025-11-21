@@ -3,7 +3,7 @@ import re
 import traceback
 from typing import Any
 
-from maim_message import UserInfo
+from mofox_bus import UserInfo
 
 from src.chat.message_manager import message_manager
 from src.chat.message_receive.chat_stream import ChatStream, get_chat_manager
@@ -353,7 +353,7 @@ class ChatBot:
                     return
 
             # 先提取基础信息检查是否是自身消息上报
-            from maim_message import BaseMessageInfo
+            from mofox_bus import BaseMessageInfo
             temp_message_info = BaseMessageInfo.from_dict(message_data.get("message_info", {}))
             if temp_message_info.additional_config:
                 sent_message = temp_message_info.additional_config.get("echo", False)

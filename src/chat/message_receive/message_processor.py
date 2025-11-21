@@ -7,7 +7,7 @@ import time
 from typing import Any
 
 import orjson
-from maim_message import BaseMessageInfo, Seg
+from mofox_bus import BaseMessageInfo, Seg
 
 from src.chat.utils.self_voice_cache import consume_self_voice_text
 from src.chat.utils.utils_image import get_image_manager
@@ -430,9 +430,9 @@ def get_message_info_from_db_message(db_message: DatabaseMessages) -> BaseMessag
     Returns:
         BaseMessageInfo: 重建的消息信息对象
     """
-    from maim_message import GroupInfo, UserInfo
+    from mofox_bus import GroupInfo, UserInfo
 
-    # 从 DatabaseMessages 的 user_info 转换为 maim_message.UserInfo
+    # 从 DatabaseMessages 的 user_info 转换为 mofox_bus.UserInfo
     user_info = UserInfo(
         platform=db_message.user_info.platform,
         user_id=db_message.user_info.user_id,
@@ -440,7 +440,7 @@ def get_message_info_from_db_message(db_message: DatabaseMessages) -> BaseMessag
         user_cardname=db_message.user_info.user_cardname or ""
     )
 
-    # 从 DatabaseMessages 的 group_info 转换为 maim_message.GroupInfo（如果存在）
+    # 从 DatabaseMessages 的 group_info 转换为 mofox_bus.GroupInfo（如果存在）
     group_info = None
     if db_message.group_info:
         group_info = GroupInfo(

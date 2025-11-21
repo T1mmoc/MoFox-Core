@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import websockets as Server
-from maim_message import (
+from mofox_bus import (
     BaseMessageInfo,
     FormatInfo,
     GroupInfo,

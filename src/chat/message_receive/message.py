@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import urllib3
-from maim_message import BaseMessageInfo, MessageBase, Seg, UserInfo
+from mofox_bus import BaseMessageInfo, MessageBase, Seg, UserInfo
 from rich.traceback import install
 
 from src.chat.message_receive.chat_stream import ChatStream

@@ -4,7 +4,7 @@ import time
 from typing import ClassVar, Optional, Tuple
 
 import websockets as Server
-from maim_message import BaseMessageInfo, FormatInfo, GroupInfo, MessageBase, Seg, UserInfo
+from mofox_bus import BaseMessageInfo, FormatInfo, GroupInfo, MessageBase, Seg, UserInfo
 
 from src.common.logger import get_logger
 from src.plugin_system.apis import config_api

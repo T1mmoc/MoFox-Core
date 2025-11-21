@@ -10,7 +10,7 @@ from functools import partial
 from random import choices
 from typing import Any
 
-from maim_message import MessageServer
+from mofox_bus import MessageServer
 from rich.traceback import install
 
 from src.chat.emoji_system.emoji_manager import get_emoji_manager

@@ -34,7 +34,7 @@ class InjectionRule:
             raise ValueError(f"'{self.injection_type.value}'类型的注入规则必须提供 'target_content'。")
 
 
-from maim_message import Seg
+from mofox_bus import Seg
 
 from src.llm_models.payload_content.tool_option import ToolCall as ToolCall
 from src.llm_models.payload_content.tool_option import ToolParamType as ToolParamType

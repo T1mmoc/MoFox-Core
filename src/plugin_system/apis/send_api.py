@@ -91,7 +91,7 @@ import time
 import traceback
 from typing import TYPE_CHECKING, Any
 
-from maim_message import Seg, UserInfo
+from mofox_bus import Seg, UserInfo
 
 if TYPE_CHECKING:
     from src.common.data_models.database_data_model import DatabaseMessages

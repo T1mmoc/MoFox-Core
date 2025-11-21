@@ -534,7 +534,7 @@ DEFAULT_MODULE_COLORS = {
     # 数据库和消息
     "database_model": "#875F00",  # 橙褐色
     "database": "#00FF00",  # 橙褐色
-    "maim_message": "#AF87D7",  # 紫褐色
+    "mofox_bus": "#AF87D7",  # 紫褐色
     # 日志系统
     "logger": "#808080",  # 深灰色
     "confirm": "#FFFF00",  # 黄色+粗体

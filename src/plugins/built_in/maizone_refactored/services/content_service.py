@@ -10,7 +10,7 @@ from collections.abc import Callable
 
 import aiohttp
 import filetype
-from maim_message import UserInfo
+from mofox_bus import UserInfo
 
 from src.chat.message_receive.chat_stream import get_chat_manager
 from src.common.logger import get_logger
