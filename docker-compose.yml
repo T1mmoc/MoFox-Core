@@ -2,9 +2,9 @@ services:
   core:
     container_name: MoFox-Bot
     #### prod ####
-    image: hunuon/mofox:latest
+    image: ericterminal/mofox:latest
     #### dev ####
-    # image: hunuon/mofox:dev
+    # image: ericterminal/mofox:dev
     environment:
       - TZ=Asia/Shanghai
     volumes:
