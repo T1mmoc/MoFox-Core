@@ -174,13 +174,11 @@ class PluginManager:
         if plugin_name not in self.loaded_plugins:
             logger.warning(f"插件 {plugin_name} 未加载")
             return False
-        plugin_instance = self.loaded_plugins[plugin_name]
-        plugin_info = plugin_instance.plugin_info
-        success = True
-        for component in plugin_info.components:
-            success &= await component_registry.remove_component(component.name, component.component_type, plugin_name)
-        success &= component_registry.remove_plugin_registry(plugin_name)
-        del self.loaded_plugins[plugin_name]
+        # 调用 component_registry 中统一的卸载方法
+        success = await component_registry.unregister_plugin(plugin_name)
+        if success:
+            # 从已加载插件中移除
+            del self.loaded_plugins[plugin_name]
         return success
 
     async def reload_registered_plugin(self, plugin_name: str) -> bool:
