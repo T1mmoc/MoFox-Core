@@ -111,6 +111,13 @@ class ComponentRegistry:
         self._local_component_states: dict[str, dict[tuple[str, ComponentType], bool]] = {}
         """stream_id -> {(component_name, component_type): enabled_status}"""
         logger.info("组件注册中心初始化完成")
+        self._no_local_state_types: set[ComponentType] = {
+            ComponentType.ROUTER,
+            ComponentType.EVENT_HANDLER,
+            ComponentType.ROUTER,
+            ComponentType.PROMPT,
+            # 根据设计，COMMAND 和 PLUS_COMMAND 也不应支持局部状态
+        }
 
     # == 注册方法 ==
 
@@ -888,14 +895,11 @@ class ComponentRegistry:
         info = self.get_component_info(handler_name, ComponentType.EVENT_HANDLER)
         return info if isinstance(info, EventHandlerInfo) else None
 
-    def get_enabled_event_handlers(self, stream_id: str | None = None) -> dict[str, type[BaseEventHandler]]:
-        """获取启用的事件处理器, 可选地根据 stream_id 考虑局部状态"""
-        all_handlers = self.get_event_handler_registry()
-        available_handlers = {}
-        for name, handler_class in all_handlers.items():
-            if self.is_component_available(name, ComponentType.EVENT_HANDLER, stream_id):
-                available_handlers[name] = handler_class
-        return available_handlers
+    def get_enabled_event_handlers(self) -> dict[str, type[BaseEventHandler]]:
+        """获取启用的事件处理器"""
+        if not hasattr(self, "_enabled_event_handlers"):
+            self._enabled_event_handlers: dict[str, type["BaseEventHandler"]] = {}
+        return self._enabled_event_handlers.copy()
 
     # === Chatter 特定查询方法 ===
     def get_chatter_registry(self) -> dict[str, type[BaseChatter]]:
@@ -925,14 +929,11 @@ class ComponentRegistry:
             self._prompt_registry: dict[str, type[BasePrompt]] = {}
         return self._prompt_registry.copy()
 
-    def get_enabled_prompt_registry(self, stream_id: str | None = None) -> dict[str, type[BasePrompt]]:
-        """获取启用的Prompt注册表, 可选地根据 stream_id 考虑局部状态"""
-        all_prompts = self.get_prompt_registry()
-        available_prompts = {}
-        for name, prompt_class in all_prompts.items():
-            if self.is_component_available(name, ComponentType.PROMPT, stream_id):
-                available_prompts[name] = prompt_class
-        return available_prompts
+    def get_enabled_prompt_registry(self) -> dict[str, type[BasePrompt]]:
+        """获取启用的Prompt注册表"""
+        if not hasattr(self, "_enabled_prompt_registry"):
+            self._enabled_prompt_registry: dict[str, type[BasePrompt]] = {}
+        return self._enabled_prompt_registry.copy()
 
     def get_registered_prompt_info(self, prompt_name: str) -> PromptInfo | None:
         """获取Prompt信息"""
