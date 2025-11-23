@@ -109,7 +109,7 @@ class PluginManager:
 
             if not module or not hasattr(module, "__plugin_meta__"):
                 self.failed_plugins[plugin_name] = "插件模块中缺少 __plugin_meta__"
-                logger.error(f"❌ 插件加载失败: {plugin_name} - 缺少 __plugin_meta__")
+                logger.error(f" 插件加载失败: {plugin_name} - 缺少 __plugin_meta__")
                 return False, 1
 
             metadata: PluginMetadata = getattr(module, "__plugin_meta__")
@@ -154,14 +154,14 @@ class PluginManager:
                 return True, 1
             else:
                 self.failed_plugins[plugin_name] = "插件注册失败"
-                logger.error(f"❌ 插件注册失败: {plugin_name}")
+                logger.error(f" 插件注册失败: {plugin_name}")
                 return False, 1
 
         except Exception as e:
             # 其他错误
             error_msg = f"未知错误: {e!s}"
             self.failed_plugins[plugin_name] = error_msg
-            logger.error(f"❌ 插件加载失败: {plugin_name} - {error_msg}")
+            logger.error(f" 插件加载失败: {plugin_name} - {error_msg}")
             logger.debug("详细错误信息: ", exc_info=True)
             return False, 1
 
@@ -340,14 +340,14 @@ class PluginManager:
                             if not success:
                                 error_msg = f"Python依赖检查失败: {', '.join(errors)}"
                                 self.failed_plugins[plugin_name] = error_msg
-                                logger.error(f"❌ 插件加载失败: {plugin_name} - {error_msg}")
+                                logger.error(f" 插件加载失败: {plugin_name} - {error_msg}")
                                 return None  # 依赖检查失败，不加载该模块
 
                         # 2. 检查插件依赖
                         if not self._check_plugin_dependencies(metadata):
                             error_msg = f"插件依赖检查失败: 请确保依赖 {metadata.dependencies} 已正确安装并加载。"
                             self.failed_plugins[plugin_name] = error_msg
-                            logger.error(f"❌ 插件加载失败: {plugin_name} - {error_msg}")
+                            logger.error(f" 插件加载失败: {plugin_name} - {error_msg}")
                             return None  # 插件依赖检查失败
 
                     # --- 依赖检查逻辑结束 ---
@@ -408,7 +408,7 @@ class PluginManager:
 
         # 📋 显示插件加载总览
         if total_registered > 0:
-            logger.info("🎉 插件系统加载完成!")
+            logger.info(" 插件系统加载完成!")
             logger.info(
                 f"📊 总览: {total_registered}个插件, {total_components}个组件 (Action: {action_count}, Command: {command_count}, Tool: {tool_count}, PlusCommand: {plus_command_count}, EventHandler: {event_handler_count}, Chatter: {chatter_count}, Prompt: {prompt_count}, Router: {router_count})"
             )
@@ -616,7 +616,7 @@ class PluginManager:
             return True
 
         except Exception as e:
-            logger.error(f"❌ 插件卸载失败: {plugin_name} - {e!s}", exc_info=True)
+            logger.error(f" 插件卸载失败: {plugin_name} - {e!s}", exc_info=True)
             return False
 
 

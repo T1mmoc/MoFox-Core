@@ -146,9 +146,9 @@ class MCPClientManager:
                 try:
                     client = await self._create_client(server_config)
                     self.clients[server_name] = client
-                    logger.info(f"✅ MCP 服务器 '{server_name}' 连接成功")
+                    logger.info(f" MCP 服务器 '{server_name}' 连接成功")
                 except Exception as e:
-                    logger.error(f"❌ 连接 MCP 服务器 '{server_name}' 失败: {e}")
+                    logger.error(f" 连接 MCP 服务器 '{server_name}' 失败: {e}")
                     continue
 
             self._initialized = True

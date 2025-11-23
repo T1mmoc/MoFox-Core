@@ -245,7 +245,7 @@ class StreamToolHistoryManager:
 
         lines = ["## 🔧 最近工具调用记录"]
         for i, record in enumerate(recent_records, 1):
-            status_icon = "✅" if record.status == "success" else "❌" if record.status == "error" else "⏳"
+            status_icon = "success" if record.status == "success" else "error" if record.status == "error" else "pending"
 
             # 格式化参数
             args_preview = self._format_args_preview(record.args)

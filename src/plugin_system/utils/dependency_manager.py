@@ -110,19 +110,19 @@ class DependencyManager:
         for package in packages:
             try:
                 if self._install_single_package(package, plugin_name):
-                    logger.info(f"{log_prefix}✅ 成功安装: {package}")
+                    logger.info(f"{log_prefix} 成功安装: {package}")
                 else:
                     failed_packages.append(package)
-                    logger.error(f"{log_prefix}❌ 安装失败: {package}")
+                    logger.error(f"{log_prefix} 安装失败: {package}")
             except Exception as e:
                 failed_packages.append(package)
-                logger.error(f"{log_prefix}❌ 安装 {package} 时发生异常: {e!s}")
+                logger.error(f"{log_prefix} 安装 {package} 时发生异常: {e!s}")
 
         success = len(failed_packages) == 0
         if success:
-            logger.info(f"{log_prefix}🎉 所有依赖安装完成")
+            logger.info(f"{log_prefix} 所有依赖安装完成")
         else:
-            logger.error(f"{log_prefix}⚠️ 部分依赖安装失败: {failed_packages}")
+            logger.error(f"{log_prefix} 部分依赖安装失败: {failed_packages}")
 
         return success, failed_packages
 

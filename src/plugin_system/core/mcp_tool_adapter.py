@@ -47,7 +47,7 @@ class MCPToolAdapter(BaseTool):
         self.available_for_llm = True  # MCP 工具默认可供 LLM 使用
 
         # 转换参数定义
-        self.parameters = self._convert_parameters(mcp_tool.inputSchema)
+        self.parameters: list[tuple[str, ToolParamType, str, bool, list[str] | None]] = self._convert_parameters(mcp_tool.inputSchema)
 
         logger.debug(f"创建 MCP 工具适配器: {self.name}")
 
@@ -238,9 +238,9 @@ async def load_mcp_tools_as_adapters() -> list[MCPToolAdapter]:
             try:
                 adapter = MCPToolAdapter.from_mcp_tool(server_name, mcp_tool)
                 adapters.append(adapter)
-                logger.debug(f"  ✓ 加载工具: {adapter.name}")
+                logger.debug(f" 加载工具: {adapter.name}")
             except Exception as e:
-                logger.error(f"  ✗ 创建工具适配器失败: {mcp_tool.name} | 错误: {e}")
+                logger.error(f" 创建工具适配器失败: {mcp_tool.name} | 错误: {e}")
                 continue
 
     logger.info(f"MCP 工具加载完成: 成功 {len(adapters)}/{total_tools} 个")

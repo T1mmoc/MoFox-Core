@@ -42,7 +42,7 @@ class APIKeyManager(Generic[T]):
                 try:
                     self.clients = [client_factory(key) for key in valid_keys]
                     self.client_cycle = itertools.cycle(self.clients)
-                    logger.info(f"🔑 {service_name} 成功加载 {len(valid_keys)} 个 API 密钥")
+                    logger.info(f" {service_name} 成功加载 {len(valid_keys)} 个 API 密钥")
                 except Exception as e:
                     logger.error(f"❌ 初始化 {service_name} 客户端失败: {e}")
                     self.clients = []
@@ -61,6 +61,7 @@ class APIKeyManager(Generic[T]):
         if not self.is_available():
 
             return None
+        assert self.client_cycle is not None
         return next(self.client_cycle)
 
     def get_client_count(self) -> int:
