@@ -28,7 +28,7 @@ class TTSVoicePlugin(BasePlugin):
     plugin_description = "基于GPT-SoVITS的文本转语音插件（重构版）"
     plugin_version = "3.1.2"
     plugin_author = "Kilo Code & 靚仔"
-    enable_plugin = False
+    enable_plugin = True
     config_file_name = "config.toml"
     dependencies: ClassVar[list[str]] = []
 

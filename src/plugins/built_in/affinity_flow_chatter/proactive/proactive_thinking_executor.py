@@ -25,18 +25,143 @@ logger = get_logger("proactive_thinking_executor")
 # == Prompt Templates
 # ==================================================================================================
 
-# 决策 Prompt
-decision_prompt_template = Prompt(
+# --- 群聊场景 ---
+decision_prompt_template_group = Prompt(
     """{time_block}
 你的人设是：
 {bot_personality}
 
-你正在考虑是否要在与 "{stream_name}" 的对话中主动说些什么。
+你正在考虑是否要在 **群聊 "{stream_name}"** 中主动说些什么。
 
 【你当前的心情】
 {current_mood}
 
-【聊天环境信息】
+【群聊环境信息】
+- 整体印象: {stream_impression}
+- 聊天风格: {chat_style}
+- 常见话题: {topic_keywords}
+- 你的兴趣程度: {interest_score:.2f}/1.0
+{last_decision_text}
+
+【最近的聊天记录】
+{recent_chat_history}
+
+请根据以上信息，决定你现在应该做什么：
+
+**选项1：什么都不做 (do_nothing)**
+- 适用场景：群里气氛不适合你说话、最近对话很活跃、没什么特别想说的、或者此时说话会显得突兀。
+- 心情影响：如果心情不好（如生气、难过），可能更倾向于保持沉默。
+
+**选项2：简单冒个泡 (simple_bubble)**
+- 适用场景：群里有些冷清，你想缓和气氛或开启新的互动。
+- 方式：说一句轻松随意的话，旨在建立或维持连接。
+- 心情影响：心情会影响你冒泡的方式和内容。
+
+**选项3：发起一次有目的的互动 (throw_topic)**
+- 适用场景：你想延续对话、表达关心、或深入讨论某个具体话题。
+- **【互动类型1：延续约定或提醒】(最高优先级)**：检查最近的聊天记录，是否存在可以延续的互动。例如，如果昨晚的最后一条消息是“晚安”，现在是早上，一个“早安”的回应是绝佳的选择。如果之前提到过某个约定（如“待会聊”），现在可以主动跟进。
+- **【互动类型2：展现真诚的关心】(次高优先级)**：如果不存在可延续的约定，请仔细阅读聊天记录，寻找**群友**提及的个人状况（如天气、出行、身体、情绪、工作学习等），并主动表达关心。
+- **【互动类型3：开启新话题】**：当以上两点都不适用时，可以考虑开启一个你感兴趣的新话题。
+- 心情影响：心情会影响你想发起互动的方式和内容。
+
+请以JSON格式回复你的决策：
+{{
+    "action": "do_nothing" | "simple_bubble" | "throw_topic",
+    "reasoning": "你的决策理由（请结合你的心情、群聊环境和对话历史进行分析）",
+    "topic": "(仅当action=throw_topic时填写)你的互动意图（如：回应晚安并说早安、关心大家的考试情况、讨论新游戏）"
+}}
+
+注意：
+1. 兴趣度较低(<0.4)时或者最近聊天很活跃（不到1小时），倾向于 `do_nothing` 或 `simple_bubble`。
+2. 你的心情会影响你的行动倾向和表达方式。
+3. 参考上次决策，避免重复，并可根据上次的互动效果调整策略。
+4. 只有在真的有感而发时才选择 `throw_topic`。
+5. 保持你的人设，确保行为一致性。
+""",
+    name="proactive_thinking_decision_group",
+)
+
+simple_bubble_reply_prompt_template_group = Prompt(
+    """{time_block}
+你的人设是：
+{bot_personality}
+
+距离上次对话已经有一段时间了，你决定在群里主动说些什么，轻松地开启新的互动。
+
+【你当前的心情】
+{current_mood}
+
+【群聊环境】
+- 整体印象: {stream_impression}
+- 聊天风格: {chat_style}
+
+【最近的聊天记录】
+{recent_chat_history}
+{expression_habits}
+请生成一条简短的消息，用于**在群聊中冒泡**。
+【要求】
+1. 风格简短随意（5-20字）
+2. 不要提出明确的话题或问题，可以是问候、表达心情或一句随口的话。
+3. 符合你的人设和当前聊天风格。
+4. **你的心情应该影响消息的内容和语气**。
+5. 如果有表达方式参考，在合适时自然使用。
+6. 合理参考历史记录。
+直接输出消息内容，不要解释：""",
+    name="proactive_thinking_simple_bubble_group",
+)
+
+throw_topic_reply_prompt_template_group = Prompt(
+    """{time_block}
+你的人设是：
+{bot_personality}
+
+你决定在 **群聊 "{stream_name}"** 中主动发起一次互动。
+
+【你当前的心情】
+{current_mood}
+
+【群聊环境】
+- 整体印象: {stream_impression}
+- 聊天风格: {chat_style}
+- 常见话题: {topic_keywords}
+
+【最近的聊天记录】
+{recent_chat_history}
+
+【你的互动意图】
+{topic}
+{expression_habits}
+【构思指南】
+请根据你的互动意图，并参考最近的聊天记录，生成一条有温度的、**适合在群聊中说**的消息。
+- 如果意图是**延续约定**（如回应“晚安”），请直接生成对应的问候。
+- 如果意图是**表达关心**（如跟进群友提到的事），请生成自然、真诚的关心话语。
+- 如果意图是**开启新话题**，请**确保新话题与最近的聊天内容有关联**，自然地引入话题，避免过于跳脱。
+
+请根据这个意图，生成一条消息，要求：
+1. 要与最近的聊天记录相关，自然地引入话题或表达关心。
+2. 长度适中（20-40字）。
+3. 结合最近的聊天记录确保对话连贯，不要显得突兀。
+4. 符合你的人设和当前聊天风格。
+5. **你的心情会影响你的表达方式**。
+6. 如果有表达方式参考，在合适时自然使用。
+
+直接输出消息内容，不要解释：""",
+    name="proactive_thinking_throw_topic_group",
+)
+
+
+# --- 私聊场景 ---
+decision_prompt_template_private = Prompt(
+    """{time_block}
+你的人设是：
+{bot_personality}
+
+你正在考虑是否要主动与 **"{stream_name}"** 说些什么。
+
+【你当前的心情】
+{current_mood}
+
+【与对方的聊天信息】
 - 整体印象: {stream_impression}
 - 聊天风格: {chat_style}
 - 常见话题: {topic_keywords}
@@ -52,22 +177,22 @@ decision_prompt_template = Prompt(
 - 适用场景：气氛不适合说话、最近对话很活跃、没什么特别想说的、或者此时说话会显得突兀。
 - 心情影响：如果心情不好（如生气、难过），可能更倾向于保持沉默。
 
-**选项2：简单冒个泡 (simple_bubble)**
-- 适用场景：对话有些冷清，你想缓和气氛或开启新的互动。
+**选项2：简单问候一下 (simple_bubble)**
+- 适用场景：对话有些冷清，你想开启新的互动。
 - 方式：说一句轻松随意的话，旨在建立或维持连接。
-- 心情影响：心情会影响你冒泡的方式和内容。
+- 心情影响：心情会影响你问候的方式和内容。
 
 **选项3：发起一次有目的的互动 (throw_topic)**
 - 适用场景：你想延续对话、表达关心、或深入讨论某个具体话题。
 - **【互动类型1：延续约定或提醒】(最高优先级)**：检查最近的聊天记录，是否存在可以延续的互动。例如，如果昨晚的最后一条消息是“晚安”，现在是早上，一个“早安”的回应是绝佳的选择。如果之前提到过某个约定（如“待会聊”），现在可以主动跟进。
-- **【互动类型2：展现真诚的关心】(次高优先级)**：如果不存在可延续的约定，请仔细阅读聊天记录，寻找对方提及的个人状况（如天气、出行、身体、情绪、工作学习等），并主动表达关心。
+- **【互动类型2：展现真诚的关心】(次高优先级)**：如果不存在可延续的约定，请仔细阅读聊天记录，寻找**对方**提及的个人状况（如天气、出行、身体、情绪、工作学习等），并主动表达关心。
 - **【互动类型3：开启新话题】**：当以上两点都不适用时，可以考虑开启一个你感兴趣的新话题。
 - 心情影响：心情会影响你想发起互动的方式和内容。
 
 请以JSON格式回复你的决策：
 {{
     "action": "do_nothing" | "simple_bubble" | "throw_topic",
-    "reasoning": "你的决策理由（请结合你的心情、聊天环境和对话历史进行分析）",
+    "reasoning": "你的决策理由（请结合你的心情、与对方的聊天情况和对话历史进行分析）",
     "topic": "(仅当action=throw_topic时填写)你的互动意图（如：回应晚安并说早安、关心对方的考试情况、讨论新游戏）"
 }}
 
@@ -78,28 +203,27 @@ decision_prompt_template = Prompt(
 4. 只有在真的有感而发时才选择 `throw_topic`。
 5. 保持你的人设，确保行为一致性。
 """,
-    name="proactive_thinking_decision",
+    name="proactive_thinking_decision_private",
 )
 
-# 冒泡回复 Prompt
-simple_bubble_reply_prompt_template = Prompt(
+simple_bubble_reply_prompt_template_private = Prompt(
     """{time_block}
 你的人设是：
 {bot_personality}
 
-距离上次对话已经有一段时间了，你决定主动说些什么，轻松地开启新的互动。
+距离上次和 **"{stream_name}"** 对话已经有一段时间了，你决定主动说些什么，轻松地开启新的互动。
 
 【你当前的心情】
 {current_mood}
 
-【聊天环境】
+【与对方的聊天环境】
 - 整体印象: {stream_impression}
 - 聊天风格: {chat_style}
 
 【最近的聊天记录】
 {recent_chat_history}
 {expression_habits}
-请生成一条简短的消息，用于水群。
+请生成一条简短的消息，用于**私聊中轻松地打个招呼**。
 【要求】
 1. 风格简短随意（5-20字）
 2. 不要提出明确的话题或问题，可以是问候、表达心情或一句随口的话。
@@ -108,21 +232,20 @@ simple_bubble_reply_prompt_template = Prompt(
 5. 如果有表达方式参考，在合适时自然使用。
 6. 合理参考历史记录。
 直接输出消息内容，不要解释：""",
-    name="proactive_thinking_simple_bubble",
+    name="proactive_thinking_simple_bubble_private",
 )
 
-# 抛出话题回复 Prompt
-throw_topic_reply_prompt_template = Prompt(
+throw_topic_reply_prompt_template_private = Prompt(
     """{time_block}
 你的人设是：
 {bot_personality}
 
-你决定在与 "{stream_name}" 的对话中主动发起一次互动。
+你决定在与 **"{stream_name}"** 的私聊中主动发起一次互动。
 
 【你当前的心情】
 {current_mood}
 
-【聊天环境】
+【与对方的聊天环境】
 - 整体印象: {stream_impression}
 - 聊天风格: {chat_style}
 - 常见话题: {topic_keywords}
@@ -134,9 +257,9 @@ throw_topic_reply_prompt_template = Prompt(
 {topic}
 {expression_habits}
 【构思指南】
-请根据你的互动意图，并参考最近的聊天记录，生成一条有温度的消息。
+请根据你的互动意图，并参考最近的聊天记录，生成一条有温度的、**适合在私聊中说**的消息。
 - 如果意图是**延续约定**（如回应“晚安”），请直接生成对应的问候。
-- 如果意图是**表达关心**（如跟进对方提到的事），请生成自然、真诚的关心话语。
+- 如果意ت意图是**表达关心**（如跟进对方提到的事），请生成自然、真诚的关心话语。
 - 如果意图是**开启新话题**，请**确保新话题与最近的聊天内容有关联**，自然地引入话题，避免过于跳脱。
 
 请根据这个意图，生成一条消息，要求：
@@ -148,7 +271,7 @@ throw_topic_reply_prompt_template = Prompt(
 6. 如果有表达方式参考，在合适时自然使用。
 
 直接输出消息内容，不要解释：""",
-    name="proactive_thinking_throw_topic",
+    name="proactive_thinking_throw_topic_private",
 )
 
 
@@ -194,7 +317,7 @@ class ProactiveThinkingPlanner:
             # 2. 获取最近的聊天记录
             recent_messages = await message_api.get_recent_messages(
                 chat_id=stream_id,
-                limit=40,
+                limit=global_config.chat.max_context_size,
                 limit_mode="latest",
                 hours=24
             )
@@ -237,9 +360,13 @@ class ProactiveThinkingPlanner:
                 logger.warning(f"获取上次决策失败: {e}")
 
             # 6. 构建上下文
+            # 7. 判断聊天类型
+            chat_type = "group" if "group" in stream_id else "private"
+
             context = {
                 "stream_id": stream_id,
                 "stream_name": stream_data.get("stream_name", "未知"),
+                "chat_type": chat_type,
                 "stream_impression": stream_data.get("stream_impression_text", "暂无印象"),
                 "chat_style": stream_data.get("stream_chat_style", "未知"),
                 "topic_keywords": stream_data.get("stream_topic_keywords", ""),
@@ -318,6 +445,13 @@ class ProactiveThinkingPlanner:
                 if last_topic:
                     last_decision_text += f"\n- 话题: {last_topic}"
 
+            # 根据聊天类型选择不同的决策Prompt
+            chat_type = context.get("chat_type", "group")
+            if chat_type == "private":
+                decision_prompt_template = decision_prompt_template_private
+            else:
+                decision_prompt_template = decision_prompt_template_group
+
             decision_prompt = decision_prompt_template.format(
                 time_block=context["time_block"],
                 bot_personality=context["bot_personality"],
@@ -378,10 +512,20 @@ class ProactiveThinkingPlanner:
                 stream_id=context.get("stream_id", ""), chat_history=context.get("recent_chat_history", "")
             )
 
+            # 根据聊天类型选择不同的回复Prompt
+            chat_type = context.get("chat_type", "group")
+            if chat_type == "private":
+                simple_template = simple_bubble_reply_prompt_template_private
+                throw_template = throw_topic_reply_prompt_template_private
+            else:
+                simple_template = simple_bubble_reply_prompt_template_group
+                throw_template = throw_topic_reply_prompt_template_group
+
             if action == "simple_bubble":
-                reply_prompt = simple_bubble_reply_prompt_template.format(
+                reply_prompt = simple_template.format(
                     time_block=context["time_block"],
                     bot_personality=context["bot_personality"],
+                    stream_name=context["stream_name"],
                     current_mood=context.get("current_mood", "感觉很平静"),
                     stream_impression=context["stream_impression"],
                     chat_style=context["chat_style"],
@@ -389,7 +533,7 @@ class ProactiveThinkingPlanner:
                     expression_habits=expression_habits,
                 )
             else:  # throw_topic
-                reply_prompt = throw_topic_reply_prompt_template.format(
+                reply_prompt = throw_template.format(
                     time_block=context["time_block"],
                     bot_personality=context["bot_personality"],
                     stream_name=context["stream_name"],
@@ -565,8 +709,11 @@ async def execute_proactive_thinking(stream_id: str):
                 chat_stream = await chat_manager.get_stream(stream_id)
 
                 if chat_stream and chat_stream.context_manager.context.is_chatter_processing:
-                    logger.warning(f"⚠️ 主动思考跳过：聊天流 {stream_id} 的 chatter 正在处理消息")
-                    return
+                    logger.warning(f"⚠️ 主动思考等待：聊天流 {stream_id} 的 chatter 正在处理消息，等待3秒后重试...")
+                    await asyncio.sleep(3)
+                    if chat_stream.context_manager.context.is_chatter_processing:
+                        logger.warning(f"⚠️ 主动思考跳过：聊天流 {stream_id} 的 chatter 仍在处理消息")
+                        return
             except Exception as e:
                 logger.warning(f"检查 chatter 处理状态时出错: {e}，继续执行")
 
