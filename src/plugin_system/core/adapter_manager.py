@@ -61,24 +61,24 @@ def _adapter_process_entry(
 
 
 class AdapterProcess:
-    """适配器子进程包装器，负责适配器子进程的启动和生命周期管理"""
+    """适配器子进程封装：管理子进程的生命周期与通信桥接"""
 
-    def __init__(self, adapter: "BaseAdapter", core_sink) -> None:
-        self.adapter = adapter
-        self.adapter_name = adapter.adapter_name
+    def __init__(self, adapter_cls: "type[BaseAdapter]", plugin, core_sink) -> None:
+        self.adapter_cls = adapter_cls
+        self.adapter_name = adapter_cls.adapter_name
+        self.plugin = plugin
         self.process: mp.Process | None = None
         self._ctx = mp.get_context("spawn")
         self._incoming_queue: mp.Queue = self._ctx.Queue()
         self._outgoing_queue: mp.Queue = self._ctx.Queue()
         self._bridge: ProcessCoreSinkServer | None = None
         self._core_sink = core_sink
-        self._adapter_path: tuple[str, str] = (adapter.__class__.__module__, adapter.__class__.__name__)
-        self._plugin_info = self._extract_plugin_info(adapter)
+        self._adapter_path: tuple[str, str] = (adapter_cls.__module__, adapter_cls.__name__)
+        self._plugin_info = self._extract_plugin_info(plugin)
         self._outgoing_handler = None
 
     @staticmethod
-    def _extract_plugin_info(adapter: "BaseAdapter") -> dict | None:
-        plugin = getattr(adapter, "plugin", None)
+    def _extract_plugin_info(plugin) -> dict | None:
         if plugin is None:
             return None
         return {
@@ -158,57 +158,50 @@ class AdapterManager:
     """适配器管理器"""
 
     def __init__(self):
-        self._adapters: Dict[str, BaseAdapter] = {}
+        # 注册信息：name -> (adapter class, plugin instance | None)
+        self._adapter_defs: Dict[str, tuple[type[BaseAdapter], object | None]] = {}
         self._adapter_processes: Dict[str, AdapterProcess] = {}
         self._in_process_adapters: Dict[str, BaseAdapter] = {}
 
-    def register_adapter(self, adapter: BaseAdapter) -> None:
+    def register_adapter(self, adapter_cls: type[BaseAdapter], plugin=None) -> None:
         """
         注册适配器
-        
+
         Args:
-            adapter: 要注册的适配器实例
+            adapter_cls: 适配器类
+            plugin: 可选 Plugin 实例
         """
-        adapter_name = adapter.adapter_name
+        adapter_name = getattr(adapter_cls, 'adapter_name', adapter_cls.__name__)
 
-        if adapter_name in self._adapters:
-            logger.warning(f"适配器 {adapter_name} 已经注册，将被覆盖")
+        if adapter_name in self._adapter_defs:
+            logger.warning(f"适配器 {adapter_name} 已注册，已覆盖")
 
-        self._adapters[adapter_name] = adapter
-        logger.info(f"已注册适配器: {adapter_name} v{adapter.adapter_version}")
+        self._adapter_defs[adapter_name] = (adapter_cls, plugin)
+        adapter_version = getattr(adapter_cls, 'adapter_version', 'unknown')
+        logger.info(f"注册适配器: {adapter_name} v{adapter_version}")
 
     async def start_adapter(self, adapter_name: str) -> bool:
-        """
-        启动指定的适配器
-        
-        Args:
-            adapter_name: 适配器名称
-            
-        Returns:
-            bool: 是否成功启动
-        """
-        adapter = self._adapters.get(adapter_name)
-        if not adapter:
+        """启动指定适配器"""
+        definition = self._adapter_defs.get(adapter_name)
+        if not definition:
             logger.error(f"适配器 {adapter_name} 未注册")
             return False
+        adapter_cls, plugin = definition
+        run_in_subprocess = getattr(adapter_cls, "run_in_subprocess", False)
 
-        # 检查是否需要在子进程中运行
-        if adapter.run_in_subprocess:
-            return await self._start_adapter_subprocess(adapter)
-        else:
-            return await self._start_adapter_in_process(adapter)
+        if run_in_subprocess:
+            return await self._start_adapter_subprocess(adapter_name, adapter_cls, plugin)
+        return await self._start_adapter_in_process(adapter_name, adapter_cls, plugin)
 
-
-    async def _start_adapter_subprocess(self, adapter: BaseAdapter) -> bool:
-        """启动适配器子进程"""
-        adapter_name = adapter.adapter_name
+    async def _start_adapter_subprocess(self, adapter_name: str, adapter_cls: type[BaseAdapter], plugin) -> bool:
+        """在子进程中启动适配器"""
         try:
             core_sink = get_core_sink()
         except Exception as e:
-            logger.error(f"无法获取 core_sink，启动适配器子进程 {adapter_name} 失败: {e}", exc_info=True)
+            logger.error(f"无法获取 core_sink，启动子进程 {adapter_name} 失败: {e}", exc_info=True)
             return False
 
-        adapter_process = AdapterProcess(adapter, core_sink)
+        adapter_process = AdapterProcess(adapter_cls, plugin, core_sink)
         success = await adapter_process.start()
 
         if success:
@@ -216,17 +209,17 @@ class AdapterManager:
 
         return success
 
-    async def _start_adapter_in_process(self, adapter: BaseAdapter) -> bool:
-        """在主进程中启动适配器"""
-        adapter_name = adapter.adapter_name
-
+    async def _start_adapter_in_process(self, adapter_name: str, adapter_cls: type[BaseAdapter], plugin) -> bool:
+        """在当前进程中启动适配器"""
         try:
+            core_sink = get_core_sink()
+            adapter = adapter_cls(core_sink, plugin=plugin)  # type: ignore[call-arg]
             await adapter.start()
             self._in_process_adapters[adapter_name] = adapter
-            logger.info(f"适配器 {adapter_name} 已在主进程中启动")
+            logger.info(f"适配器 {adapter_name} 已在当前进程启动")
             return True
         except Exception as e:
-            logger.error(f"在主进程中启动适配器 {adapter_name} 失败: {e}", exc_info=True)
+            logger.error(f"启动适配器 {adapter_name} 失败: {e}", exc_info=True)
             return False
 
     async def stop_adapter(self, adapter_name: str) -> None:
@@ -251,10 +244,10 @@ class AdapterManager:
                 logger.error(f"停止适配器 {adapter_name} 时出错: {e}", exc_info=True)
 
     async def start_all_adapters(self) -> None:
-        """启动所有注册的适配器"""
-        logger.info(f"开始启动 {len(self._adapters)} 个适配器...")
+        """启动所有已注册的适配器"""
+        logger.info(f"开始启动 {len(self._adapter_defs)} 个适配器...")
 
-        for adapter_name in list(self._adapters.keys()):
+        for adapter_name in list(self._adapter_defs.keys()):
             await self.start_adapter(adapter_name)
 
     async def stop_all_adapters(self) -> None:
@@ -285,32 +278,26 @@ class AdapterManager:
         return self._in_process_adapters.get(adapter_name)
 
     def list_adapters(self) -> Dict[str, Dict[str, any]]:
-        """
-        列出所有适配器的状态
-        
-        Returns:
-            Dict: 适配器状态信息
-        """
+        """列出适配器状态"""
         result = {}
 
-        for adapter_name, adapter in self._adapters.items():
+        for adapter_name, definition in self._adapter_defs.items():
+            adapter_cls, _plugin = definition
             status = {
                 "name": adapter_name,
-                "version": adapter.adapter_version,
-                "platform": adapter.platform,
-                "run_in_subprocess": adapter.run_in_subprocess,
+                "version": getattr(adapter_cls, "adapter_version", "unknown"),
+                "platform": getattr(adapter_cls, "platform", "unknown"),
+                "run_in_subprocess": getattr(adapter_cls, "run_in_subprocess", False),
                 "running": False,
                 "location": "unknown",
             }
 
-            # 检查运行状态
             if adapter_name in self._adapter_processes:
                 process = self._adapter_processes[adapter_name]
                 status["running"] = process.is_running()
                 status["location"] = "subprocess"
                 if process.process:
                     status["pid"] = process.process.pid
-
             elif adapter_name in self._in_process_adapters:
                 status["running"] = True
                 status["location"] = "in-process"

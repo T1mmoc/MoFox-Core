@@ -224,18 +224,8 @@ class PluginManager:
                         continue
                     
                     # 创建适配器实例，传入 core_sink 和 plugin
-                    if self._core_sink is not None:
-                        adapter_instance = adapter_class(self._core_sink, plugin=plugin_instance)  # type: ignore
-                    else:
-                        logger.warning(
-                            f"适配器 '{comp_info.name}' 未获得 core_sink，"
-                            "请在主程序中调用 plugin_manager.set_core_sink()"
-                        )
-                        # 尝试无参数创建（某些适配器可能不需要 core_sink）
-                        adapter_instance = adapter_class(plugin=plugin_instance)  # type: ignore
-                    
-                    # 注册到适配器管理器
-                    adapter_manager.register_adapter(adapter_instance)  # type: ignore
+                    # 注册到适配器管理器，由管理器统一在运行时创建实例
+                    adapter_manager.register_adapter(adapter_class, plugin_instance)  # type: ignore
                     logger.info(
                         f"插件 '{plugin_name}' 注册了适配器组件: {comp_info.name} "
                         f"(平台: {comp_info.platform})"

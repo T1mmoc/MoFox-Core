@@ -11,7 +11,7 @@ from ..types import MessageEnvelope
 
 class HttpMessageClient:
     """
-    面向消息批量传输的 HTTP 客户端封装。
+    面向消息批量传输的 HTTP 客户端封装
     """
 
     def __init__(
@@ -39,14 +39,14 @@ class HttpMessageClient:
         session = await self._ensure_session()
         url = f"{self._base_url}{path}"
         payload = dumps_messages(messages)
-        self._logger.debug("Sending %d message(s) -> %s", len(messages), url)
+        self._logger.debug(f"正在发送 {len(messages)} 条消息 -> {url}")
         async with session.post(url, data=payload, timeout=self._timeout) as resp:
             resp.raise_for_status()
             if not expect_reply:
                 return None
             raw = await resp.read()
             replies = loads_messages(raw)
-            self._logger.debug("Received %d reply message(s)", len(replies))
+            self._logger.debug(f"接收到 {len(replies)} 条回复消息")
             return replies
 
     async def close(self) -> None:

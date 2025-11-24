@@ -9,9 +9,9 @@ from .types import GroupInfoPayload, MessageEnvelope, MessageInfoPayload, SegPay
 
 class MessageBuilder:
     """
-    Fluent helper to build MessageEnvelope safely with type hints.
+    流式构建 MessageEnvelope 的助手工具，提供类型安全的构建方法。
 
-    Example:
+    使用示例:
         msg = (
             MessageBuilder()
             .text("Hello")
@@ -85,9 +85,10 @@ class MessageBuilder:
         return self
 
     def build(self) -> MessageEnvelope:
-        # message_info defaults
+        """构建最终的消息信封"""
+        # 设置 message_info 默认值
         if not self._segments:
-            raise ValueError("message_segment is required, add at least one segment before build()")
+            raise ValueError("需要至少添加一个消息段才能构建消息")
         if self._message_id is None:
             self._message_id = str(uuid.uuid4())
         info = dict(self._message_info)

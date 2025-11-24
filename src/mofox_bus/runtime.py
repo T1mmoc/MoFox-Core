@@ -25,13 +25,14 @@ class MessageProcessingError(RuntimeError):
 
     def __init__(self, message: MessageEnvelope, original: BaseException):
         detail = message.get("id", "<unknown>")
-        super().__init__(f"Failed to handle message {detail}: {original}")
+        super().__init__(f"处理消息 {detail} 时出错: {original}")
         self.message_envelope = message
         self.original = original
 
 
 @dataclass
 class MessageRoute:
+    """消息路由配置，包含匹配条件和处理函数"""
     predicate: Predicate
     handler: MessageHandler
     name: str | None = None
@@ -41,7 +42,7 @@ class MessageRoute:
 
 class MessageRuntime:
     """
-    负责调度消息路由、执行前后 hook 以及批量处理。
+    消息运行时环境，负责调度消息路由、执行前后处理钩子以及批量处理消息
     """
 
     def __init__(self) -> None:
@@ -64,6 +65,16 @@ class MessageRuntime:
         message_type: str | None = None,
         event_types: Iterable[str] | None = None,
     ) -> None:
+        """
+        添加消息路由
+
+        Args:
+            predicate: 路由匹配条件
+            handler: 消息处理函数
+            name: 路由名称（可选）
+            message_type: 消息类型（可选）
+            event_types: 事件类型列表（可选）
+        """
         with self._lock:
             route = MessageRoute(
                 predicate=predicate,
@@ -245,14 +256,8 @@ class MessageRuntime:
         return wrapped
 
 
-async def _maybe_await(result):
-    if asyncio.iscoroutine(result) or isinstance(result, asyncio.Future):
-        return await result
-    return result
-
-
 async def _invoke_callable(func: Callable[..., object], *args, prefer_thread: bool = False):
-    """Support sync/async callables with optional thread offloading."""
+    """支持 sync/async 调用，并可选择在线程中执行。"""
     if inspect.iscoroutinefunction(func):
         return await func(*args)
     if prefer_thread:

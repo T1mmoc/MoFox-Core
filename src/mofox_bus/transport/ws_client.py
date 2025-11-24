@@ -14,7 +14,7 @@ IncomingHandler = Callable[[MessageEnvelope], Awaitable[None]]
 
 class WsMessageClient:
     """
-    管理 WebSocket 连接，提供 send/receive API，并在后台读取消息。
+    管理 WebSocket 连接，提供 send/receive API，并在后台读取消息
     """
 
     def __init__(
@@ -42,7 +42,7 @@ class WsMessageClient:
     async def _connect_once(self) -> None:
         assert self._session is not None
         self._ws = await self._session.ws_connect(self._url)
-        self._logger.info("Connected to %s", self._url)
+        self._logger.info(f"已连接到 {self._url}")
         self._receive_task = asyncio.create_task(self._receive_loop())
 
     async def send_messages(self, messages: Sequence[MessageEnvelope]) -> None:
@@ -76,7 +76,7 @@ class WsMessageClient:
                         if self._handler is not None:
                             await self._handler(env)
                 elif msg.type == aiohttp.WSMsgType.ERROR:
-                    self._logger.warning("WebSocket error: %s", msg.data)
+                    self._logger.warning(f"WebSocket 错误: {msg.data}")
                     break
         except asyncio.CancelledError:  # pragma: no cover - cancellation path
             return
@@ -85,7 +85,7 @@ class WsMessageClient:
                 await self._reconnect()
 
     async def _reconnect(self) -> None:
-        self._logger.info("WebSocket disconnected, retrying in %.1fs", self._reconnect_interval)
+        self._logger.info(f"WebSocket 断开, 正在 {self._reconnect_interval:.1f} 秒后重试")
         await asyncio.sleep(self._reconnect_interval)
         await self._connect_once()
 

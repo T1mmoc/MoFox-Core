@@ -13,7 +13,7 @@ MessageHandler = Callable[[List[MessageEnvelope]], Awaitable[List[MessageEnvelop
 
 class HttpMessageServer:
     """
-    轻量级 HTTP 消息入口。可独立运行，也可挂载到现有 FastAPI / aiohttp 应用下。
+    轻量级 HTTP 消息入口，可独立运行，也可挂载到现有 FastAPI / aiohttp 应用下
     """
 
     def __init__(self, handler: MessageHandler, *, path: str = "/messages") -> None:
@@ -27,10 +27,10 @@ class HttpMessageServer:
         try:
             raw = await request.read()
             envelopes = loads_messages(raw)
-            self._logger.debug("Received %d message(s)", len(envelopes))
+            self._logger.debug(f"接收到 {len(envelopes)} 条消息")
         except Exception as exc:  # pragma: no cover - network errors are integration tested
-            self._logger.exception("Failed to parse incoming messages: %s", exc)
-            raise web.HTTPBadRequest(reason=f"Invalid payload: {exc}") from exc
+            self._logger.exception(f"解析请求失败: {exc}")
+            raise web.HTTPBadRequest(reason=f"无效的负载: {exc}") from exc
 
         result = await self._handler(envelopes)
         if result is None:

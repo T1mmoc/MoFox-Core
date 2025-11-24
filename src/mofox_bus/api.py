@@ -18,6 +18,16 @@ DisconnectCallback = Callable[[str, str], Awaitable[None] | None]
 
 
 def _attach_raw_bytes(payload: Any, raw_bytes: bytes) -> Any:
+    """
+    将原始字节数据附加到消息负载中
+
+    Args:
+        payload: 消息负载
+        raw_bytes: 原始字节数据
+
+    Returns:
+        附加了原始数据的消息负载
+    """
     if isinstance(payload, dict):
         payload.setdefault("raw_bytes", raw_bytes)
     elif isinstance(payload, list):
@@ -28,6 +38,16 @@ def _attach_raw_bytes(payload: Any, raw_bytes: bytes) -> Any:
 
 
 def _encode_for_ws_send(message: Any, *, use_raw_bytes: bool = False) -> tuple[str | bytes, bool]:
+    """
+    编码消息用于 WebSocket 发送
+
+    Args:
+        message: 要发送的消息
+        use_raw_bytes: 是否使用原始字节数据
+
+    Returns:
+        (编码后的数据, 是否为二进制格式)
+    """
     if isinstance(message, (bytes, bytearray)):
         return bytes(message), True
     if use_raw_bytes and isinstance(message, dict):
@@ -44,15 +64,29 @@ def _encode_for_ws_send(message: Any, *, use_raw_bytes: bool = False) -> tuple[s
 
 
 class BaseMessageHandler:
+    """基础消息处理器，提供消息处理和任务管理功能"""
+
     def __init__(self) -> None:
         self.message_handlers: list[MessageHandler] = []
         self.background_tasks: set[asyncio.Task] = set()
 
     def register_message_handler(self, handler: MessageHandler) -> None:
+        """
+        注册消息处理器
+
+        Args:
+            handler: 消息处理函数
+        """
         if handler not in self.message_handlers:
             self.message_handlers.append(handler)
 
     async def process_message(self, message: MessagePayload) -> None:
+        """
+        处理单条消息，并发执行所有注册的处理器
+
+        Args:
+            message: 消息负载
+        """
         tasks: list[asyncio.Task] = []
         for handler in self.message_handlers:
             try:
@@ -63,7 +97,7 @@ class BaseMessageHandler:
                     self.background_tasks.add(task)
                     task.add_done_callback(self.background_tasks.discard)
             except Exception:  # pragma: no cover - logging only
-                logging.getLogger("mofox_bus.server").exception("Failed to handle message")
+                logging.getLogger("mofox_bus.server").exception("消息处理失败")
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -236,8 +270,8 @@ class MessageServer(BaseMessageHandler):
     ) -> None:
         ws = self._platform_connections.get(platform)
         if ws is None:
-            raise RuntimeError(f"No active connection for platform {platform}")
-        payload: MessagePayload | bytes = message.to_dict() if isinstance(message, MessageBase) else message
+            raise RuntimeError(f"平台 {platform} 没有活跃的连接")
+        payload: MessagePayload | bytes = message
         data, is_binary = _encode_for_ws_send(payload, use_raw_bytes=use_raw_bytes)
         if is_binary:
             await ws.send_bytes(data if isinstance(data, (bytes, bytearray)) else str(data).encode("utf-8"))
@@ -439,7 +473,7 @@ class MessageClient(BaseMessageHandler):
             logging.getLogger("mofox_bus.client").exception("Disconnect callback failed")
 
     async def _reconnect(self) -> None:
-        self._logger.info("WebSocket disconnected, retrying in %.1fs", self._reconnect_interval)
+        self._logger.info(f"WebSocket 连接断开, 正在 {self._reconnect_interval:.1f} 秒后重试")
         await asyncio.sleep(self._reconnect_interval)
         await self._connect_once()
 

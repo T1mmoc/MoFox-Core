@@ -15,7 +15,7 @@ WsMessageHandler = Callable[[MessageEnvelope], Awaitable[None]]
 
 class WsMessageServer:
     """
-    封装 WebSocket 服务端逻辑，负责接收消息并广播响应。
+    封装 WebSocket 服务端逻辑，负责接收消息并广播响应
     """
 
     def __init__(self, handler: WsMessageHandler, *, path: str = "/ws") -> None:
@@ -30,7 +30,7 @@ class WsMessageServer:
     async def _handle_ws(self, request: web.Request) -> web.WebSocketResponse:
         ws = web.WebSocketResponse()
         await ws.prepare(request)
-        self._logger.info("WebSocket connection opened: %s", request.remote)
+        self._logger.info(f"WebSocket 连接打开: {request.remote}")
 
         async with self._track_connection(ws):
             async for message in ws:
@@ -39,10 +39,10 @@ class WsMessageServer:
                     for env in envelopes:
                         await self._handler(env)
                 elif message.type == WSMsgType.ERROR:
-                    self._logger.warning("WebSocket connection error: %s", ws.exception())
+                    self._logger.warning(f"WebSocket 连接错误: {ws.exception()}")
                     break
 
-        self._logger.info("WebSocket connection closed: %s", request.remote)
+        self._logger.info(f"WebSocket 连接关闭: {request.remote}")
         return ws
 
     @asynccontextmanager

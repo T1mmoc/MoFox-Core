@@ -98,7 +98,7 @@ class AdapterBase:
             try:
                 self.core_sink.set_outgoing_handler(self._on_outgoing_from_core)
             except Exception:
-                logger.exception("Failed to register outgoing handler on core sink")
+                logger.exception("注册 outgoing 处理程序到核心接收器失败")
         if isinstance(self._transport_config, WebSocketAdapterOptions):
             await self._start_ws_transport(self._transport_config)
         elif isinstance(self._transport_config, HttpAdapterOptions):
@@ -112,12 +112,12 @@ class AdapterBase:
             try:
                 remove(self._on_outgoing_from_core)
             except Exception:
-                logger.exception("Failed to detach outgoing handler on core sink")
+                logger.exception("从核心接收器分离 outgoing 处理程序失败")
         elif hasattr(self.core_sink, "set_outgoing_handler"):
             try:
                 self.core_sink.set_outgoing_handler(None)  # type: ignore[arg-type]
             except Exception:
-                logger.exception("Failed to detach outgoing handler on core sink")
+                logger.exception("从核心接收器分离 outgoing 处理程序失败")
         if self._ws_task:
             self._ws_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -135,12 +135,12 @@ class AdapterBase:
 
     async def on_platform_message(self, raw: Any) -> None:
         """处理平台下发的单条消息并交给核心。"""
-        envelope = await _maybe_await(self.from_platform_message(raw))
+        envelope = await self.from_platform_message(raw)
         await self.core_sink.send(envelope)
 
     async def on_platform_messages(self, raw_messages: list[Any]) -> None:
         """批量推送入口，内部自动批量或逐条送入核心。"""
-        envelopes = [await _maybe_await(self.from_platform_message(raw)) for raw in raw_messages]
+        envelopes = [await self.from_platform_message(raw) for raw in raw_messages]
         await _send_many(self.core_sink, envelopes)
 
     async def send_to_platform(self, envelope: MessageEnvelope) -> None:
@@ -159,7 +159,7 @@ class AdapterBase:
             return
         await self._send_platform_message(envelope)
 
-    def from_platform_message(self, raw: Any) -> MessageEnvelope | Awaitable[MessageEnvelope]:
+    async def from_platform_message(self, raw: Any) -> MessageEnvelope:
         """子类必须实现：将平台原始结构转换为统一 MessageEnvelope。"""
         raise NotImplementedError
 
@@ -291,7 +291,7 @@ class ProcessCoreSink(CoreSink):
             await self.send(message)
 
     async def push_outgoing(self, envelope: MessageEnvelope) -> None:
-        logger.debug("ProcessCoreSink.push_outgoing called in child; ignored")
+        logger.debug("ProcessCoreSink.push_outgoing 在子进程中调用; 被忽略")
 
     async def close(self) -> None:
         if self._closed:
@@ -318,9 +318,9 @@ class ProcessCoreSink(CoreSink):
                     try:
                         await self._outgoing_handler(envelope)
                     except Exception:  # pragma: no cover
-                        logger.exception("Failed to handle outgoing envelope in ProcessCoreSink")
+                        logger.exception("处理 ProcessCoreSink 中的 outgoing 信封失败")
             else:
-                logger.debug("ProcessCoreSink received unknown payload: %r", item)
+                logger.debug(f"ProcessCoreSink 接受到未知负载: {item}")
 
 
 class ProcessCoreSinkServer:
@@ -362,9 +362,9 @@ class ProcessCoreSinkServer:
                 try:
                     await self._core_handler(envelope)
                 except Exception:  # pragma: no cover
-                    logger.exception("Failed to dispatch incoming envelope from %s", self._name)
+                    logger.exception(f"处理来自 {self._name} 的 incoming 信封时失败")
             else:
-                logger.debug("ProcessCoreSinkServer ignored unknown payload from %s: %r", self._name, item)
+                logger.debug(f"ProcessCoreSinkServer 忽略来自 {self._name} 的未知负载: {item}")
 
     async def push_outgoing(self, envelope: MessageEnvelope) -> None:
         await asyncio.to_thread(self._outgoing_queue.put, {"kind": "outgoing", "payload": envelope})
@@ -388,12 +388,6 @@ async def _send_many(sink: CoreMessageSink, envelopes: list[MessageEnvelope]) ->
         return
     for env in envelopes:
         await sink.send(env)
-
-
-async def _maybe_await(result: Any) -> Any:
-    if asyncio.iscoroutine(result) or isinstance(result, asyncio.Future):
-        return await result
-    return result
 
 
 class BatchDispatcher:

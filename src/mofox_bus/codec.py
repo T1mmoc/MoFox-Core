@@ -63,7 +63,7 @@ def loads_messages(data: bytes | str) -> List[MessageEnvelope]:
     obj = _loads(data)
     version = obj.get("schema_version", DEFAULT_SCHEMA_VERSION)
     if version != DEFAULT_SCHEMA_VERSION:
-        raise ValueError(f"Unsupported schema_version={version}")
+        raise ValueError(f"不支持的 schema_version={version}")
     return [_upgrade_schema_if_needed(item) for item in obj.get("items", [])]
 
 
@@ -74,7 +74,7 @@ def _upgrade_schema_if_needed(obj: Dict[str, Any]) -> MessageEnvelope:
     version = obj.get("schema_version", DEFAULT_SCHEMA_VERSION)
     if version == DEFAULT_SCHEMA_VERSION:
         return obj  # type: ignore[return-value]
-    raise ValueError(f"Unsupported schema_version={version}")
+    raise ValueError(f"不支持的 schema_version={version}")
 
 
 
