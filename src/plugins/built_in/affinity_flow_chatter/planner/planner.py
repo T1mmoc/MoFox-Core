@@ -599,7 +599,7 @@ class ChatterActionPlanner:
             if chat_manager:
                 chat_stream = await chat_manager.get_stream(context.stream_id)
                 if chat_stream:
-                    chat_stream.context_manager.context.chat_mode = context.chat_mode
+                    chat_stream.context.chat_mode = context.chat_mode
                     chat_stream.saved = False  # 标记需要保存
                     logger.debug(f"已同步chat_mode {context.chat_mode.value} 到ChatStream {context.stream_id}")
         except Exception as e:

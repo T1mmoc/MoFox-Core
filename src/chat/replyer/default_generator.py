@@ -396,7 +396,7 @@ class DefaultReplyer:
 
             try:
                 # 设置正在回复的状态
-                self.chat_stream.context_manager.context.is_replying = True
+                self.chat_stream.context.is_replying = True
                 content, reasoning_content, model_name, tool_call = await self.llm_generate_content(prompt)
                 logger.debug(f"replyer生成内容: {content}")
                 llm_response = {
@@ -413,7 +413,7 @@ class DefaultReplyer:
                 return False, None, prompt  # LLM 调用失败则无法生成回复
             finally:
                 # 重置正在回复的状态
-                self.chat_stream.context_manager.context.is_replying = False
+                self.chat_stream.context.is_replying = False
 
                 # 触发 AFTER_LLM 事件
                 if not from_plugin:
@@ -910,7 +910,7 @@ class DefaultReplyer:
             chat_manager = get_chat_manager()
             chat_stream = await chat_manager.get_stream(chat_id)
             if chat_stream:
-                stream_context = chat_stream.context_manager
+                stream_context = chat_stream.context
 
                 # 确保历史消息已从数据库加载
                 await stream_context.ensure_history_initialized()
@@ -1140,7 +1140,7 @@ class DefaultReplyer:
                     chat_stream_obj = await chat_manager.get_stream(chat_id)
 
                     if chat_stream_obj:
-                        unread_messages = chat_stream_obj.context_manager.get_unread_messages()
+                        unread_messages = chat_stream_obj.context.get_unread_messages()
                         if unread_messages:
                             # 使用最后一条未读消息作为参考
                             last_msg = unread_messages[-1]
@@ -1262,12 +1262,12 @@ class DefaultReplyer:
 
         if chat_stream_obj:
             # 确保历史消息已初始化
-            await chat_stream_obj.context_manager.ensure_history_initialized()
+            await chat_stream_obj.context.ensure_history_initialized()
 
             # 获取所有消息（历史+未读）
             all_messages = (
-                chat_stream_obj.context_manager.context.history_messages +
-                chat_stream_obj.context_manager.get_unread_messages()
+                chat_stream_obj.context.history_messages +
+                chat_stream_obj.context.get_unread_messages()
             )
 
             # 转换为字典格式
@@ -1639,12 +1639,12 @@ class DefaultReplyer:
 
         if chat_stream_obj:
             # 确保历史消息已初始化
-            await chat_stream_obj.context_manager.ensure_history_initialized()
+            await chat_stream_obj.context.ensure_history_initialized()
 
             # 获取所有消息（历史+未读）
             all_messages = (
-                chat_stream_obj.context_manager.context.history_messages +
-                chat_stream_obj.context_manager.get_unread_messages()
+                chat_stream_obj.context.history_messages +
+                chat_stream_obj.context.get_unread_messages()
             )
 
             # 转换为字典格式，限制数量
@@ -2071,12 +2071,12 @@ class DefaultReplyer:
 
             if chat_stream_obj:
                 # 确保历史消息已初始化
-                await chat_stream_obj.context_manager.ensure_history_initialized()
+                await chat_stream_obj.context.ensure_history_initialized()
 
                 # 获取所有消息（历史+未读）
                 all_messages = (
-                    chat_stream_obj.context_manager.context.history_messages +
-                    chat_stream_obj.context_manager.get_unread_messages()
+                    chat_stream_obj.context.history_messages +
+                    chat_stream_obj.context.get_unread_messages()
                 )
 
                 # 转换为字典格式，限制数量

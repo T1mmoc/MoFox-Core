@@ -139,7 +139,7 @@ class ActionModifier:
         if not self.chat_stream:
             logger.error(f"{self.log_prefix} chat_stream 未初始化，无法执行第二阶段")
             return
-        chat_context = self.chat_stream.context_manager.context
+        chat_context = self.chat_stream.context
         current_actions_s2 = self.action_manager.get_using_actions()
         type_mismatched_actions = self._check_action_associated_types(current_actions_s2, chat_context)
 

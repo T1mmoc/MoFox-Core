@@ -81,7 +81,7 @@ class StreamLoopManager:
             # 创建任务列表以便并发取消
             cancel_tasks = []
             for chat_stream in all_streams.values():
-                context = chat_stream.context_manager.context
+                context = chat_stream.context
                 if context.stream_loop_task and not context.stream_loop_task.done():
                     context.stream_loop_task.cancel()
                     cancel_tasks.append((chat_stream.stream_id, context.stream_loop_task))
@@ -309,7 +309,7 @@ class StreamLoopManager:
             chat_manager = get_chat_manager()
             chat_stream = await chat_manager.get_stream(stream_id)
             if chat_stream:
-                return chat_stream.context_manager.context
+                return chat_stream.context
             return None
         except Exception as e:
             logger.error(f"获取流上下文失败 {stream_id}: {e}")
@@ -463,7 +463,7 @@ class StreamLoopManager:
                 logger.debug(f"无法找到聊天流 {stream_id}，跳过能量更新")
                 return
 
-            # 从 context_manager 获取消息（包括未读和历史消息）
+            # 从 context 获取消息（包括未读和历史消息）
             # 合并未读消息和历史消息
             all_messages = []
 
@@ -573,7 +573,7 @@ class StreamLoopManager:
             if not chat_stream:
                 return False
 
-            unread = getattr(chat_stream.context_manager.context, "unread_messages", [])
+            unread = getattr(chat_stream.context, "unread_messages", [])
             return len(unread) > self.force_dispatch_unread_threshold
         except Exception as e:
             logger.debug(f"检查流 {stream_id} 是否需要强制分发失败: {e}")
@@ -628,7 +628,7 @@ class StreamLoopManager:
                 logger.debug(f"刷新能量时未找到聊天流: {stream_id}")
                 return
 
-            await chat_stream.context_manager.refresh_focus_energy_from_history()
+            await chat_stream.context.refresh_focus_energy_from_history()
             logger.debug(f"已刷新聊天流 {stream_id} 的聚焦能量")
         except Exception as e:
             logger.warning(f"刷新聊天流 {stream_id} 能量失败: {e}")

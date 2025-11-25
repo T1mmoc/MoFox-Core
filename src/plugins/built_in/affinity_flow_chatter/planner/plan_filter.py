@@ -169,7 +169,7 @@ class ChatterPlanFilter:
                 logger.debug("尝试添加空的决策历史，已跳过")
                 return
 
-            context = chat_stream.context_manager.context
+            context = chat_stream.context
             new_record = DecisionRecord(thought=thought, action=action)
 
             # 添加新记录
@@ -204,7 +204,7 @@ class ChatterPlanFilter:
             if not chat_stream:
                 return ""
 
-            context = chat_stream.context_manager.context
+            context = chat_stream.context
             if not context.decision_history:
                 return ""
 
@@ -344,7 +344,7 @@ class ChatterPlanFilter:
                 logger.warning(f"[plan_filter] 聊天流 {plan.chat_id} 不存在")
                 return "最近没有聊天内容。", "没有未读消息。", []
 
-            stream_context = chat_stream.context_manager
+            stream_context = chat_stream.context
 
             # 获取真正的已读和未读消息
             read_messages = (

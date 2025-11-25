@@ -103,8 +103,8 @@ class HeartFCSender:
                 try:
                     # 将MessageSending转换为DatabaseMessages
                     db_message = await self._convert_to_database_message(message)
-                    if db_message and message.chat_stream.context_manager:
-                        context = message.chat_stream.context_manager.context
+                    if db_message and message.chat_stream.context:
+                        context = message.chat_stream.context
 
                         # 应用历史消息长度限制
                         from src.config.config import global_config

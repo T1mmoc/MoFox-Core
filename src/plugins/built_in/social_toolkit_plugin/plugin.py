@@ -61,7 +61,7 @@ class ReminderTask(AsyncTask):
             logger.info(f"执行提醒任务: 给 {self.target_user_name} 发送关于 '{self.event_details}' 的提醒")
 
             extra_info = f"现在是提醒时间，请你以一种符合你人设的、俏皮的方式提醒 {self.target_user_name}。\n提醒内容: {self.event_details}\n设置提醒的人: {self.creator_name}"
-            last_message = self.chat_stream.context_manager.context.get_last_message()
+            last_message = self.chat_stream.context.get_last_message()
             reply_message_dict = last_message.flatten() if last_message else None
             success, reply_set, _ = await generator_api.generate_reply(
                 chat_stream=self.chat_stream,
@@ -523,7 +523,7 @@ class RemindAction(BaseAction):
 
             # 4. 生成并发送确认消息
             extra_info = f"你已经成功设置了一个提醒，请以一种符合你人设的、俏皮的方式回复用户。\n提醒时间: {target_time.strftime('%Y-%m-%d %H:%M:%S')}\n提醒对象: {user_name_to_remind}\n提醒内容: {event_details}"
-            last_message = self.chat_stream.context_manager.context.get_last_message()
+            last_message = self.chat_stream.context.get_last_message()
             reply_message_dict = last_message.flatten() if last_message else None
             success, reply_set, _ = await generator_api.generate_reply(
                 chat_stream=self.chat_stream,

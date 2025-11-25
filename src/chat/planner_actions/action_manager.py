@@ -183,7 +183,7 @@ class ChatterActionManager:
                 }
 
             # 设置正在回复的状态
-            chat_stream.context_manager.context.is_replying = True
+            chat_stream.context.is_replying = True
 
             if action_name == "no_action":
                 return {"action_type": "no_action", "success": True, "reply_text": "", "command": ""}
@@ -342,7 +342,7 @@ class ChatterActionManager:
         finally:
             # 确保重置正在回复的状态
             if chat_stream:
-                chat_stream.context_manager.context.is_replying = False
+                chat_stream.context.is_replying = False
 
     async def _record_action_to_message(self, chat_stream, action_name, target_message, action_data):
         """
@@ -387,7 +387,7 @@ class ChatterActionManager:
             chat_manager = get_chat_manager()
             chat_stream = await chat_manager.get_stream(stream_id)
             if chat_stream:
-                context = chat_stream.context_manager
+                context = chat_stream.context
                 if context.context.interruption_count > 0:
                     old_count = context.context.interruption_count
                     # old_afc_adjustment = context.context.get_afc_threshold_adjustment()

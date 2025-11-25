@@ -54,7 +54,7 @@ class TTSAction(BaseAction):
 
         success, response_set, _ = await generate_reply(
             chat_stream=self.chat_stream,
-            reply_message=self.chat_stream.context_manager.context.get_last_message(),
+            reply_message=self.chat_stream.context.get_last_message(),
             enable_tool=global_config.tool.enable_tool,
             request_type="chat.tts",
             from_plugin=False,

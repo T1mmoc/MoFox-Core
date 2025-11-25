@@ -564,7 +564,7 @@ async def execute_proactive_thinking(stream_id: str):
                 chat_manager = get_chat_manager()
                 chat_stream = await chat_manager.get_stream(stream_id)
 
-                if chat_stream and chat_stream.context_manager.context.is_chatter_processing:
+                if chat_stream and chat_stream.context.is_chatter_processing:
                     logger.warning(f"⚠️ 主动思考跳过：聊天流 {stream_id} 的 chatter 正在处理消息")
                     return
             except Exception as e:
