@@ -8,7 +8,6 @@ from typing import Any
 
 import numpy as np
 import rjieba
-from mofox_bus import UserInfo
 
 # MessageRecv 已被移除，现在使用 DatabaseMessages
 from src.common.logger import get_logger
@@ -16,7 +15,7 @@ from src.common.message_repository import count_messages, find_messages
 from src.config.config import global_config, model_config
 from src.llm_models.utils_model import LLMRequest
 from src.person_info.person_info import PersonInfoManager, get_person_info_manager
-
+from src.common.data_models.database_data_model import DatabaseUserInfo
 from .typo_generator import ChineseTypoGenerator
 
 logger = get_logger("chat_utils")
@@ -154,7 +153,7 @@ async def get_recent_group_speaker(chat_stream_id: str, sender, limit: int = 12)
 
     who_chat_in_group = []
     for msg_db_data in recent_messages:
-        user_info = UserInfo.from_dict(
+        user_info = DatabaseUserInfo.from_dict(
             {
                 "platform": msg_db_data["user_platform"],
                 "user_id": msg_db_data["user_id"],

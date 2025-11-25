@@ -231,7 +231,7 @@ class NapcatAdapterPlugin(BasePlugin):
     dependencies: ClassVar[List[str]] = []  # 插件依赖列表
     python_dependencies: ClassVar[List[str]] = []  # Python包依赖列表
     config_file_name: str = "config.toml"  # 配置文件名
-
+    
     @property
     def enable_plugin(self) -> bool:
         """通过配置文件动态控制插件启用状态"""

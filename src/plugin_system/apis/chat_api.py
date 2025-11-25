@@ -336,3 +336,8 @@ def get_stream_info(chat_stream: "ChatStream") -> dict[str, Any]:
 def get_streams_summary() -> dict[str, int]:
     """获取聊天流统计摘要的便捷函数"""
     return ChatManager.get_streams_summary()
+
+def get_chat_manager():
+    """获取聊天管理器实例的便捷函数"""
+    from src.chat.message_receive.chat_stream import get_chat_manager
+    return get_chat_manager()

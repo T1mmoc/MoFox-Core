@@ -129,8 +129,6 @@ class NapcatAdapter(BaseAdapter):
                 future = self._response_pool[echo]
                 if not future.done():
                     future.set_result(raw)
-            # API 响应不需要转换为 MessageEnvelope，返回空信封
-            return self._create_empty_envelope()
 
         # 消息事件
         if post_type == "message":
@@ -147,7 +145,6 @@ class NapcatAdapter(BaseAdapter):
         # 未知事件类型
         else:
             logger.warning(f"未知的事件类型: {post_type}")
-            return self._create_empty_envelope()  # type: ignore[return-value]
 
     async def _send_platform_message(self, envelope: MessageEnvelope) -> None:  # type: ignore[override]
         """

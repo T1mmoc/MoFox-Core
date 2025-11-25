@@ -8,11 +8,13 @@ import random
 import re
 import time
 import traceback
+import uuid
 from datetime import datetime, timedelta
 from typing import Any, Literal, TYPE_CHECKING
 
 from src.chat.express.expression_selector import expression_selector
-from src.chat.message_receive.message import MessageSending, Seg, UserInfo
+from mofox_bus import MessageEnvelope
+from src.chat.message_receive.message import Seg, UserInfo
 from src.chat.message_receive.uni_message_sender import HeartFCSender
 from src.chat.utils.chat_message_builder import (
     build_readable_messages,
@@ -1770,8 +1772,8 @@ class DefaultReplyer:
         thinking_start_time: float,
         display_message: str,
         anchor_message: DatabaseMessages | None = None,
-    ) -> MessageSending:
-        """构建单个发送消息"""
+    ) -> MessageEnvelope:
+        """构造单条发送消息的信封"""
 
         bot_user_info = UserInfo(
             user_id=str(global_config.bot.qq_account),
@@ -1779,29 +1781,44 @@ class DefaultReplyer:
             platform=self.chat_stream.platform,
         )
 
-        # 从 DatabaseMessages 获取 sender_info 并转换为 UserInfo
-        sender_info = None
-        if anchor_message and anchor_message.user_info:
-            db_user_info = anchor_message.user_info
-            sender_info = UserInfo(
-                platform=db_user_info.platform,
-                user_id=db_user_info.user_id,
-                user_nickname=db_user_info.user_nickname,
-                user_cardname=db_user_info.user_cardname,
-            )
+        base_segment = {"type": message_segment.type, "data": message_segment.data}
+        if reply_to and anchor_message and anchor_message.message_id:
+            segment_payload = {
+                "type": "seglist",
+                "data": [
+                    {"type": "reply", "data": anchor_message.message_id},
+                    base_segment,
+                ],
+            }
+        else:
+            segment_payload = base_segment
 
-        return MessageSending(
-            message_id=message_id,  # 使用片段的唯一ID
-            chat_stream=self.chat_stream,
-            bot_user_info=bot_user_info,
-            sender_info=sender_info,
-            message_segment=message_segment,
-            reply=anchor_message,  # 回复原始锚点
-            is_head=reply_to,
-            is_emoji=is_emoji,
-            thinking_start_time=thinking_start_time,  # 传递原始思考开始时间
-            display_message=display_message,
-        )
+        timestamp = thinking_start_time or time.time()
+        message_info = {
+            "message_id": message_id,
+            "time": timestamp,
+            "platform": self.chat_stream.platform,
+            "user_info": {
+                "user_id": bot_user_info.user_id,
+                "user_nickname": bot_user_info.user_nickname,
+                "platform": bot_user_info.platform,
+            },
+        }
+
+        if self.chat_stream.group_info:
+            message_info["group_info"] = {
+                "group_id": self.chat_stream.group_info.group_id,
+                "group_name": self.chat_stream.group_info.group_name,
+                "platform": self.chat_stream.group_info.group_platform,
+            }
+
+        return {
+            "id": str(uuid.uuid4()),
+            "direction": "outgoing",
+            "platform": self.chat_stream.platform,
+            "message_info": message_info,
+            "message_segment": segment_payload,
+        }
 
     async def llm_generate_content(self, prompt: str):
         with Timer("LLM生成", {}):  # 内部计时器，可选保留

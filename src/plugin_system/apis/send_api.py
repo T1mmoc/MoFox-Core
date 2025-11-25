@@ -89,16 +89,16 @@ async def file_to_stream(
 import asyncio
 import time
 import traceback
+import uuid
 from typing import TYPE_CHECKING, Any
 
-from mofox_bus import Seg, UserInfo
-
+from mofox_bus import MessageEnvelope
+from src.common.data_models.database_data_model import DatabaseUserInfo
 if TYPE_CHECKING:
     from src.common.data_models.database_data_model import DatabaseMessages
 
 # 导入依赖
 from src.chat.message_receive.chat_stream import ChatStream, get_chat_manager
-from src.chat.message_receive.message import MessageSending
 from src.chat.message_receive.uni_message_sender import HeartFCSender
 from src.common.logger import get_logger
 from src.config.config import global_config
@@ -183,6 +183,45 @@ async def wait_adapter_response(request_id: str, timeout: float = 30.0) -> dict:
         return {"status": "error", "message": str(e)}
 
 
+def _build_message_envelope(
+    *,
+    message_id: str,
+    target_stream: "ChatStream",
+    bot_user_info: DatabaseUserInfo,
+    message_segment: dict[str, Any],
+    timestamp: float,
+) -> MessageEnvelope:
+    """构建发送的 MessageEnvelope 数据结构"""
+    message_info: dict[str, Any] = {
+        "message_id": message_id,
+        "time": timestamp,
+        "platform": target_stream.platform,
+        "user_info": {
+            "user_id": bot_user_info.user_id,
+            "user_nickname": bot_user_info.user_nickname,
+            "user_cardname": getattr(bot_user_info, "user_cardname", None),
+            "platform": bot_user_info.platform,
+        },
+    }
+
+    if target_stream.group_info:
+        message_info["group_info"] = {
+            "group_id": target_stream.group_info.group_id,
+            "group_name": target_stream.group_info.group_name,
+            "platform": target_stream.group_info.group_platform,
+        }
+
+    return {
+        "id": str(uuid.uuid4()),
+        "direction": "outgoing",
+        "platform": target_stream.platform,
+        "message_info": message_info,
+        "message_segment": message_segment,
+    }
+
+
+
+
 # =============================================================================
 # 内部实现函数（不暴露给外部）
 # =============================================================================
@@ -200,56 +239,34 @@ async def _send_to_target(
     storage_message: bool = True,
     show_log: bool = True,
 ) -> bool:
-    """向指定目标发送消息的内部实现
-
-    Args:
-        message_type: 消息类型，如"text"、"image"、"emoji"等
-        content: 消息内容
-        stream_id: 目标流ID
-        display_message: 显示消息
-        typing: 是否模拟打字等待。
-        reply_to: 回复消息，格式为"发送者:消息内容"
-        storage_message: 是否存储消息到数据库
-        show_log: 发送是否显示日志
-
-    Returns:
-        bool: 是否发送成功
-    """
+    """向指定目标发送消息的内部实现"""
     try:
         if reply_to:
-            logger.warning("[SendAPI] 在0.10.0, reply_to 参数已弃用，请使用 reply_to_message 参数")
+            logger.warning("[SendAPI] 自 0.10.0 起 reply_to 已弃用，请使用 reply_to_message")
 
         if show_log:
-            logger.debug(f"[SendAPI] 发送{message_type}消息到 {stream_id}")
+            logger.debug(f"[SendAPI] 发送 {message_type} 消息到 {stream_id}")
 
-        # 查找目标聊天流
         target_stream = await get_chat_manager().get_stream(stream_id)
         if not target_stream:
             logger.error(f"[SendAPI] 未找到聊天流: {stream_id}")
             return False
 
-        # 创建发送器
         heart_fc_sender = HeartFCSender()
-
-        # 生成消息ID
         current_time = time.time()
         message_id = f"send_api_{int(current_time * 1000)}"
 
-        # 构建机器人用户信息
-        bot_user_info = UserInfo(
+        bot_user_info = DatabaseUserInfo(
             user_id=str(global_config.bot.qq_account),
             user_nickname=global_config.bot.nickname,
             platform=target_stream.platform,
         )
 
-        # 创建消息段
-        message_segment = Seg(type=message_type, data=content)  # type: ignore
-
-        # 处理回复消息
+        anchor_message = None
+        reply_to_platform_id = None
         if reply_to:
-            # 优先使用 reply_to 字符串构建 anchor_message
-            # 解析 "发送者(ID)" 格式
             import re
+
             match = re.match(r"(.+)\((\d+)\)", reply_to)
             if match:
                 sender_name, sender_id = match.groups()
@@ -257,68 +274,63 @@ async def _send_to_target(
                     "user_nickname": sender_name,
                     "user_id": sender_id,
                     "chat_info_platform": target_stream.platform,
-                    "message_id": "temp_reply_id", # 临时ID
-                    "time": time.time()
+                    "message_id": "temp_reply_id",
+                    "time": time.time(),
                 }
                 anchor_message = message_dict_to_db_message(message_dict=temp_message_dict)
-            else:
-                 anchor_message = None
-            reply_to_platform_id = f"{target_stream.platform}:{sender_id}" if anchor_message else None
-
+                if anchor_message:
+                    reply_to_platform_id = f"{target_stream.platform}:{sender_id}"
         elif reply_to_message:
             anchor_message = message_dict_to_db_message(message_dict=reply_to_message)
             if anchor_message:
-                # DatabaseMessages 不需要 update_chat_stream，它是纯数据对象
-                reply_to_platform_id = (
-                    f"{anchor_message.chat_info.platform}:{anchor_message.user_info.user_id}"
-                )
-            else:
-                reply_to_platform_id = None
-        else:
-            anchor_message = None
-            reply_to_platform_id = None
+                reply_to_platform_id = f"{anchor_message.chat_info.platform}:{anchor_message.user_info.user_id}"
 
-        # 构建发送消息对象
-        bot_message = MessageSending(
+        base_segment: dict[str, Any] = {"type": message_type, "data": content}
+        message_segment: dict[str, Any]
+
+        if set_reply and anchor_message and anchor_message.message_id:
+            message_segment = {
+                "type": "seglist",
+                "data": [
+                    {"type": "reply", "data": anchor_message.message_id},
+                    base_segment,
+                ],
+            }
+        else:
+            message_segment = base_segment
+
+        if reply_to_platform_id:
+            message_segment["reply_to"] = reply_to_platform_id
+
+        envelope = _build_message_envelope(
             message_id=message_id,
-            chat_stream=target_stream,
+            target_stream=target_stream,
             bot_user_info=bot_user_info,
-            sender_info=target_stream.user_info,
             message_segment=message_segment,
-            display_message=display_message,
-            reply=anchor_message,
-            is_head=True,
-            is_emoji=(message_type == "emoji"),
-            thinking_start_time=current_time,
-            reply_to=reply_to_platform_id,
+            timestamp=current_time,
         )
 
-        # 发送消息
         sent_msg = await heart_fc_sender.send_message(
-            bot_message,
+            envelope,
+            chat_stream=target_stream,
             typing=typing,
-            set_reply=set_reply,
             storage_message=storage_message,
             show_log=show_log,
+            thinking_start_time=current_time,
+            display_message=display_message or (content if isinstance(content, str) else ""),
         )
 
         if sent_msg:
             logger.debug(f"[SendAPI] 成功发送消息到 {stream_id}")
             return True
-        else:
-            logger.error("[SendAPI] 发送消息失败")
-            return False
+
+        logger.error("[SendAPI] 发送消息失败")
+        return False
 
     except Exception as e:
         logger.error(f"[SendAPI] 发送消息时出错: {e}")
         traceback.print_exc()
         return False
-
-
-# =============================================================================
-# 公共API函数 - 预定义类型的发送函数
-# =============================================================================
-
 
 async def text_to_stream(
     text: str,
@@ -460,53 +472,27 @@ async def adapter_command_to_stream(
     timeout: float = 30.0,
     storage_message: bool = False,
 ) -> dict:
-    """向适配器发送命令并获取返回值
-
-       雅诺狐的耳朵特别软
-
-    Args:
-        action (str): 适配器命令动作，如"get_group_list"、"get_friend_list"等
-        params (dict): 命令参数字典，包含命令所需的参数
-        platform (Optional[str]): 目标平台标识，可选，用于多平台支持
-        stream_id (Optional[str]): 聊天流ID，可选，如果不提供则自动生成临时ID
-        timeout (float): 超时时间（秒），默认30.0秒
-        storage_message (bool): 是否存储消息到数据库，默认False
-
-    Returns:
-        dict: 适配器返回的响应，包含以下可能的状态：
-            - 成功: {"status": "ok", "data": {...}, "message": "..."}
-            - 失败: {"status": "failed", "message": "错误信息"}
-            - 错误: {"status": "error", "message": "错误信息"}
-
-    Raises:
-        ValueError: 当stream_id和platform都未提供时抛出
-    """
+    """向适配器发送命令并获取返回值"""
     if not stream_id and not platform:
-        raise ValueError("必须提供stream_id或platform参数")
+        raise ValueError("必须提供stream_id或platform")
 
     try:
-        logger.debug(f"[SendAPI] 向适配器发送命令: {action}")
+        logger.debug(f"[SendAPI] 准备发送适配器命令: {action}")
 
-        # 如果没有提供stream_id，则生成一个临时的
         if stream_id is None:
-            import uuid
-
             stream_id = f"adapter_temp_{uuid.uuid4().hex[:8]}"
             logger.debug(f"[SendAPI] 自动生成临时stream_id: {stream_id}")
 
-        # 查找目标聊天流
         target_stream = await get_chat_manager().get_stream(stream_id)
         if not target_stream:
-            # 如果是自动生成的stream_id且找不到聊天流，创建一个临时的虚拟流
             if stream_id.startswith("adapter_temp_"):
-                logger.debug(f"[SendAPI] 创建临时虚拟聊天流: {stream_id}")
+                logger.debug(f"[SendAPI] 创建临时聊天流: {stream_id}")
 
-                # 创建临时的用户信息和聊天流
                 if not platform:
                     logger.error("[SendAPI] 创建临时聊天流失败: platform 未提供")
                     return {"status": "error", "message": "platform 未提供"}
 
-                temp_user_info = UserInfo(user_id="system", user_nickname="System", platform=platform)
+                temp_user_info = DatabaseUserInfo(user_id="system", user_nickname="System", platform=platform)
 
                 temp_chat_stream = ChatStream(
                     stream_id=stream_id, platform=platform, user_info=temp_user_info, group_info=None
@@ -517,21 +503,17 @@ async def adapter_command_to_stream(
                 logger.error(f"[SendAPI] 未找到聊天流: {stream_id}")
                 return {"status": "error", "message": f"未找到聊天流: {stream_id}"}
 
-        # 创建发送器
         heart_fc_sender = HeartFCSender()
 
-        # 生成消息ID
         current_time = time.time()
         message_id = f"adapter_cmd_{int(current_time * 1000)}"
 
-        # 构建机器人用户信息
-        bot_user_info = UserInfo(
+        bot_user_info = DatabaseUserInfo(
             user_id=str(global_config.bot.qq_account),
             user_nickname=global_config.bot.nickname,
             platform=target_stream.platform,
         )
 
-        # 构建适配器命令数据
         adapter_command_data = {
             "action": action,
             "params": params,
@@ -539,27 +521,24 @@ async def adapter_command_to_stream(
             "request_id": message_id,
         }
 
-        # 创建消息段
-        message_segment = Seg(type="adapter_command", data=adapter_command_data)  # type: ignore
+        message_segment = {"type": "adapter_command", "data": adapter_command_data}
 
-        # 构建发送消息对象
-        bot_message = MessageSending(
+        envelope = _build_message_envelope(
             message_id=message_id,
-            chat_stream=target_stream,
+            target_stream=target_stream,
             bot_user_info=bot_user_info,
-            sender_info=target_stream.user_info,
             message_segment=message_segment,
-            display_message=f"适配器命令: {action}",
-            reply=None,
-            is_head=True,
-            is_emoji=False,
-            thinking_start_time=current_time,
-            reply_to=None,
+            timestamp=current_time,
         )
 
-        # 发送消息
         sent_msg = await heart_fc_sender.send_message(
-            bot_message, typing=False, set_reply=False, storage_message=storage_message
+            envelope,
+            chat_stream=target_stream,
+            typing=False,
+            storage_message=storage_message,
+            show_log=True,
+            thinking_start_time=current_time,
+            display_message=f"发送适配器命令: {action}",
         )
 
         if not sent_msg:
@@ -568,7 +547,6 @@ async def adapter_command_to_stream(
 
         logger.debug("[SendAPI] 已发送适配器命令，等待响应...")
 
-        # 等待适配器响应
         response = await wait_adapter_response(message_id, timeout)
 
         logger.debug(f"[SendAPI] 收到适配器响应: {response}")
@@ -579,3 +557,4 @@ async def adapter_command_to_stream(
         logger.error(f"[SendAPI] 发送适配器命令时出错: {e}")
         traceback.print_exc()
         return {"status": "error", "message": f"发送适配器命令时出错: {e!s}"}
+

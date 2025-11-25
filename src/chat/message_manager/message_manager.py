@@ -286,7 +286,7 @@ class MessageManager:
         except Exception as e:
             logger.error(f"清理不活跃聊天流时发生错误: {e}")
 
-    async def _check_and_handle_interruption(self, chat_stream: ChatStream | None = None, message: DatabaseMessages | None = None):
+    async def _check_and_handle_interruption(self, chat_stream: "ChatStream | None" = None, message: DatabaseMessages | None = None):
         """检查并处理消息打断 - 通过取消 stream_loop_task 实现"""
         if not global_config.chat.interruption_enabled or not chat_stream or not message:
             return
@@ -371,7 +371,7 @@ class MessageManager:
             else:
                 logger.debug(f"聊天流 {chat_stream.stream_id} 未触发打断，打断概率: {interruption_probability:.2f}")
 
-    async def _trigger_reprocess(self, chat_stream: ChatStream):
+    async def _trigger_reprocess(self, chat_stream: "ChatStream"):
         """重新处理聊天流的核心逻辑 - 重新创建 stream_loop 任务"""
         try:
             stream_id = chat_stream.stream_id

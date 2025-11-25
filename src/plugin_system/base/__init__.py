@@ -24,7 +24,6 @@ from .component_types import (
     ComponentType,
     EventHandlerInfo,
     EventType,
-    MaiMessages,
     PluginInfo,
     PlusCommandInfo,
     PythonDependency,
@@ -55,7 +54,6 @@ __all__ = [
     "ConfigField",
     "EventHandlerInfo",
     "EventType",
-    "MaiMessages",
     "PluginInfo",
     "PluginMetadata",
     # 增强命令系统

@@ -1,7 +1,7 @@
 from src.plugin_system.base.plugin_metadata import PluginMetadata
 
 __plugin_meta__ = PluginMetadata(
-    name="napcat_plugin",
+    name="napcat_adapter_plugin",
     description="基于OneBot 11协议的NapCat QQ协议插件，提供完整的QQ机器人API接口，使用现有adapter连接",
     usage="该插件提供 `napcat_tool` tool。",
     version="1.0.0",

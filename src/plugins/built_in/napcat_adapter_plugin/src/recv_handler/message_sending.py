@@ -1,6 +1,6 @@
 import asyncio
 
-from mofox_bus import MessageBase, Router
+from maim_message import MessageBase, Router
 
 from src.common.logger import get_logger
 from src.plugin_system.apis import config_api

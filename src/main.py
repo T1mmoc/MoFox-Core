@@ -12,7 +12,7 @@ from typing import Any
 from rich.traceback import install
 
 from src.chat.emoji_system.emoji_manager import get_emoji_manager
-from chat.message_receive.message_handler import get_message_handler, shutdown_message_handler
+from src.chat.message_receive.message_handler import get_message_handler, shutdown_message_handler
 from src.chat.utils.statistic import OnlineTimeRecordTask, StatisticOutputTask
 from src.common.core_sink_manager import (
     CoreSinkManager,

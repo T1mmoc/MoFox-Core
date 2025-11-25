@@ -40,7 +40,6 @@ from .base import (
     ConfigField,
     EventHandlerInfo,
     EventType,
-    MaiMessages,
     PluginInfo,
     # 新增的增强命令系统
     PlusCommand,
@@ -77,8 +76,6 @@ __all__ = [  # noqa: RUF022
     "ConfigField",
     "EventHandlerInfo",
     "EventType",
-    # 消息
-    "MaiMessages",
     # 工具函数
     "PluginInfo",
     # 增强命令系统

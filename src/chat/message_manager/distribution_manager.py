@@ -11,7 +11,7 @@ from src.chat.chatter_manager import ChatterManager
 from src.chat.energy_system import energy_manager
 from src.common.logger import get_logger
 from src.config.config import global_config
-from src.plugin_system.apis.chat_api import get_chat_manager
+from src.chat.message_receive.chat_stream import get_chat_manager
 
 if TYPE_CHECKING:
     from src.common.data_models.message_manager_data_model import StreamContext

@@ -33,9 +33,6 @@ class InjectionRule:
         ] and self.target_content is None:
             raise ValueError(f"'{self.injection_type.value}'类型的注入规则必须提供 'target_content'。")
 
-
-from mofox_bus import Seg
-
 from src.llm_models.payload_content.tool_option import ToolCall as ToolCall
 from src.llm_models.payload_content.tool_option import ToolParamType as ToolParamType
 
@@ -409,56 +406,6 @@ class PluginInfo:
                 requirements.append(dep.get_pip_requirement())
         return requirements
 
-
-@dataclass
-class MaiMessages:
-    """MaiM插件消息"""
-
-    message_segments: list[Seg] = field(default_factory=list)
-    """消息段列表，支持多段消息"""
-
-    message_base_info: dict[str, Any] = field(default_factory=dict)
-    """消息基本信息，包含平台，用户信息等数据"""
-
-    plain_text: str = ""
-    """纯文本消息内容"""
-
-    raw_message: str | None = None
-    """原始消息内容"""
-
-    is_group_message: bool = False
-    """是否为群组消息"""
-
-    is_private_message: bool = False
-    """是否为私聊消息"""
-
-    stream_id: str | None = None
-    """流ID，用于标识消息流"""
-
-    llm_prompt: str | None = None
-    """LLM提示词"""
-
-    llm_response_content: str | None = None
-    """LLM响应内容"""
-
-    llm_response_reasoning: str | None = None
-    """LLM响应推理内容"""
-
-    llm_response_model: str | None = None
-    """LLM响应模型名称"""
-
-    llm_response_tool_call: list[ToolCall] | None = None
-    """LLM使用的工具调用"""
-
-    action_usage: list[str] | None = None
-    """使用的Action"""
-
-    additional_data: dict[Any, Any] = field(default_factory=dict)
-    """附加数据，可以存储额外信息"""
-
-    def __post_init__(self):
-        if self.message_segments is None:
-            self.message_segments = []
 
 @dataclass
 class RouterInfo(ComponentInfo):
