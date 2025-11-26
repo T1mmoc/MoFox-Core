@@ -217,12 +217,11 @@ class ToolExecutor:
             return tool_results, [], ""
 
     def _get_tool_definitions(self) -> list[dict[str, Any]]:
-        all_tools = get_llm_available_tool_definitions()
-        user_disabled_tools = global_announcement_manager.get_disabled_chat_tools(self.chat_id)
+        all_tools = get_llm_available_tool_definitions(self.chat_id)
 
         # 获取基础工具定义（包括二步工具的第一步）
         tool_definitions = [
-            definition for definition in all_tools if definition.get("function", {}).get("name") not in user_disabled_tools
+            definition for definition in all_tools if definition.get("function", {}).get("name")
         ]
 
         # 检查是否有待处理的二步工具第二步调用

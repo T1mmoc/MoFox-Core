@@ -79,6 +79,7 @@ dependencies = [
     "rjieba>=0.1.13",
     "fastmcp>=2.13.0",
     "mofox-wire",
+    "jinja2>=3.1.0"
 ]
 
 [[tool.uv.index]]

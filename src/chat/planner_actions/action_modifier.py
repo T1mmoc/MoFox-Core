@@ -11,7 +11,7 @@ from src.common.logger import get_logger
 from src.config.config import global_config, model_config
 from src.llm_models.utils_model import LLMRequest
 from src.plugin_system.base.component_types import ActionInfo
-from src.plugin_system.core.global_announcement_manager import global_announcement_manager
+
 
 if TYPE_CHECKING:
     from src.common.data_models.message_manager_data_model import StreamContext
@@ -69,6 +69,16 @@ class ActionModifier:
         """
         # 初始化log_prefix
         await self._initialize_log_prefix()
+        # 根据 stream_id 加载当前可用的动作
+        await self.action_manager.load_actions(self.chat_id)
+        from src.plugin_system.base.component_types import ComponentType
+        from src.plugin_system.core.component_registry import component_registry
+        # 计算并记录禁用的动作数量
+        all_registered_actions = component_registry.get_components_by_type(ComponentType.ACTION)
+        loaded_actions_count = len(self.action_manager.get_using_actions())
+        disabled_actions_count = len(all_registered_actions) - loaded_actions_count
+        if disabled_actions_count > 0:
+            logger.info(f"{self.log_prefix} 用户禁用了 {disabled_actions_count} 个动作。")
 
         logger.debug(f"{self.log_prefix}开始完整动作修改流程")
 
@@ -76,7 +86,6 @@ class ActionModifier:
         removals_s2: list[tuple[str, str]] = []
         removals_s3: list[tuple[str, str]] = []
 
-        self.action_manager.restore_actions()
         all_actions = self.action_manager.get_using_actions()
 
         # === 第0阶段：根据聊天类型过滤动作 ===
@@ -126,15 +135,6 @@ class ActionModifier:
 
         if message_content:
             chat_content = chat_content + "\n" + f"现在，最新的消息是：{message_content}"
-
-        # === 第一阶段：去除用户自行禁用的 ===
-        disabled_actions = global_announcement_manager.get_disabled_chat_actions(self.chat_id)
-        if disabled_actions:
-            for disabled_action_name in disabled_actions:
-                if disabled_action_name in all_actions:
-                    removals_s1.append((disabled_action_name, "用户自行禁用"))
-                    self.action_manager.remove_action_from_using(disabled_action_name)
-                    logger.debug(f"{self.log_prefix}阶段一移除动作: {disabled_action_name}，原因: 用户自行禁用")
 
         # === 第二阶段：检查动作的关联类型 ===
         if not self.chat_stream:

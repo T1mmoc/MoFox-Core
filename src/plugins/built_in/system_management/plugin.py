@@ -11,6 +11,7 @@ from typing import ClassVar
 from src.chat.utils.prompt_component_manager import prompt_component_manager
 from src.chat.utils.prompt_params import PromptParameters
 from src.plugin_system.apis import (
+    chat_api,
     plugin_manage_api,
 )
 from src.plugin_system.apis.logging_api import get_logger
@@ -21,6 +22,7 @@ from src.plugin_system.base.base_plugin import BasePlugin
 from src.plugin_system.base.command_args import CommandArgs
 from src.plugin_system.base.component_types import (
     ChatType,
+    ComponentType,
     PermissionNodeField,
     PlusCommandInfo,
 )
@@ -96,16 +98,16 @@ class SystemCommand(PlusCommand):
             help_text = """🔌 插件管理命令帮助
 📋 基本操作：
 • `/system plugin help` - 显示插件管理帮助
-• `/system plugin list` - 列出所有注册的插件
-• `/system plugin list_enabled` - 列出所有加载（启用）的插件
+• `/system plugin report` - 查看系统插件报告
 • `/system plugin rescan` - 重新扫描所有插件目录
 
 ⚙️ 插件控制：
 • `/system plugin load <插件名>` - 加载指定插件
-• `/system plugin unload <插件名>` - 卸载指定插件
 • `/system plugin reload <插件名>` - 重新加载指定插件
-• `/system plugin force_reload <插件名>` - 强制重载指定插件
-• `/system plugin add_dir <目录路径>` - 添加插件目录
+• `/system plugin reload_all` - 重新加载所有插件
+🎯 局部控制 (需要 `system.plugin.manage.local` 权限):
+• `/system plugin enable_local <名称> [group <群号> | private <QQ号>]` - 在指定会话局部启用组件
+• `/system plugin disable_local <名称> [group <群号> | private <QQ号>]` - 在指定会话局部禁用组件
 """
         elif target == "permission":
             help_text = """📋 权限管理命令帮助
@@ -150,20 +152,20 @@ class SystemCommand(PlusCommand):
 
         if action in ["help", "帮助"]:
             await self._show_help("plugin")
-        elif action in ["list", "列表"]:
-            await self._list_registered_plugins()
-        elif action in ["list_enabled", "已启用"]:
-            await self._list_loaded_plugins()
+        elif action in ["report", "报告"]:
+            await self._show_system_report()
         elif action in ["rescan", "重扫"]:
             await self._rescan_plugin_dirs()
         elif action in ["load", "加载"] and len(remaining_args) > 0:
             await self._load_plugin(remaining_args[0])
-        elif action in ["unload", "卸载"] and len(remaining_args) > 0:
-            await self._unload_plugin(remaining_args[0])
         elif action in ["reload", "重载"] and len(remaining_args) > 0:
             await self._reload_plugin(remaining_args[0])
-        elif action in ["force_reload", "强制重载"] and len(remaining_args) > 0:
-            await self._force_reload_plugin(remaining_args[0])
+        elif action in ["reload_all", "重载全部"]:
+            await self._reload_all_plugins()
+        elif action in ["enable_local", "局部启用"] and len(remaining_args) >= 1:
+            await self._set_local_component_state(remaining_args, enabled=True)
+        elif action in ["disable_local", "局部禁用"] and len(remaining_args) >= 1:
+            await self._set_local_component_state(remaining_args, enabled=False)
         else:
             await self.send_text("❌ 插件管理命令不合法\n使用 /system plugin help 查看帮助")
 
@@ -316,7 +318,7 @@ class SystemCommand(PlusCommand):
     @require_permission("prompt.view", deny_message="❌ 你没有查看提示词注入信息的权限")
     async def _list_prompt_components(self):
         """列出所有已注册的提示词组件"""
-        components = prompt_component_manager.get_registered_prompt_component_info()
+        components = await prompt_component_manager.get_registered_prompt_component_info()
         if not components:
             await self.send_text("🧩 当前没有已注册的提示词组件")
             return
@@ -398,7 +400,7 @@ class SystemCommand(PlusCommand):
     @require_permission("prompt.view", deny_message="❌ 你没有查看提示词组件信息的权限")
     async def _show_prompt_component_info(self, component_name: str):
         """显示特定提示词组件的详细信息"""
-        all_components = prompt_component_manager.get_registered_prompt_component_info()
+        all_components = await prompt_component_manager.get_registered_prompt_component_info()
 
         target_component = next((comp for comp in all_components if comp.name == component_name), None)
 
@@ -429,60 +431,150 @@ class SystemCommand(PlusCommand):
     # Permission Management Section
     # =================================================================
 
-    async def _list_loaded_plugins(self):
-        """列出已加载的插件"""
-        plugins = plugin_manage_api.list_loaded_plugins()
-        await self.send_text(f"📦 已加载的插件: {', '.join(plugins) if plugins else '无'}")
+    @require_permission("plugin.manage", deny_message="❌ 你没有权限查看插件报告")
+    async def _show_system_report(self):
+        """显示系统插件报告"""
+        report = plugin_manage_api.get_system_report()
+        
+        response_parts = [
+            "📊 **系统插件报告**",
+            f"  - 已加载插件: {report['system_info']['loaded_plugins_count']}",
+            f"  - 组件总数: {report['system_info']['total_components_count']}",
+        ]
 
-    async def _list_registered_plugins(self):
-        """列出已注册的插件"""
-        plugins = plugin_manage_api.list_registered_plugins()
-        await self.send_text(f"📋 已注册的插件: {', '.join(plugins) if plugins else '无'}")
+        if report["plugins"]:
+            response_parts.append("\n✅ **已加载插件:**")
+            for name, info in report["plugins"].items():
+                response_parts.append(f"  • **{info['display_name']} (`{name}`)** v{info['version']} by {info['author']}")
+        
+        if report["failed_plugins"]:
+            response_parts.append("\n❌ **加载失败的插件:**")
+            for name, error in report["failed_plugins"].items():
+                response_parts.append(f"  • **`{name}`**: {error}")
+        
+        await self._send_long_message("\n".join(response_parts))
 
+
+    @require_permission("plugin.manage", deny_message="❌ 你没有权限扫描插件")
     async def _rescan_plugin_dirs(self):
         """重新扫描插件目录"""
-        plugin_manage_api.rescan_plugin_directory()
-        await self.send_text("🔄 插件目录重新扫描已启动")
+        await self.send_text("🔄 正在重新扫描插件目录...")
+        success, fail = plugin_manage_api.rescan_and_register_plugins(load_after_register=True)
+        await self.send_text(f"✅ 扫描完成！\n新增成功: {success}个, 新增失败: {fail}个。")
 
+    @require_permission("plugin.manage", deny_message="❌ 你没有权限加载插件")
     async def _load_plugin(self, plugin_name: str):
         """加载指定插件"""
-        success, count = plugin_manage_api.load_plugin(plugin_name)
+        success = plugin_manage_api.register_plugin_from_file(plugin_name, load_after_register=True)
         if success:
             await self.send_text(f"✅ 插件加载成功: `{plugin_name}`")
         else:
-            if count == 0:
-                await self.send_text(f"⚠️ 插件 `{plugin_name}` 为禁用状态")
-            else:
-                await self.send_text(f"❌ 插件加载失败: `{plugin_name}`")
+            await self.send_text(f"❌ 插件加载失败: `{plugin_name}`。请检查日志获取详细信息。")
 
-    async def _unload_plugin(self, plugin_name: str):
-        """卸载指定插件"""
-        success = await plugin_manage_api.remove_plugin(plugin_name)
-        if success:
-            await self.send_text(f"✅ 插件卸载成功: `{plugin_name}`")
-        else:
-            await self.send_text(f"❌ 插件卸载失败: `{plugin_name}`")
 
+    @require_permission("plugin.manage", deny_message="❌ 你没有权限重载插件")
     async def _reload_plugin(self, plugin_name: str):
         """重新加载指定插件"""
-        success = await plugin_manage_api.reload_plugin(plugin_name)
-        if success:
-            await self.send_text(f"✅ 插件重新加载成功: `{plugin_name}`")
-        else:
-            await self.send_text(f"❌ 插件重新加载失败: `{plugin_name}`")
-
-    async def _force_reload_plugin(self, plugin_name: str):
-        """强制重载指定插件（深度清理）"""
-        await self.send_text(f"🔄 开始强制重载插件: `{plugin_name}`... (注意: 实际执行reload)")
         try:
             success = await plugin_manage_api.reload_plugin(plugin_name)
             if success:
-                await self.send_text(f"✅ 插件重载成功: `{plugin_name}`")
+                await self.send_text(f"✅ 插件重新加载成功: `{plugin_name}`")
             else:
-                await self.send_text(f"❌ 插件重载失败: `{plugin_name}`")
-        except Exception as e:
-            await self.send_text(f"❌ 重载过程中发生错误: {e!s}")
+                await self.send_text(f"❌ 插件重新加载失败: `{plugin_name}`")
+        except ValueError as e:
+            await self.send_text(f"❌ 操作失败: {e}")
 
+
+    @require_permission("plugin.manage", deny_message="❌ 你没有权限重载所有插件")
+    async def _reload_all_plugins(self):
+        """重新加载所有插件"""
+        await self.send_text("🔄 正在重新加载所有插件...")
+        success = await plugin_manage_api.reload_all_plugins()
+        if success:
+            await self.send_text("✅ 所有插件已成功重载。")
+        else:
+            await self.send_text("⚠️ 部分插件重载失败，请检查日志。")
+
+    @require_permission("plugin.manage.local", deny_message="❌ 你没有局部管理插件组件的权限")
+    async def _set_local_component_state(self, args: list[str], enabled: bool):
+        """在局部范围内启用或禁用一个组件"""
+        # 命令格式: <component_name> [group <group_id> | private <user_id>]
+        if not args:
+            action = "enable_local" if enabled else "disable_local"
+            await self.send_text(f"❌ 用法: /system plugin {action} <名称> [group <群号> | private <QQ号>]")
+            return
+
+        comp_name = args[0]
+        context_args = args[1:]
+        stream_id = self.message.chat_info.stream_id  # 默认作用于当前会话
+
+        # 1. 搜索组件
+        found_components = plugin_manage_api.search_components_by_name(comp_name, exact_match=True)
+
+        if not found_components:
+            await self.send_text(f"❌ 未找到名为 '{comp_name}' 的组件。")
+            return
+        
+        if len(found_components) > 1:
+            suggestions = "\n".join([f"- `{c['name']}` (类型: {c['component_type']})" for c in found_components])
+            await self.send_text(f"❌ 发现多个名为 '{comp_name}' 的组件，操作已取消。\n找到的组件:\n{suggestions}")
+            return
+
+        component_info = found_components[0]
+        comp_type_str = component_info["component_type"]
+        component_type = ComponentType(comp_type_str)
+
+        # 2. 增加禁用保护
+        if not enabled:  # 如果是禁用操作
+            # 定义不可禁用的核心组件类型
+            protected_types = [
+                ComponentType.INTEREST_CALCULATOR,
+                ComponentType.PROMPT,
+                ComponentType.ROUTER,
+            ]
+            if component_type in protected_types:
+                await self.send_text(f"❌ 无法局部禁用核心组件 '{comp_name}' ({comp_type_str})。")
+                return
+
+        # 3. 解析上下文
+        if len(context_args) >= 2:
+            context_type = context_args[0].lower()
+            context_id = context_args[1]
+            
+            target_stream = None
+            if context_type == "group":
+                target_stream = chat_api.get_stream_by_group_id(
+                    group_id=context_id,
+                    platform=self.message.chat_info.platform
+                )
+            elif context_type == "private":
+                target_stream = chat_api.get_stream_by_user_id(
+                    user_id=context_id,
+                    platform=self.message.chat_info.platform
+                )
+            else:
+                await self.send_text("❌ 无效的作用域类型，请使用 'group' 或 'private'。")
+                return
+
+            if not target_stream:
+                await self.send_text(f"❌ 在当前平台找不到指定的 {context_type}: `{context_id}`。")
+                return
+            
+            stream_id = target_stream.stream_id
+
+        # 4. 执行操作
+        success = plugin_manage_api.set_component_enabled_local(
+            stream_id=stream_id,
+            name=comp_name,
+            component_type=component_type,
+            enabled=enabled
+        )
+
+        action_text = "启用" if enabled else "禁用"
+        if success:
+            await self.send_text(f"✅ 在会话 `{stream_id}` 中，已成功将组件 `{comp_name}` ({comp_type_str}) 设置为 {action_text} 状态。")
+        else:
+            await self.send_text(f"❌ 操作失败。可能无法禁用最后一个启用的 Chatter，或组件不存在。请检查日志。")
 
 
     # =================================================================
@@ -728,5 +820,9 @@ class SystemManagementPlugin(BasePlugin):
         PermissionNodeField(
             node_name="schedule.manage",
             description="定时任务管理：暂停和恢复定时任务",
+        ),
+        PermissionNodeField(
+            node_name="plugin.manage.local",
+            description="局部插件管理：在指定会话中启用或禁用组件",
         ),
     ]

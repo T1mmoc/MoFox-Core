@@ -220,6 +220,36 @@ class EventManager:
         """
         return self._event_handlers.copy()
 
+    def remove_event_handler(self, handler_name: str) -> bool:
+        """
+        完全移除一个事件处理器，包括其所有订阅。
+
+        Args:
+            handler_name (str): 要移除的事件处理器的名称。
+
+        Returns:
+            bool: 如果成功移除则返回 True，否则返回 False。
+        """
+        if handler_name not in self._event_handlers:
+            logger.warning(f"事件处理器 {handler_name} 未注册，无需移除。")
+            return False
+
+        # 从主注册表中删除
+        del self._event_handlers[handler_name]
+        logger.debug(f"事件处理器 {handler_name} 已从主注册表移除。")
+
+        # 遍历所有事件，取消其订阅
+        for event in self._events.values():
+            # 创建订阅者列表的副本进行迭代，以安全地修改原始列表
+            for subscriber in list(event.subscribers):
+                if getattr(subscriber, 'handler_name', None) == handler_name:
+                    event.subscribers.remove(subscriber)
+                    logger.debug(f"事件处理器 {handler_name} 已从事件 {event.name} 取消订阅。")
+
+        logger.info(f"事件处理器 {handler_name} 已被完全移除。")
+        return True
+
+
     def subscribe_handler_to_event(self, handler_name: str, event_name: EventType | str) -> bool:
         """订阅事件处理器到指定事件
 

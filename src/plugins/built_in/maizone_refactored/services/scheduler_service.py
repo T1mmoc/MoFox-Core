@@ -63,35 +63,6 @@ class SchedulerService:
                 pass  # 任务取消是正常操作
         logger.info("基于日程表的说说定时发送任务已停止。")
 
-    async def _generate_random_topic(self) -> str | None:
-        """
-        使用小模型生成一个随机的说说主题。
-        """
-        try:
-            logger.info("尝试生成随机说说主题...")
-            prompt = "请生成一个有趣、简短、积极向上的日常一句话，适合作为社交媒体的动态内容，例如关于天气、心情、动漫、游戏或者某个小发现。请直接返回这句话，不要包含任何多余的解释或标签。"
-
-            task_config = global_model_config.model_task_config.get_task("utils_small")
-            if not task_config:
-                logger.error("未找到名为 'utils_small' 的模型任务配置。")
-                return None
-
-            success, content, _, _ = await llm_api.generate_with_model(
-                model_config=task_config,
-                prompt=prompt,
-                max_tokens=150,
-                temperature=0.9,
-            )
-
-            if success and content and content.strip():
-                logger.info(f"成功生成随机主题: {content.strip()}")
-                return content.strip()
-            logger.warning("LLM未能生成有效的主题。")
-            return None
-        except Exception as e:
-            logger.error(f"生成随机主题时发生错误: {e}")
-            return None
-
     async def _schedule_loop(self):
         """
         定时任务的核心循环。
@@ -140,20 +111,12 @@ class SchedulerService:
                             activity_placeholder = "No Schedule - Random"
                             if not await self._is_processed(hour_str, activity_placeholder):
                                 logger.info("没有日程活动，但开启了无日程发送功能，准备生成随机主题。")
-                                topic = await self._generate_random_topic()
-                                if topic:
-                                    result = await self.qzone_service.send_feed(topic=topic, stream_id=None)
-                                    await self._mark_as_processed(
+                                result = await self.qzone_service.send_feed(topic="随意发挥",stream_id=None)
+                                await self._mark_as_processed(
                                         hour_str,
                                         activity_placeholder,
                                         result.get("success", False),
                                         result.get("message", ""),
-                                    )
-                                else:
-                                    logger.error("未能生成随机主题，本次不发送。")
-                                    # 即使生成失败，也标记为已处理，防止本小时内反复尝试
-                                    await self._mark_as_processed(
-                                        hour_str, activity_placeholder, False, "Failed to generate topic"
                                     )
                             else:
                                 logger.info(f"当前小时 {hour_str} 已执行过无日程发送任务，本次跳过。")

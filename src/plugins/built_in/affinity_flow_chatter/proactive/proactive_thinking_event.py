@@ -85,11 +85,11 @@ class ProactiveThinkingReplyHandler(BaseEventHandler):
 
             if success:
                 if was_paused:
-                    logger.info(f"✅ 聊天流 {stream_id} 主动思考已恢复并重置")
+                    logger.info(f"[成功] 聊天流 {stream_id} 主动思考已恢复并重置")
                 else:
-                    logger.debug(f"✅ 聊天流 {stream_id} 主动思考任务已重置")
+                    logger.debug(f"[成功] 聊天流 {stream_id} 主动思考任务已重置")
             else:
-                logger.warning(f"❌ 重置聊天流 {stream_id} 主动思考任务失败")
+                logger.warning(f"[错误] 重置聊天流 {stream_id} 主动思考任务失败")
 
         except Exception as e:
             logger.error(f"❌ 处理reply事件时出错: {e}")

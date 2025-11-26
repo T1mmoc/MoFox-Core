@@ -551,10 +551,24 @@ class ChatterPlanFilter:
                     available_actions=plan.available_actions,
                 )
             else:
+                # 如果LLM没有指定target_message_id，统一使用最新消息
+                target_message_dict = self._get_latest_message(message_id_list)
+                action_message_obj = None
+                if target_message_dict:
+                    from src.common.data_models.database_data_model import DatabaseMessages
+                    try:
+                        action_message_obj = DatabaseMessages(**target_message_dict)
+                    except Exception as e:
+                        logger.error(
+                            f"[{action}] 无法将默认的最新消息转换为 DatabaseMessages 对象: {e}",
+                            exc_info=True,
+                        )
+
                 return ActionPlannerInfo(
                     action_type=action,
                     reasoning=reasoning,
                     action_data=action_data,
+                    action_message=action_message_obj,
                 )
         except Exception as e:
             logger.error(f"解析单个action时出错: {e}")

@@ -58,7 +58,7 @@ def extract_and_parse_json(response: str, *, strict: bool = False) -> dict[str, 
         # 步骤 2: 尝试直接解析
         try:
             result = orjson.loads(cleaned)
-            logger.debug(f"✅ JSON 直接解析成功，类型: {type(result).__name__}")
+            logger.debug(f" JSON 直接解析成功，类型: {type(result).__name__}")
             return result
         except Exception as direct_error:
             logger.debug(f"直接解析失败: {type(direct_error).__name__}: {direct_error}")
@@ -70,10 +70,10 @@ def extract_and_parse_json(response: str, *, strict: bool = False) -> dict[str, 
             # repair_json 可能返回字符串或已解析的对象
             if isinstance(repaired, str):
                 result = orjson.loads(repaired)
-                logger.debug(f"✅ JSON 修复后解析成功（字符串模式），类型: {type(result).__name__}")
+                logger.debug(f" JSON 修复后解析成功（字符串模式），类型: {type(result).__name__}")
             else:
                 result = repaired
-                logger.debug(f"✅ JSON 修复后解析成功（对象模式），类型: {type(result).__name__}")
+                logger.debug(f" JSON 修复后解析成功（对象模式），类型: {type(result).__name__}")
 
             return result
 
@@ -93,7 +93,7 @@ def extract_and_parse_json(response: str, *, strict: bool = False) -> dict[str, 
                 return {}
 
     except Exception as e:
-        logger.error(f"❌ JSON 解析过程出现异常: {type(e).__name__}: {e}")
+        logger.error(f" JSON 解析过程出现异常: {type(e).__name__}: {e}")
         if strict:
             return None
         return {} if not response.strip().startswith("[") else []

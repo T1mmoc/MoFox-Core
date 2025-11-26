@@ -30,7 +30,7 @@ def get_tool_instance(tool_name: str, chat_stream: Any = None) -> BaseTool | Non
     return tool_class(plugin_config, chat_stream) if tool_class else None
 
 
-def get_llm_available_tool_definitions() -> list[dict[str, Any]]:
+def get_llm_available_tool_definitions(stream_id : str | None) -> list[dict[str, Any]]:
     """获取LLM可用的工具定义列表（包括 MCP 工具）
 
     Returns:
@@ -38,7 +38,7 @@ def get_llm_available_tool_definitions() -> list[dict[str, Any]]:
     """
     from src.plugin_system.core import component_registry
 
-    llm_available_tools = component_registry.get_llm_available_tools()
+    llm_available_tools = component_registry.get_llm_available_tools(stream_id)
     tool_definitions = []
 
     # 获取常规工具定义

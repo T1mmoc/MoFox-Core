@@ -24,6 +24,7 @@
   <br />
   <a href="https://qm.qq.com/q/YwZTZl7BG8">
     <img src="https://img.shields.io/badge/墨狐狐的大学-169850076-violet?style=flat-square" alt="QQ Group">
+  </a>
 </p>
 
 ---

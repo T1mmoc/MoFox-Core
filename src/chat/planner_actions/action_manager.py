@@ -30,17 +30,21 @@ class ChatterActionManager:
     def __init__(self):
         """初始化动作管理器"""
 
-        # 当前正在使用的动作集合，默认加载默认动作
+        # 当前正在使用的动作集合，在规划开始时加载
         self._using_actions: dict[str, ActionInfo] = {}
-
-        # 初始化时将默认动作加载到使用中的动作
-        self._using_actions = component_registry.get_default_actions()
+        self.chat_id: str | None = None
 
         self.log_prefix: str = "ChatterActionManager"
         # 批量存储支持
         self._batch_storage_enabled = False
         self._pending_actions = []
         self._current_chat_id = None
+
+    async def load_actions(self, stream_id: str | None):
+        """根据 stream_id 加载当前可用的动作"""
+        self.chat_id = stream_id
+        self._using_actions = component_registry.get_default_actions(stream_id)
+        logger.debug(f"已为 stream '{stream_id}' 加载 {len(self._using_actions)} 个可用动作: {list(self._using_actions.keys())}")
 
     # === 执行Action方法 ===
 
@@ -136,11 +140,12 @@ class ChatterActionManager:
         logger.debug(f"已从使用集中移除动作 {action_name}")
         return True
 
-    def restore_actions(self) -> None:
-        """恢复到默认动作集"""
+    async def restore_actions(self) -> None:
+        """恢复到当前 stream_id 的默认动作集"""
         actions_to_restore = list(self._using_actions.keys())
-        self._using_actions = component_registry.get_default_actions()
-        logger.debug(f"恢复动作集: 从 {actions_to_restore} 恢复到默认动作集 {list(self._using_actions.keys())}")
+        # 使用 self.chat_id 来恢复当前上下文的动作
+        await self.load_actions(self.chat_id)
+        logger.debug(f"恢复动作集: 从 {actions_to_restore} 恢复到 stream '{self.chat_id}' 的默认动作集 {list(self._using_actions.keys())}")
 
     async def execute_action(
         self,
