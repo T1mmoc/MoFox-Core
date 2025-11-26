@@ -174,12 +174,12 @@ def get_extraction_prompt(paragraph: str) -> str:
 async def extract_info_async(pg_hash, paragraph, llm_api):
     """
     异步提取单个段落的信息（带缓存支持）
-    
+
     Args:
         pg_hash: 段落哈希值
         paragraph: 段落文本
         llm_api: LLM请求实例
-    
+
     Returns:
         tuple: (doc_item或None, failed_hash或None)
     """
@@ -231,15 +231,15 @@ async def extract_info_async(pg_hash, paragraph, llm_api):
 async def extract_information(paragraphs_dict, model_set):
     """
     🔧 优化：使用真正的异步并发代替多线程
-    
+
     这样可以：
     1. 避免 event loop closed 错误
     2. 更高效地利用 I/O 资源
     3. 与我们优化的 LLM 请求层无缝集成
-    
+
     并发控制：
     - 使用信号量限制最大并发数为 5，防止触发 API 速率限制
-    
+
     Args:
         paragraphs_dict: {hash: paragraph} 字典
         model_set: 模型配置
@@ -307,8 +307,8 @@ async def extract_information(paragraphs_dict, model_set):
         now = datetime.datetime.now()
         filename = now.strftime("%Y-%m-%d-%H-%M-%S-openie.json")
         output_path = os.path.join(OPENIE_OUTPUT_DIR, filename)
-        with open(output_path, "wb") as f:
-            f.write(orjson.dumps(openie_obj._to_dict()))
+        async with aiofiles.open(output_path, "wb") as f:
+            await f.write(orjson.dumps(openie_obj._to_dict()))
         logger.info(f"信息提取结果已保存到: {output_path}")
         logger.info(f"成功提取 {len(open_ie_docs)} 个段落的信息")
 

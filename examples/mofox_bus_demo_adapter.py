@@ -10,13 +10,10 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
-from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import orjson
 import websockets
-
-
 from mofox_wire import (
     AdapterBase,
     InProcessCoreSink,
@@ -24,7 +21,6 @@ from mofox_wire import (
     MessageRuntime,
     WebSocketAdapterOptions,
 )
-
 
 # ---------------------------------------------------------------------------
 # 1. 模拟一个提供 WebSocket 接口的平台
@@ -93,7 +89,7 @@ class DemoWsAdapter(AdapterBase):   # 继承AdapterBase
     # 实现 from_platform_message 方法，将平台消息转换为 MessageEnvelope
     # 该方法必须被实现以便 AdapterBase 正确处理消息转换
     # 该方法会在adapter接收到平台消息后被调用
-    def from_platform_message(self, raw: Dict[str, Any]) -> MessageEnvelope:
+    def from_platform_message(self, raw: dict[str, Any]) -> MessageEnvelope:
         return {
             "id": raw["message_id"],
             "direction": "incoming",
@@ -151,7 +147,7 @@ async def handle_incoming(env: MessageEnvelope) -> MessageEnvelope:
     }
 
 
-adapter: Optional[DemoWsAdapter] = None
+adapter: DemoWsAdapter | None = None
 
 
 async def core_entry(message: MessageEnvelope) -> None:

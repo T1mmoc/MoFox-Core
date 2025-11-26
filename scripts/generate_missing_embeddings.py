@@ -10,7 +10,7 @@
 
 使用方法:
     python scripts/generate_missing_embeddings.py [--node-types TOPIC,OBJECT] [--batch-size 50]
-    
+
 参数说明:
     --node-types: 需要生成嵌入的节点类型，默认为 TOPIC,OBJECT
     --batch-size: 批量处理大小，默认为 50
@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
 async def generate_missing_embeddings(
-    target_node_types: list[str] = None,
+    target_node_types: list[str] | None = None,
     batch_size: int = 50,
 ):
     """

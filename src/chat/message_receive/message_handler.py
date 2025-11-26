@@ -27,21 +27,17 @@
 
 from __future__ import annotations
 
-import asyncio
 import os
 import re
-import time
 import traceback
-from functools import partial
 from typing import TYPE_CHECKING, Any
 
 from mofox_wire import MessageEnvelope, MessageRuntime
 
 from src.chat.message_manager import message_manager
 from src.chat.message_receive.storage import MessageStorage
-from src.chat.utils.prompt import global_prompt_manager
 from src.chat.utils.utils import is_mentioned_bot_in_message
-from src.common.data_models.database_data_model import DatabaseMessages, DatabaseUserInfo, DatabaseGroupInfo
+from src.common.data_models.database_data_model import DatabaseGroupInfo, DatabaseMessages, DatabaseUserInfo
 from src.common.logger import get_logger
 from src.config.config import global_config
 from src.mood.mood_manager import mood_manager
@@ -49,8 +45,8 @@ from src.plugin_system.base import BaseCommand, EventType
 from src.plugin_system.core import component_registry, event_manager, global_announcement_manager
 
 if TYPE_CHECKING:
-    from src.common.core_sink_manager import CoreSinkManager
     from src.chat.message_receive.chat_stream import ChatStream
+    from src.common.core_sink_manager import CoreSinkManager
 
 logger = get_logger("message_handler")
 
@@ -82,16 +78,16 @@ def _check_ban_regex(text: str, chat: "ChatStream", userinfo) -> bool:
 class MessageHandler:
     """
     统一消息处理器
-    
+
     利用 MessageRuntime 的路由功能，将消息处理逻辑注册为路由和钩子。
-    
+
     架构说明：
     - 在 register_handlers() 中向 MessageRuntime 注册各种处理器
     - 使用 @runtime.on_message(message_type=...) 按消息类型路由
     - 使用 before_hook 进行消息预处理
     - 使用 after_hook 进行消息后处理
     - 使用 error_hook 统一处理异常
-    
+
     主要功能：
     1. 消息预处理：ID标准化、过滤检查
     2. 适配器响应处理：处理 adapter_response 类型消息
@@ -113,44 +109,44 @@ class MessageHandler:
     def register_handlers(self, runtime: MessageRuntime) -> None:
         """
         向 MessageRuntime 注册消息处理器和钩子
-        
+
         这是核心方法，在系统初始化时调用，将所有处理逻辑注册到 runtime。
-        
+
         Args:
             runtime: MessageRuntime 实例
         """
         self._runtime = runtime
-        
+
         # 注册前置钩子：消息预处理和过滤
         runtime.register_before_hook(self._before_hook)
-        
+
         # 注册后置钩子：存储、情绪更新等
         runtime.register_after_hook(self._after_hook)
-        
+
         # 注册错误钩子：统一异常处理
         runtime.register_error_hook(self._error_hook)
-        
+
         # 注册适配器响应处理器（最高优先级）
         def _is_adapter_response(env: MessageEnvelope) -> bool:
             segment = env.get("message_segment")
             if isinstance(segment, dict):
                 return segment.get("type") == "adapter_response"
             return False
-        
+
         runtime.add_route(
             predicate=_is_adapter_response,
             handler=self._handle_adapter_response_route,
             name="adapter_response_handler",
             message_type="adapter_response",
         )
-        
+
         # 注册默认消息处理器（处理所有其他消息）
         runtime.add_route(
             predicate=lambda _: True,  # 匹配所有消息
             handler=self._handle_normal_message,
             name="default_message_handler",
         )
-        
+
         logger.info("MessageHandler 已向 MessageRuntime 注册处理器和钩子")
 
     async def ensure_started(self) -> None:
@@ -169,7 +165,7 @@ class MessageHandler:
     async def _before_hook(self, envelope: MessageEnvelope) -> None:
         """
         前置钩子：消息预处理
-        
+
         1. 标准化 ID 为字符串
         2. 检查是否为 echo 消息（自身发送的消息上报）
         3. 附加预处理数据到 envelope（chat_stream, message 等）
@@ -211,7 +207,7 @@ class MessageHandler:
     async def _after_hook(self, envelope: MessageEnvelope) -> None:
         """
         后置钩子：消息后处理
-        
+
         在消息处理完成后执行的清理工作
         """
         # 后置处理逻辑（如有需要）
@@ -242,7 +238,7 @@ class MessageHandler:
     async def _handle_normal_message(self, envelope: MessageEnvelope) -> MessageEnvelope | None:
         """
         默认消息处理器：处理普通消息
-        
+
         1. 获取或创建聊天流
         2. 转换为 DatabaseMessages
         3. 过滤检查
@@ -261,10 +257,10 @@ class MessageHandler:
             if not user_info and not group_info:
                 logger.debug("消息缺少用户信息，已跳过处理")
                 return None
-            
+
             # 获取或创建聊天流
             platform = message_info.get("platform", "unknown")
-            
+
             from src.chat.message_receive.chat_stream import get_chat_manager
             chat = await get_chat_manager().get_or_create_stream(
                 platform=platform,
@@ -325,10 +321,10 @@ class MessageHandler:
     async def process_message(self, envelope: MessageEnvelope) -> None:
         """
         处理接收到的消息信封（向后兼容）
-        
+
         注意：此方法已被 MessageRuntime 路由取代。
         如果直接调用此方法，它会委托给 runtime.handle_message()。
-        
+
         Args:
             envelope: 消息信封（来自适配器）
         """
@@ -360,8 +356,8 @@ class MessageHandler:
 
             # 触发消息事件
             result = await event_manager.trigger_event(
-                EventType.ON_MESSAGE, 
-                permission_group="SYSTEM", 
+                EventType.ON_MESSAGE,
+                permission_group="SYSTEM",
                 message=message
             )
             if result and not result.all_continue_process():
@@ -379,8 +375,8 @@ class MessageHandler:
             logger.error(traceback.format_exc())
 
     async def _process_plus_commands(
-        self, 
-        message: DatabaseMessages, 
+        self,
+        message: DatabaseMessages,
         chat: "ChatStream"
     ) -> tuple[bool, Any, bool]:
         """处理 PlusCommand 系统"""
@@ -490,8 +486,8 @@ class MessageHandler:
             return False, None, True
 
     async def _process_base_commands(
-        self, 
-        message: DatabaseMessages, 
+        self,
+        message: DatabaseMessages,
         chat: "ChatStream"
     ) -> tuple[bool, Any, bool]:
         """处理传统 BaseCommand 系统"""
