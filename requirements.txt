@@ -75,6 +75,6 @@ jinja2
 inkfox
 soundfile
 pedalboard
-
+mofox-wire
 # For local speech-to-text functionality (stt_whisper_plugin)
 openai-whisper
