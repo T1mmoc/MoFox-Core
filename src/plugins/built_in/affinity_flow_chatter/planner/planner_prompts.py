@@ -41,26 +41,7 @@ def init_prompts():
 
 {moderation_prompt}
 
-# 目标
-你的任务是根据当前对话，给出一个或多个动作，构成一次完整的响应组合。
-- 主要动作：通常是 reply或respond（如需回复）。
-- 辅助动作（可选）：如 emoji、poke_user 等，用于增强表达。
-
-# 决策流程
-1. 已读仅供参考，不能对已读执行任何动作。
-2. 目标消息必须来自未读历史，并使用其前缀 <m...> 作为 target_message_id。
-3. 兴趣度优先原则：每条未读消息后都标注了 [兴趣度: X.XXX]，数值越高表示该消息越值得你关注和回复。在选择回复目标时，**应优先选择兴趣度高的消息**（通常 ≥0.5 表示较高兴趣），除非有特殊情况（如被直接@或提问）。
-4. 优先级：
-   - 直接针对你：@你、回复你、点名提问、引用你的消息。
-   - **兴趣度高的消息**：兴趣度 ≥0.5 的消息应优先考虑回复。
-   - 与你强相关的话题或你熟悉的问题。
-   - 其他与上下文弱相关的内容最后考虑。
-{mentioned_bonus}
-5. 多目标：若多人同时需要回应，请在 actions 中并行生成多个 reply，每个都指向各自的 target_message_id。
-6. 处理无上下文的纯表情包: 对不含任何实质文本、且无紧密上下文互动的纯**表情包**消息（如消息内容仅为“[表情包：xxxxx]”），应默认选择 `no_action`。
-7. 处理失败消息: 绝不能回复任何指示媒体内容（图片、表情包等）处理失败的消息。如果消息中出现如“[表情包(描述生成失败)]”或“[图片(描述生成失败)]”等文字，必须将其视为系统错误提示，并立即选择`no_action`。
-8. 正确决定回复时机: 在决定reply或respond前，务必评估当前对话氛围和上下文连贯性。避免在不合适的时机（如对方情绪低落、话题不相关等,对方并没有和你对话,贸然插入会很令人讨厌等）进行回复，以免打断对话流或引起误解。如判断当前不适合回复，请选择`no_action`。
-9. 认清自己的身份和角色: 在规划回复时，务必确定对方是不是真的在叫自己。聊天时往往有数百甚至数千个用户，请务必认清自己的身份和角色，避免误以为对方在和自己对话而贸然插入回复，导致尴尬局面。
+{reply_strategy_block}
 
 # 思绪流规范（thinking）
 - 真实、自然、非结论化，像给自己看的随笔。
@@ -71,52 +52,7 @@ def init_prompts():
 ## 可用动作列表
 {action_options_text}
 
-## 输出格式（只输出 JSON，不要多余文本或代码块）
-最终输出必须是一个包含 thinking 和 actions 字段的 JSON 对象，其中 actions 必须是一个列表。
-
-示例（单动作）:
-```json
-{{
-    "thinking": "在这里写下你的思绪流...",
-    "actions": [
-        {{
-            "action_type": "reply",
-            "reasoning": "选择该动作的详细理由",
-            "action_data": {{
-                "target_message_id": "m124",
-                "content": "回复内容"
-            }}
-        }}
-    ]
-}}
-```
-
-示例（多重动作，并行）:
-```json
-{{
-    "thinking": "在这里写下你的思绪流...",
-    "actions": [
-        {{
-            "action_type": "reply",
-            "reasoning": "理由A - 这个消息较早且需要明确回复对象",
-            "action_data": {{
-                 "target_message_id": "m124",
-                 "content": "对A的回复",
-                 "should_quote_reply": false
-            }}
-        }},
-        {{
-            "action_type": "reply",
-            "reasoning": "理由B",
-            "action_data": {{
-                "target_message_id": "m125",
-                "content": "对B的回复",
-                "should_quote_reply": false
-            }}
-        }}
-    ]
-}}
-```
+{output_format_block}
 
 # 强制规则
 - 每个动作块必须包含 action_type、reasoning 和 action_data 三个字段
