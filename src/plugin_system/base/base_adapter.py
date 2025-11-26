@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 from mofox_wire import AdapterBase as MoFoxAdapterBase, CoreSink, MessageEnvelope, ProcessCoreSink
 
 if TYPE_CHECKING:
-    from src.plugin_system.base.base_plugin import BasePlugin
+    from src.plugin_system import BasePlugin, AdapterInfo
 
 from src.common.logger import get_logger
 

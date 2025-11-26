@@ -10,6 +10,7 @@ from fastapi import Depends
 from src.common.logger import get_logger
 from src.config.config import global_config as bot_config
 from src.plugin_system.base.base_action import BaseAction
+from src.plugin_system.base.base_adapter import BaseAdapter
 from src.plugin_system.base.base_chatter import BaseChatter
 from src.plugin_system.base.base_command import BaseCommand
 from src.plugin_system.base.base_events_handler import BaseEventHandler
@@ -19,6 +20,7 @@ from src.plugin_system.base.base_prompt import BasePrompt
 from src.plugin_system.base.base_tool import BaseTool
 from src.plugin_system.base.component_types import (
     ActionInfo,
+    AdapterInfo,
     ChatterInfo,
     CommandInfo,
     ComponentInfo,
@@ -46,6 +48,7 @@ ComponentClassType = (
     | type[BaseInterestCalculator]
     | type[BasePrompt]
     | type[BaseRouterComponent]
+    | type[BaseAdapter]
 )
 
 
@@ -109,6 +112,21 @@ class ComponentRegistry:
         """启用的chatter名 -> chatter类"""
         logger.info("组件注册中心初始化完成")
 
+        self._interest_calculator_registry: dict[str, type["BaseInterestCalculator"]] = {}
+        """兴趣计算器名 -> 兴趣计算器类"""
+        self._enabled_interest_calculator_registry: dict[str, type["BaseInterestCalculator"]] = {}
+        """启用的兴趣计算器名 -> 兴趣计算器类"""
+
+        self._prompt_registry: dict[str, type["BasePrompt"]] = {}
+        """提示词组件名 -> 提示词组件类"""
+        self._enabled_prompt_registry: dict[str, type["BasePrompt"]] = {}
+        """启用的提示词组件名 -> 提示词组件类"""
+        
+        self._adapter_registry: dict[str, type["BaseAdapter"]] = {}
+        """适配器组件名 -> 适配器组件类"""
+        self._enabled_adapter_registry: dict[str, type["BaseAdapter"]] = {}
+        """启用的适配器组件名 -> 适配器组件类"""
+        
     # == 注册方法 ==
 
     def register_plugin(self, plugin_info: PluginInfo) -> bool:
@@ -204,6 +222,10 @@ class ComponentRegistry:
                 assert isinstance(component_info, RouterInfo)
                 assert issubclass(component_class, BaseRouterComponent)
                 ret = self._register_router_component(component_info, component_class)
+            case ComponentType.ADAPTER:
+                assert isinstance(component_info, AdapterInfo)
+                assert issubclass(component_class, BaseAdapter)
+                ret = self._register_adapter_component(component_info, component_class)
             case _:
                 logger.warning(f"未知组件类型: {component_type}")
                 ret = False
@@ -335,12 +357,6 @@ class ComponentRegistry:
             logger.error(f"注册失败: {calculator_name} 不是有效的InterestCalculator")
             return False
 
-        # 创建专门的InterestCalculator注册表（如果还没有）
-        if not hasattr(self, "_interest_calculator_registry"):
-            self._interest_calculator_registry: dict[str, type["BaseInterestCalculator"]] = {}
-        if not hasattr(self, "_enabled_interest_calculator_registry"):
-            self._enabled_interest_calculator_registry: dict[str, type["BaseInterestCalculator"]] = {}
-
         _assign_plugin_attrs(
             interest_calculator_class,
             interest_calculator_info.plugin_name,
@@ -364,11 +380,6 @@ class ComponentRegistry:
         if not prompt_name:
             logger.error(f"Prompt组件 {prompt_class.__name__} 必须指定名称")
             return False
-
-        if not hasattr(self, "_prompt_registry"):
-            self._prompt_registry: dict[str, type[BasePrompt]] = {}
-        if not hasattr(self, "_enabled_prompt_registry"):
-            self._enabled_prompt_registry: dict[str, type[BasePrompt]] = {}
 
         _assign_plugin_attrs(
             prompt_class, prompt_info.plugin_name, self.get_plugin_config(prompt_info.plugin_name) or {}
@@ -419,6 +430,29 @@ class ComponentRegistry:
         except Exception as e:
             logger.error(f"注册路由组件 '{router_info.name}' 时出错: {e}", exc_info=True)
             return False
+
+    def _register_adapter_component(self, adapter_info: AdapterInfo, adapter_class: type[BaseAdapter]) -> bool:
+        """将Adapter组件注册到Adapter特定注册表"""
+
+        adapter_name = adapter_info.name
+        if not adapter_name:
+            logger.error(f"Adapter组件 {adapter_class.__name__} 必须指定名称")
+            return False
+        if not isinstance(adapter_info, AdapterInfo) or not issubclass(adapter_class, BaseAdapter):
+            logger.error(f"注册失败: {adapter_name} 不是有效的Adapter")
+            return False
+
+        _assign_plugin_attrs(
+            adapter_class, adapter_info.plugin_name, self.get_plugin_config(adapter_info.plugin_name) or {}
+        )
+        if not hasattr(self, "_adapter_registry"):
+            self._adapter_registry: dict[str, type[BaseAdapter]] = {}
+
+        self._adapter_registry[adapter_name] = adapter_class
+
+        if not adapter_info.enabled:
+            logger.warning(f"Adapter {adapter_name} 未启用")
+        return True
 
     # === 组件移除相关 ===
 
@@ -664,6 +698,7 @@ class ComponentRegistry:
             | BaseInterestCalculator
             | BasePrompt
             | BaseRouterComponent
+            | BaseAdapter
         ]
         | None
     ):
@@ -693,6 +728,7 @@ class ComponentRegistry:
                 | type[BaseInterestCalculator]
                 | type[BasePrompt]
                 | type[BaseRouterComponent]
+                | type[BaseAdapter]
                 | None,
                 self._components_classes.get(namespaced_name),
             )
@@ -919,6 +955,7 @@ class ComponentRegistry:
         chatter_components: int = 0
         prompt_components: int = 0
         router_components: int = 0
+        adapter_components: int = 0
         for component in self._components.values():
             if component.component_type == ComponentType.ACTION:
                 action_components += 1
@@ -936,6 +973,8 @@ class ComponentRegistry:
                 prompt_components += 1
             elif component.component_type == ComponentType.ROUTER:
                 router_components += 1
+            elif component.component_type == ComponentType.ADAPTER:
+                adapter_components += 1
         return {
             "action_components": action_components,
             "command_components": command_components,
@@ -946,6 +985,7 @@ class ComponentRegistry:
             "chatter_components": chatter_components,
             "prompt_components": prompt_components,
             "router_components": router_components,
+            "adapter_components": adapter_components,
             "total_components": len(self._components),
             "total_plugins": len(self._plugins),
             "components_by_type": {

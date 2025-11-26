@@ -19,7 +19,7 @@ import websockets
 
 from mofox_wire import CoreSink, MessageEnvelope, WebSocketAdapterOptions
 from src.common.logger import get_logger
-from src.plugin_system import register_plugin
+from src.plugin_system import ConfigField, register_plugin
 from src.plugin_system.base import BaseAdapter, BasePlugin
 from src.plugin_system.apis import config_api
 
@@ -43,7 +43,7 @@ class NapcatAdapter(BaseAdapter):
 
     run_in_subprocess = False
 
-    def __init__(self, core_sink: CoreSink, plugin: Optional[BasePlugin] = None):
+    def __init__(self, core_sink: CoreSink, plugin: Optional[BasePlugin] = None, **kwargs):
         """初始化 Napcat 适配器"""
         # 从插件配置读取 WebSocket URL
         if plugin:
@@ -52,7 +52,6 @@ class NapcatAdapter(BaseAdapter):
             access_token = config_api.get_plugin_config(plugin.config, "napcat_server.access_token", "")
 
             ws_url = f"ws://{host}:{port}"
-            
             headers = {}
             if access_token:
                 headers["Authorization"] = f"Bearer {access_token}"
@@ -62,11 +61,12 @@ class NapcatAdapter(BaseAdapter):
 
         # 配置 WebSocket 传输
         transport = WebSocketAdapterOptions(
+            mode="server",
             url=ws_url,
             headers=headers if headers else None,
         )
 
-        super().__init__(core_sink, plugin=plugin, transport=transport)
+        super().__init__(core_sink, plugin=plugin, transport=transport, **kwargs)
 
         # 初始化处理器
         self.message_handler = MessageHandler(self)
@@ -178,11 +178,14 @@ class NapcatAdapter(BaseAdapter):
         self._response_pool[echo] = future
 
         # 构造请求
-        request = orjson.dumps({
-            "action": action,
-            "params": params,
-            "echo": echo,
-        })
+        # Napcat expects JSON text frames; orjson.dumps returns bytes so decode to str
+        request = orjson.dumps(
+            {
+                "action": action,
+                "params": params,
+                "echo": echo,
+            }
+        ).decode()
 
         try:
             # 发送请求
@@ -214,57 +217,53 @@ class NapcatAdapterPlugin(BasePlugin):
     """Napcat 适配器插件"""
 
     plugin_name = "napcat_adapter_plugin"
+    config_file_name = "config.toml"
     enable_plugin = True
     plugin_version = "2.0.0"
     plugin_author = "MoFox Team"
     plugin_description = "Napcat/OneBot 11 适配器（基于 MoFox-Bus 重写）"
 
-    # 配置 Schema
-    config_schema: ClassVar[dict] = {
-        "plugin": {
-            "name": {"type": str, "default": "napcat_adapter_plugin"},
-            "version": {"type": str, "default": "1.0.0"},
-            "enabled": {"type": bool, "default": True},
-        },
-        "napcat_server": {
-            "host": {"type": str, "default": "localhost"},
-            "port": {"type": int, "default": 8095},
-            "access_token": {"type": str, "default": ""},
-        },
-        "features": {
-            "group_list_type": {"type": str, "default": "blacklist"},
-            "group_list": {"type": list, "default": []},
-            "private_list_type": {"type": str, "default": "blacklist"},
-            "private_list": {"type": list, "default": []},
-            "ban_user_id": {"type": list, "default": []},
-            "ban_qq_bot": {"type": bool, "default": False},
-        },
+    config_section_descriptions: ClassVar = {
+        "plugin": "插件开关",
+        "napcat_server": "Napcat WebSocket 连接设置",
+        "features": "过滤和名单配置",
     }
 
-    def __init__(self):
-        self._adapter: Optional[NapcatAdapter] = None
-
-    async def on_plugin_loaded(self):
-        """插件加载时启动适配器"""
-        logger.info("Napcat 适配器插件正在加载...")
-
-        # 从 CoreSinkManager 获取 InProcessCoreSink
-        from src.common.core_sink_manager import get_core_sink_manager
-        
-        core_sink_manager = get_core_sink_manager()
-        core_sink = core_sink_manager.get_in_process_sink()
-
-        # 创建并启动适配器
-        self._adapter = NapcatAdapter(core_sink, plugin=self)
-        await self._adapter.start()
-
-        logger.info("Napcat 适配器插件已加载")
-
-    async def on_plugin_unloaded(self):
-        """插件卸载时停止适配器"""
-        if self._adapter:
-            await self._adapter.stop()
-        logger.info("Napcat 适配器插件已卸载")
+    config_schema: ClassVar[dict] = {
+        "plugin": {
+            "enabled": ConfigField(type=bool, default=True, description="是否启用 Napcat 适配器"),
+            "config_version": ConfigField(type=str, default="2.0.0", description="配置文件版本"),
+        },
+        "napcat_server": {
+            "mode": ConfigField(
+                type=str,
+                default="reverse",
+                description="ws 连接模式: reverse/direct",
+                choices=["reverse", "direct"],
+            ),
+            "host": ConfigField(type=str, default="localhost", description="Napcat WebSocket 服务地址"),
+            "port": ConfigField(type=int, default=8095, description="Napcat WebSocket 服务端口"),
+            "access_token": ConfigField(type=str, default="", description="Napcat API 访问令牌（可选）"),
+        },
+        "features": {
+            "group_list_type": ConfigField(
+                type=str,
+                default="blacklist",
+                description="群聊名单模式: blacklist/whitelist",
+                choices=["blacklist", "whitelist"],
+            ),
+            "group_list": ConfigField(type=list, default=[], description="群聊名单；根据名单模式过滤"),
+            "private_list_type": ConfigField(
+                type=str,
+                default="blacklist",
+                description="私聊名单模式: blacklist/whitelist",
+                choices=["blacklist", "whitelist"],
+            ),
+            "private_list": ConfigField(type=list, default=[], description="私聊名单；根据名单模式过滤"),
+            "ban_user_id": ConfigField(type=list, default=[], description="全局封禁的用户 ID 列表"),
+            "ban_qq_bot": ConfigField(type=bool, default=False, description="是否屏蔽其他 QQ 机器人消息"),
+        },
+    }
 
     def get_plugin_components(self) -> list:
         """返回适配器组件"""

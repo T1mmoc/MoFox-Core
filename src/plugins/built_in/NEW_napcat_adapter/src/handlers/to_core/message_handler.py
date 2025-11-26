@@ -106,11 +106,13 @@ class MessageHandler:
             accept_format=ACCEPT_FORMAT,
         )
 
+        msg_builder.seg_list(seg_list)
+
         return msg_builder.build()
 
     async def handle_single_segment(
         self, segment: dict, raw_message: dict, in_reply: bool = False
-    ) -> SegPayload | List[SegPayload] | None:
+    ) -> SegPayload | None:
         """
         处理单一消息段并转换为 MessageEnvelope
 
@@ -203,31 +205,25 @@ class MessageHandler:
                     sender_info: dict = message_detail.get("sender", {})
                     sender_nickname: str = sender_info.get("nickname", "")
                     sender_id = sender_info.get("user_id")
-                    seg_message: List[SegPayload] = []
                     if not sender_nickname:
                         logger.warning("无法获取被引用的人的昵称，返回默认值")
-                        seg_message.append(
-                            {
-                                "type": "text",
-                                "data": f"[回复<未知用户>：{reply_message}]，说：",
-                            }
-                        )
+                        return {
+                            "type": "text",
+                            "data": f"[回复<未知用户>：{reply_message}]，说：",
+                        }
+
                     else:
                         if sender_id:
-                            seg_message.append(
-                                {
-                                    "type": "text",
-                                    "data": f"[回复<{sender_nickname}({sender_id})>：{reply_message}]，说：",
-                                }
-                            )
+                            return {
+                                "type": "text",
+                                "data": f"[回复<{sender_nickname}({sender_id})>：{reply_message}]，说：",
+                            }
                         else:
-                            seg_message.append(
-                                {
-                                    "type": "text",
-                                    "data": f"[回复<{sender_nickname}>：{reply_message}]，说：",
-                                }
-                            )
-                    return seg_message
+                            return {
+                                "type": "text",
+                                "data": f"[回复<{sender_nickname}>：{reply_message}]，说：",
+                            }
+
             case "voice":
                 seg_data = segment.get("url", "")
             case _:

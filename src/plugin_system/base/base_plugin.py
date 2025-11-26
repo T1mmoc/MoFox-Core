@@ -3,6 +3,7 @@ from abc import abstractmethod
 from src.common.logger import get_logger
 from src.plugin_system.base.component_types import (
     ActionInfo,
+    AdapterInfo,
     CommandInfo,
     ComponentType,
     EventHandlerInfo,
@@ -13,6 +14,7 @@ from src.plugin_system.base.component_types import (
 )
 
 from .base_action import BaseAction
+from .base_adapter import BaseAdapter
 from .base_command import BaseCommand
 from .base_events_handler import BaseEventHandler
 from .base_interest_calculator import BaseInterestCalculator
@@ -35,27 +37,26 @@ class BasePlugin(PluginBase):
 
     @classmethod
     def _get_component_info_from_class(cls, component_class: type, component_type: ComponentType):
-        """从组件类自动生成组件信息
+        """从类获取组件信息
 
         Args:
             component_class: 组件类
             component_type: 组件类型
-
         Returns:
-            对应类型的ComponentInfo对象
+            对应的ComponentInfo对象
         """
         if component_type == ComponentType.COMMAND:
             if hasattr(component_class, "get_command_info"):
                 return component_class.get_command_info()
             else:
-                logger.warning(f"Command类 {component_class.__name__} 缺少 get_command_info 方法")
+                logger.warning(f"Command组件 {component_class.__name__} 缺少 get_command_info 方法")
                 return None
 
         elif component_type == ComponentType.ACTION:
             if hasattr(component_class, "get_action_info"):
                 return component_class.get_action_info()
             else:
-                logger.warning(f"Action类 {component_class.__name__} 缺少 get_action_info 方法")
+                logger.warning(f"Action组件 {component_class.__name__} 缺少 get_action_info 方法")
                 return None
 
         elif component_type == ComponentType.INTEREST_CALCULATOR:
@@ -63,30 +64,37 @@ class BasePlugin(PluginBase):
                 return component_class.get_interest_calculator_info()
             else:
                 logger.warning(
-                    f"InterestCalculator类 {component_class.__name__} 缺少 get_interest_calculator_info 方法"
+                    f"InterestCalculator组件 {component_class.__name__} 缺少 get_interest_calculator_info 方法"
                 )
                 return None
 
         elif component_type == ComponentType.PLUS_COMMAND:
-            # PlusCommand的get_info逻辑可以在这里实现
-            logger.warning("PlusCommand的get_info逻辑尚未实现")
+            # PlusCommand组件的get_info方法尚未实现
+            logger.warning("PlusCommand组件的get_info方法尚未实现")
             return None
 
         elif component_type == ComponentType.TOOL:
-            # Tool的get_info逻辑可以在这里实现
-            logger.warning("Tool的get_info逻辑尚未实现")
+            # Tool组件的get_info方法尚未实现
+            logger.warning("Tool组件的get_info方法尚未实现")
             return None
 
         elif component_type == ComponentType.EVENT_HANDLER:
-            # EventHandler的get_info逻辑可以在这里实现
-            logger.warning("EventHandler的get_info逻辑尚未实现")
+            # EventHandler组件的get_info方法尚未实现
+            logger.warning("EventHandler组件的get_info方法尚未实现")
             return None
 
         elif component_type == ComponentType.PROMPT:
             if hasattr(component_class, "get_prompt_info"):
                 return component_class.get_prompt_info()
             else:
-                logger.warning(f"Prompt类 {component_class.__name__} 缺少 get_prompt_info 方法")
+                logger.warning(f"Prompt组件 {component_class.__name__} 缺少 get_prompt_info 方法")
+                return None
+
+        elif component_type == ComponentType.ADAPTER:
+            if hasattr(component_class, "get_adapter_info"):
+                return component_class.get_adapter_info()
+            else:
+                logger.warning(f"Adapter�� {component_class.__name__} ȱ�� get_adapter_info ����")
                 return None
 
         else:
@@ -95,16 +103,13 @@ class BasePlugin(PluginBase):
 
     @classmethod
     def get_component_info(cls, component_class: type, component_type: ComponentType):
-        """获取组件信息的通用方法
-
-        这是一个便捷方法，内部调用_get_component_info_from_class
+        """获取组件信息
 
         Args:
             component_class: 组件类
             component_type: 组件类型
-
         Returns:
-            对应类型的ComponentInfo对象
+            对应的ComponentInfo对象
         """
         return cls._get_component_info_from_class(component_class, component_type)
 
@@ -113,6 +118,7 @@ class BasePlugin(PluginBase):
         self,
     ) -> list[
         tuple[ActionInfo, type[BaseAction]]
+        | tuple[AdapterInfo, type[BaseAdapter]]
         | tuple[CommandInfo, type[BaseCommand]]
         | tuple[PlusCommandInfo, type[PlusCommand]]
         | tuple[EventHandlerInfo, type[BaseEventHandler]]

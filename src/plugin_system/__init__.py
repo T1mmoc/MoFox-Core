@@ -41,6 +41,7 @@ from .base import (
     EventHandlerInfo,
     EventType,
     PluginInfo,
+    AdapterInfo,
     # 新增的增强命令系统
     PlusCommand,
     BaseRouterComponent,

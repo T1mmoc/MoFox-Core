@@ -152,6 +152,7 @@ class AdapterInfo:
 
     name: str  # 适配器名称
     component_type: ComponentType = field(default=ComponentType.ADAPTER, init=False)
+    plugin_name: str = ""  # �����������
     version: str = "1.0.0"  # 适配器版本
     platform: str = "unknown"  # 平台名称
     description: str = ""  # 适配器描述

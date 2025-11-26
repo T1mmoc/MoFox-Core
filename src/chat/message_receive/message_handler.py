@@ -258,6 +258,10 @@ class MessageHandler:
             group_info = message_info.get("group_info")
             user_info = message_info.get("user_info")
 
+            if not user_info and not group_info:
+                logger.debug("消息缺少用户信息，已跳过处理")
+                return None
+            
             # 获取或创建聊天流
             platform = message_info.get("platform", "unknown")
 
