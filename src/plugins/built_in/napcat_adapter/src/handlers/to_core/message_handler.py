@@ -39,6 +39,79 @@ class MessageHandler:
         """设置插件配置"""
         self.plugin_config = config
 
+    def _should_process_message(self, raw: Dict[str, Any]) -> bool:
+        """
+        检查消息是否应该被处理（黑白名单过滤）
+
+        Args:
+            raw: OneBot 原始消息数据
+
+        Returns:
+            bool: True表示应该处理，False表示应该过滤
+        """
+        if not self.plugin_config:
+            return True  # 如果没有配置，默认处理所有消息
+
+        features_config = self.plugin_config.get("features", {})
+
+        # 获取消息基本信息
+        message_type = raw.get("message_type")
+        sender_info = raw.get("sender", {})
+        user_id = str(sender_info.get("user_id", ""))
+
+        # 检查全局封禁用户列表
+        ban_user_ids = features_config.get("ban_user_id", [])
+        if user_id in ban_user_ids:
+            logger.debug(f"用户 {user_id} 在全局封禁列表中，消息被过滤")
+            return False
+
+        # 检查是否屏蔽其他QQ机器人
+        if features_config.get("ban_qq_bot", False):
+            # 判断是否为机器人消息：通常通过sender中的role字段或其他标识
+            role = sender_info.get("role", "")
+            if role == "admin" or "bot" in str(sender_info).lower():
+                logger.debug(f"检测到机器人消息 {user_id}，消息被过滤")
+                return False
+
+        # 群聊消息处理
+        if message_type == "group":
+            group_id = str(raw.get("group_id", ""))
+
+            # 获取群聊配置
+            group_list_type = features_config.get("group_list_type", "blacklist")
+            group_list = features_config.get("group_list", [])
+
+            if group_list_type == "blacklist":
+                # 黑名单模式：如果在黑名单中就过滤
+                if group_id in group_list:
+                    logger.debug(f"群聊 {group_id} 在黑名单中，消息被过滤")
+                    return False
+            else:  # whitelist
+                # 白名单模式：如果不在白名单中就过滤
+                if group_id not in group_list:
+                    logger.debug(f"群聊 {group_id} 不在白名单中，消息被过滤")
+                    return False
+
+        # 私聊消息处理
+        elif message_type == "private":
+            # 获取私聊配置
+            private_list_type = features_config.get("private_list_type", "blacklist")
+            private_list = features_config.get("private_list", [])
+
+            if private_list_type == "blacklist":
+                # 黑名单模式：如果在黑名单中就过滤
+                if user_id in private_list:
+                    logger.debug(f"私聊用户 {user_id} 在黑名单中，消息被过滤")
+                    return False
+            else:  # whitelist
+                # 白名单模式：如果不在白名单中就过滤
+                if user_id not in private_list:
+                    logger.debug(f"私聊用户 {user_id} 不在白名单中，消息被过滤")
+                    return False
+
+        # 通过所有过滤条件
+        return True
+
     async def handle_raw_message(self, raw: Dict[str, Any]):
         """
         处理原始消息并转换为 MessageEnvelope
@@ -47,12 +120,17 @@ class MessageHandler:
             raw: OneBot 原始消息数据
 
         Returns:
-            MessageEnvelope (dict)
+            MessageEnvelope (dict) or None (if message is filtered)
         """
 
         message_type = raw.get("message_type")
         message_id = str(raw.get("message_id", ""))
         message_time = time.time()
+
+        # 黑白名单过滤
+        if not self._should_process_message(raw):
+            logger.debug(f"消息被黑白名单过滤丢弃: message_id={message_id}")
+            return None
 
         msg_builder = MessageBuilder()
 
