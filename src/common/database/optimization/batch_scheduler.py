@@ -373,8 +373,14 @@ class AdaptiveBatchScheduler:
         """批量执行插入操作"""
         async with get_db_session() as session:
             try:
-                # 收集数据
-                all_data = [op.data for op in operations if op.data]
+                # 收集数据，并过滤掉 id=None 的情况（让数据库自动生成）
+                all_data = []
+                for op in operations:
+                    if op.data:
+                        # 过滤掉 id 为 None 的键，让数据库自动生成主键
+                        filtered_data = {k: v for k, v in op.data.items() if not (k == "id" and v is None)}
+                        all_data.append(filtered_data)
+                
                 if not all_data:
                     return
 

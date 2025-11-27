@@ -4,6 +4,7 @@ import time
 
 from rich.traceback import install
 from sqlalchemy.dialects.mysql import insert as mysql_insert
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from src.common.data_models.database_data_model import DatabaseGroupInfo,DatabaseUserInfo
@@ -662,6 +663,13 @@ class ChatManager:
                     stmt = mysql_insert(ChatStreams).values(stream_id=s_data_dict["stream_id"], **fields_to_save)
                     stmt = stmt.on_duplicate_key_update(
                         **{key: value for key, value in fields_to_save.items() if key != "stream_id"}
+                    )
+                elif global_config.database.database_type == "postgresql":
+                    stmt = pg_insert(ChatStreams).values(stream_id=s_data_dict["stream_id"], **fields_to_save)
+                    # PostgreSQL 需要使用 constraint 参数或正确的 index_elements
+                    stmt = stmt.on_conflict_do_update(
+                        index_elements=[ChatStreams.stream_id],
+                        set_=fields_to_save
                     )
                 else:
                     stmt = sqlite_insert(ChatStreams).values(stream_id=s_data_dict["stream_id"], **fields_to_save)

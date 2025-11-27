@@ -16,8 +16,10 @@ from src.config.config_base import ValidatedConfigBase
 class DatabaseConfig(ValidatedConfigBase):
     """数据库配置类"""
 
-    database_type: Literal["sqlite", "mysql"] = Field(default="sqlite", description="数据库类型")
+    database_type: Literal["sqlite", "mysql", "postgresql"] = Field(default="sqlite", description="数据库类型")
     sqlite_path: str = Field(default="data/MaiBot.db", description="SQLite数据库文件路径")
+
+    # MySQL 配置
     mysql_host: str = Field(default="localhost", description="MySQL服务器地址")
     mysql_port: int = Field(default=3306, ge=1, le=65535, description="MySQL服务器端口")
     mysql_database: str = Field(default="maibot", description="MySQL数据库名")
@@ -33,6 +35,22 @@ class DatabaseConfig(ValidatedConfigBase):
     mysql_ssl_key: str = Field(default="", description="SSL密钥路径")
     mysql_autocommit: bool = Field(default=True, description="自动提交事务")
     mysql_sql_mode: str = Field(default="TRADITIONAL", description="SQL模式")
+
+    # PostgreSQL 配置
+    postgresql_host: str = Field(default="localhost", description="PostgreSQL服务器地址")
+    postgresql_port: int = Field(default=5432, ge=1, le=65535, description="PostgreSQL服务器端口")
+    postgresql_database: str = Field(default="maibot", description="PostgreSQL数据库名")
+    postgresql_user: str = Field(default="postgres", description="PostgreSQL用户名")
+    postgresql_password: str = Field(default="", description="PostgreSQL密码")
+    postgresql_schema: str = Field(default="public", description="PostgreSQL模式名")
+    postgresql_ssl_mode: Literal["disable", "allow", "prefer", "require", "verify-ca", "verify-full"] = Field(
+        default="prefer", description="PostgreSQL SSL模式"
+    )
+    postgresql_ssl_ca: str = Field(default="", description="PostgreSQL SSL CA证书路径")
+    postgresql_ssl_cert: str = Field(default="", description="PostgreSQL SSL客户端证书路径")
+    postgresql_ssl_key: str = Field(default="", description="PostgreSQL SSL密钥路径")
+
+    # 通用连接池配置
     connection_pool_size: int = Field(default=10, ge=1, description="连接池大小")
     connection_timeout: int = Field(default=10, ge=1, description="连接超时时间")
 

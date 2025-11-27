@@ -3,6 +3,11 @@
 本文件只包含纯模型定义，使用SQLAlchemy 2.0的Mapped类型注解风格。
 引擎和会话管理已移至core/engine.py和core/session.py。
 
+支持的数据库类型：
+- SQLite: 使用 Text 类型
+- MySQL: 使用 VARCHAR(max_length) 用于索引字段
+- PostgreSQL: 使用 Text 类型（PostgreSQL 的 Text 类型性能与 VARCHAR 相当）
+
 所有模型使用统一的类型注解风格：
     field_name: Mapped[PyType] = mapped_column(Type, ...)
 
@@ -20,16 +25,34 @@ from sqlalchemy.orm import Mapped, mapped_column
 Base = declarative_base()
 
 
-# MySQL兼容的字段类型辅助函数
+# 数据库兼容的字段类型辅助函数
 def get_string_field(max_length=255, **kwargs):
     """
-    根据数据库类型返回合适的字符串字段
-    MySQL需要指定长度的VARCHAR用于索引，SQLite可以使用Text
+    根据数据库类型返回合适的字符串字段类型
+
+    对于需要索引的字段：
+    - MySQL: 必须使用 VARCHAR(max_length)，因为索引需要指定长度
+    - PostgreSQL: 可以使用 Text，但为了兼容性使用 VARCHAR
+    - SQLite: 可以使用 Text，无长度限制
+
+    Args:
+        max_length: 最大长度（对于 MySQL 是必需的）
+        **kwargs: 传递给 String/Text 的额外参数
+
+    Returns:
+        SQLAlchemy 类型
     """
     from src.config.config import global_config
 
-    if global_config.database.database_type == "mysql":
+    db_type = global_config.database.database_type
+
+    # MySQL 索引需要指定长度的 VARCHAR
+    if db_type == "mysql":
         return String(max_length, **kwargs)
+    # PostgreSQL 可以使用 Text，但为了跨数据库迁移兼容性，使用 VARCHAR
+    elif db_type == "postgresql":
+        return String(max_length, **kwargs)
+    # SQLite 使用 Text（无长度限制）
     else:
         return Text(**kwargs)
 
@@ -477,7 +500,7 @@ class BanUser(Base):
     __tablename__ = "ban_users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    platform: Mapped[str] = mapped_column(Text, nullable=False)
+    platform: Mapped[str] = mapped_column(get_string_field(50), nullable=False)  # 使用有限长度，以便创建索引
     user_id: Mapped[str] = mapped_column(get_string_field(50), nullable=False, index=True)
     violation_num: Mapped[int] = mapped_column(Integer, nullable=False, default=0, index=True)
     reason: Mapped[str] = mapped_column(Text, nullable=False)

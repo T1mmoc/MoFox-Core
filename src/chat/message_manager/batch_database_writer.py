@@ -238,6 +238,14 @@ class BatchDatabaseWriter:
                     stmt = stmt.on_duplicate_key_update(
                         **{key: value for key, value in update_data.items() if key != "stream_id"}
                     )
+                elif global_config.database.database_type == "postgresql":
+                    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+                    stmt = pg_insert(ChatStreams).values(stream_id=stream_id, **update_data)
+                    stmt = stmt.on_conflict_do_update(
+                        index_elements=[ChatStreams.stream_id],
+                        set_=update_data
+                    )
                 else:
                     # 默认使用SQLite语法
                     from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -263,6 +271,14 @@ class BatchDatabaseWriter:
                 stmt = mysql_insert(ChatStreams).values(stream_id=stream_id, **update_data)
                 stmt = stmt.on_duplicate_key_update(
                     **{key: value for key, value in update_data.items() if key != "stream_id"}
+                )
+            elif global_config.database.database_type == "postgresql":
+                from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+                stmt = pg_insert(ChatStreams).values(stream_id=stream_id, **update_data)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=[ChatStreams.stream_id],
+                    set_=update_data
                 )
             else:
                 from sqlalchemy.dialects.sqlite import insert as sqlite_insert

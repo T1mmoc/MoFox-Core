@@ -99,12 +99,17 @@ async def check_and_migrate_database(existing_engine=None):
 
                     def add_columns_sync(conn):
                         dialect = conn.dialect
-                        compiler = dialect.ddl_compiler(dialect, None)
-
+                        
                         for column_name in missing_columns:
                             column = table.c[column_name]
-                            column_type = compiler.get_column_specification(column)
-                            sql = f"ALTER TABLE {table.name} ADD COLUMN {column.name} {column_type}"
+                            
+                            # 获取列类型的 SQL 表示
+                            # 使用 compile 方法获取正确的类型字符串
+                            type_compiler = dialect.type_compiler(dialect)
+                            column_type_sql = column.type.compile(dialect=dialect)
+                            
+                            # 构建 ALTER TABLE 语句
+                            sql = f"ALTER TABLE {table.name} ADD COLUMN {column.name} {column_type_sql}"
 
                             if column.default:
                                 # 手动处理不同方言的默认值
@@ -114,26 +119,18 @@ async def check_and_migrate_database(existing_engine=None):
                                 ):
                                     # SQLite 将布尔值存储为 0 或 1
                                     default_value = "1" if default_arg else "0"
-                                elif hasattr(compiler, "render_literal_value"):
-                                    try:
-                                        # 尝试使用 render_literal_value
-                                        default_value = compiler.render_literal_value(
-                                            default_arg, column.type
-                                        )
-                                    except AttributeError:
-                                        # 如果失败，则回退到简单的字符串转换
-                                        default_value = (
-                                            f"'{default_arg}'"
-                                            if isinstance(default_arg, str)
-                                            else str(default_arg)
-                                        )
+                                elif dialect.name == "mysql" and isinstance(default_arg, bool):
+                                    # MySQL 也使用 1/0 表示布尔值
+                                    default_value = "1" if default_arg else "0"
+                                elif isinstance(default_arg, bool):
+                                    # PostgreSQL 使用 TRUE/FALSE
+                                    default_value = "TRUE" if default_arg else "FALSE"
+                                elif isinstance(default_arg, str):
+                                    default_value = f"'{default_arg}'"
+                                elif default_arg is None:
+                                    default_value = "NULL"
                                 else:
-                                    # 对于没有 render_literal_value 的旧版或特定方言
-                                    default_value = (
-                                        f"'{default_arg}'"
-                                        if isinstance(default_arg, str)
-                                        else str(default_arg)
-                                    )
+                                    default_value = str(default_arg)
 
                                 sql += f" DEFAULT {default_value}"
 

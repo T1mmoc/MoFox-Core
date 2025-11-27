@@ -1,5 +1,5 @@
 [inner]
-version = "7.8.3"
+version = "7.9.0"
 
 #----以下是给开发人员阅读的，如果你只是部署了MoFox-Bot，不需要阅读----
 #如果你想要修改配置文件，请递增version的值
@@ -12,7 +12,7 @@ version = "7.8.3"
 #----以上是给开发人员阅读的，如果你只是部署了MoFox-Bot，不需要阅读----
 
 [database]# 数据库配置
-database_type = "sqlite" # 数据库类型，支持 "sqlite" 或 "mysql"
+database_type = "sqlite" # 数据库类型，支持 "sqlite"、"mysql" 或 "postgresql"
 
 # SQLite 配置（当 database_type = "sqlite" 时使用）
 sqlite_path = "data/MaiBot.db" # SQLite数据库文件路径
@@ -36,8 +36,22 @@ mysql_ssl_key = "" # SSL客户端密钥路径
 mysql_autocommit = true # 自动提交事务
 mysql_sql_mode = "TRADITIONAL" # SQL模式
 
-# 连接池配置
-connection_pool_size = 10 # 连接池大小（仅MySQL有效）
+# PostgreSQL 配置（当 database_type = "postgresql" 时使用）
+postgresql_host = "localhost" # PostgreSQL服务器地址
+postgresql_port = 5432 # PostgreSQL服务器端口
+postgresql_database = "maibot" # PostgreSQL数据库名
+postgresql_user = "postgres" # PostgreSQL用户名
+postgresql_password = "" # PostgreSQL密码
+postgresql_schema = "public" # PostgreSQL模式名（schema）
+
+# PostgreSQL SSL 配置
+postgresql_ssl_mode = "prefer" # SSL模式: disable, allow, prefer, require, verify-ca, verify-full
+postgresql_ssl_ca = "" # SSL CA证书路径
+postgresql_ssl_cert = "" # SSL客户端证书路径
+postgresql_ssl_key = "" # SSL客户端密钥路径
+
+# 连接池配置（MySQL 和 PostgreSQL 有效）
+connection_pool_size = 10 # 连接池大小
 connection_timeout = 10 # 连接超时时间（秒）
 
 # 批量动作记录存储配置

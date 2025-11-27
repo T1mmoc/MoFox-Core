@@ -142,8 +142,11 @@ class MessageStorageBatcher:
             return None
 
         # 将ORM对象转换为字典（只包含列字段）
+        # 排除 id 字段，让数据库自动生成（对于 PostgreSQL SERIAL 类型尤其重要）
         message_dict = {}
         for column in Messages.__table__.columns:
+            if column.name == "id":
+                continue  # 跳过自增主键，让数据库自动生成
             message_dict[column.name] = getattr(message_obj, column.name)
 
         return message_dict

@@ -1143,7 +1143,6 @@ class Prompt:
         Returns:
             str: 构建好的跨群聊上下文字符串。
         """
-        logger.info(f"Building cross context with target_user_info: {target_user_info}")
         if not global_config.cross_context.enable:
             return ""
 

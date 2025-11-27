@@ -79,7 +79,9 @@ dependencies = [
     "rjieba>=0.1.13",
     "fastmcp>=2.13.0",
     "mofox-wire",
-    "jinja2>=3.1.0"
+    "jinja2>=3.1.0",
+    "psycopg2-binary",
+    "PyMySQL"
 ]
 
 [[tool.uv.index]]

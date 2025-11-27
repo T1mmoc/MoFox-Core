@@ -169,6 +169,11 @@ class ConnectionPoolManager:
         self, session_factory: async_sessionmaker[AsyncSession]
     ) -> ConnectionInfo | None:
         """获取可复用的连接"""
+        # 导入方言适配器获取 ping 查询
+        from src.common.database.core.dialect_adapter import DialectAdapter
+
+        ping_query = DialectAdapter.get_ping_query()
+
         async with self._lock:
             # 清理过期连接
             await self._cleanup_expired_connections_locked()
@@ -178,8 +183,8 @@ class ConnectionPoolManager:
                 if not connection_info.in_use and not connection_info.is_expired(self.max_lifetime, self.max_idle):
                     # 验证连接是否仍然有效
                     try:
-                        # 执行一个简单的查询来验证连接
-                        await connection_info.session.execute(text("SELECT 1"))
+                        # 执行 ping 查询来验证连接
+                        await connection_info.session.execute(text(ping_query))
                         return connection_info
                     except Exception as e:
                         logger.debug(f"连接验证失败，将移除: {e}")
