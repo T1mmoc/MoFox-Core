@@ -400,9 +400,18 @@ def migrate_table_data(
             error_count += len(rows)
 
     batch: list[dict] = []
+    null_char_replacements = 0
+
     for row in result:
         # Use column objects to access row mapping to avoid quoted_name keys
-        row_dict = {col.key: row._mapping[col] for col in source_table.columns}
+        row_dict = {}
+        for col in source_table.columns:
+            val = row._mapping[col]
+            if isinstance(val, str) and "\x00" in val:
+                val = val.replace("\x00", "")
+                null_char_replacements += 1
+            row_dict[col.key] = val
+
         batch.append(row_dict)
         if len(batch) >= batch_size:
             insert_batch(batch)
@@ -417,6 +426,12 @@ def migrate_table_data(
         migrated_rows,
         error_count,
     )
+    if null_char_replacements:
+        logger.warning(
+            "表 %s 中 %d 个字符串值包含 NUL 已被移除后写入目标库",
+            source_table.name,
+            null_char_replacements,
+        )
 
     return migrated_rows, error_count
 
