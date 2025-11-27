@@ -17,6 +17,27 @@ from rich.console import Console
 from rich.text import Text
 from structlog.typing import EventDict, WrappedLogger
 
+# 守护线程版本的队列监听器，防止退出时卡住
+class DaemonQueueListener(QueueListener):
+    """QueueListener 的工作线程作为守护进程运行，以避免阻塞关闭。"""
+
+    def _configure_listener(self):
+        super()._configure_listener()
+        if hasattr(self, "_thread") and self._thread is not None:  # type: ignore[attr-defined]
+            self._thread.daemon = True  # type: ignore[attr-defined]
+
+    def stop(self):
+        """停止监听器，避免在退出时无限期阻塞。"""
+        try:
+            self._stop.set()  # type: ignore[attr-defined]
+            self.enqueue_sentinel()
+            # join with timeout; if it does not finish we continue exit
+            if hasattr(self, "_thread") and self._thread is not None:  # type: ignore[attr-defined]
+                self._thread.join(timeout=1.5)  # type: ignore[attr-defined]
+        except Exception:
+            # best-effort; swallow errors on shutdown
+            pass
+
 # 创建logs目录
 LOG_DIR = Path("logs")
 LOG_DIR.mkdir(exist_ok=True)
@@ -110,7 +131,7 @@ def _start_queue_logging(handlers: Sequence[logging.Handler]) -> QueueHandler | 
 
     _log_queue = SimpleQueue()
     _queue_handler = StructlogQueueHandler(_log_queue)
-    _queue_listener = QueueListener(_log_queue, *handlers, respect_handler_level=True)
+    _queue_listener = DaemonQueueListener(_log_queue, *handlers, respect_handler_level=True)
     _queue_listener.start()
     return _queue_handler
 
@@ -120,7 +141,14 @@ def _stop_queue_logging():
     global _log_queue, _queue_handler, _queue_listener
 
     if _queue_listener is not None:
-        _queue_listener.stop()
+        try:
+            stopper = threading.Thread(target=_queue_listener.stop, name="log-queue-stop", daemon=True)
+            stopper.start()
+            stopper.join(timeout=3.0)
+            if stopper.is_alive():
+                print("[日志系统] 停止日志队列监听器超时，继续退出")
+        except Exception as e:
+            print(f"[日志系统] 停止日志队列监听器失败: {e}")
         _queue_listener = None
 
     _log_queue = None

@@ -66,6 +66,11 @@ TEMPLATE_DIR = os.path.join(PROJECT_ROOT, "template")
 # 对该字段的更新，请严格参照语义化版本规范：https://semver.org/lang/zh-CN/
 MMC_VERSION = "0.13.0-alpha.3"
 
+# 全局配置变量
+_CONFIG_INITIALIZED = False
+global_config: "Config | None" = None
+model_config: "APIAdapterConfig | None" = None
+
 
 def get_key_comment(toml_table, key):
     # 获取key的注释（如果有）
@@ -546,12 +551,30 @@ def api_ada_load_config(config_path: str) -> APIAdapterConfig:
 
 
 # 获取配置文件路径
-logger.info(f"MaiCore当前版本: {MMC_VERSION}")
-update_config()
-update_model_config()
 
-logger.info("正在品鉴配置文件...")
-global_config = load_config(config_path=os.path.join(CONFIG_DIR, "bot_config.toml"))
-model_config = api_ada_load_config(config_path=os.path.join(CONFIG_DIR, "model_config.toml"))
+def initialize_configs_once() -> tuple[Config, APIAdapterConfig]:
+    """
+    初始化配置文件，只执行一次。
+    """
+    global _CONFIG_INITIALIZED, global_config, model_config
+
+    if _CONFIG_INITIALIZED and global_config and model_config:
+        logger.debug("config.py 初始化已执行，跳过重复运行")
+        return global_config, model_config
+
+    logger.info(f"MaiCore当前版本: {MMC_VERSION}")
+    update_config()
+    update_model_config()
+
+    logger.info("正在品鉴配置文件...")
+    global_config = load_config(config_path=os.path.join(CONFIG_DIR, "bot_config.toml"))
+    model_config = api_ada_load_config(config_path=os.path.join(CONFIG_DIR, "model_config.toml"))
+
+    _CONFIG_INITIALIZED = True
+    return global_config, model_config
+
+
+# 同一进程只执行一次初始化，避免重复生成或覆盖配置
+global_config, model_config = initialize_configs_once()
 
 logger.info("非常的新鲜，非常的美味！")

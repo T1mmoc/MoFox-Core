@@ -67,12 +67,13 @@ class MainSystem:
         # CoreSinkManager 和 MessageHandler 将在 initialize() 中创建
         self.core_sink_manager: CoreSinkManager | None = None
         self.message_handler = None
-        
+
         # 使用服务器
         self.server: Server = get_global_server()
 
         # 设置信号处理器用于优雅退出
         self._shutting_down = False
+        self._cleanup_started = False
         self._setup_signal_handlers()
 
         # 存储清理任务的引用
@@ -201,9 +202,10 @@ class MainSystem:
 
     async def _async_cleanup(self) -> None:
         """异步清理资源"""
-        if self._shutting_down:
+        if self._cleanup_started:
             return
 
+        self._cleanup_started = True
         self._shutting_down = True
         logger.info("开始系统清理流程...")
 
@@ -637,7 +639,7 @@ MoFox_Bot(第三方修改版)
 
     async def shutdown(self) -> None:
         """关闭系统组件"""
-        if self._shutting_down:
+        if self._cleanup_started:
             return
 
         logger.info("正在关闭MainSystem...")

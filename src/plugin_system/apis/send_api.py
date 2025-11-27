@@ -192,15 +192,16 @@ def _build_message_envelope(
     timestamp: float,
 ) -> MessageEnvelope:
     """构建发送的 MessageEnvelope 数据结构"""
+    target_user_info = target_stream.user_info or bot_user_info
     message_info: dict[str, Any] = {
         "message_id": message_id,
         "time": timestamp,
         "platform": target_stream.platform,
         "user_info": {
-            "user_id": bot_user_info.user_id,
-            "user_nickname": bot_user_info.user_nickname,
-            "user_cardname": getattr(bot_user_info, "user_cardname", None),
-            "platform": bot_user_info.platform,
+            "user_id": target_user_info.user_id,
+            "user_nickname": target_user_info.user_nickname,
+            "user_cardname": getattr(target_user_info, "user_cardname", None),
+            "platform": target_user_info.platform,
         },
     }
 
