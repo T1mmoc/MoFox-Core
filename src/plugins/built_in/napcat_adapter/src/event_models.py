@@ -108,7 +108,7 @@ ACCEPT_FORMAT = [
 ]
 
 # 插件名称
-PLUGIN_NAME = "NEW_napcat_adapter"
+PLUGIN_NAME = "napcat_adapter_plugin"
 
 # QQ表情映射表
 QQ_FACE = {

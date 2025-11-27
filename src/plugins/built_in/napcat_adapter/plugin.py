@@ -99,7 +99,46 @@ class NapcatAdapter(BaseAdapter):
             self.meta_event_handler.set_plugin_config(self.plugin.config)
             self.send_handler.set_plugin_config(self.plugin.config)
 
+        # 注册 notice 事件到 event manager
+        await self._register_notice_events()
+
         logger.info("Napcat 适配器已加载")
+
+    async def _register_notice_events(self) -> None:
+        """注册 notice 相关事件到 event manager"""
+        from src.plugin_system.core.event_manager import event_manager
+        from .src.event_types import NapcatEvent
+
+        # 定义所有 notice 事件类型
+        notice_events = [
+            NapcatEvent.ON_RECEIVED.POKE,
+            NapcatEvent.ON_RECEIVED.EMOJI_LIEK,
+            NapcatEvent.ON_RECEIVED.GROUP_UPLOAD,
+            NapcatEvent.ON_RECEIVED.GROUP_BAN,
+            NapcatEvent.ON_RECEIVED.GROUP_LIFT_BAN,
+            NapcatEvent.ON_RECEIVED.FRIEND_RECALL,
+            NapcatEvent.ON_RECEIVED.GROUP_RECALL,
+            NapcatEvent.ON_RECEIVED.FRIEND_INPUT,
+        ]
+
+        # 注册所有事件
+        registered_count = 0
+        for event_type in notice_events:
+            try:
+                # 使用同步的 register_event 方法注册事件
+                success = event_manager.register_event(
+                    event_name=event_type,
+                    allowed_triggers=["napcat_adapter_plugin"],  # 只允许此插件触发
+                )
+                if success:
+                    registered_count += 1
+                    logger.debug(f"已注册 notice 事件: {event_type}")
+                else:
+                    logger.debug(f"notice 事件已存在: {event_type}")
+            except Exception as e:
+                logger.warning(f"注册 notice 事件失败: {event_type}, 错误: {e}")
+
+        logger.info(f"已注册 {registered_count} 个新 notice 事件类型（共 {len(notice_events)} 个）")
 
     async def on_adapter_unloaded(self) -> None:
         """适配器卸载时的清理"""
@@ -133,22 +172,28 @@ class NapcatAdapter(BaseAdapter):
                 if not future.done():
                     future.set_result(raw)
 
-        # 消息事件
-        if post_type == "message":
-            return await self.message_handler.handle_raw_message(raw)  # type: ignore[return-value]
+        try:
+            # 消息事件
+            if post_type == "message":
+                return await self.message_handler.handle_raw_message(raw)  # type: ignore[return-value]
+            # 通知事件
+            elif post_type == "notice":
+                return await self.notice_handler.handle_notice(raw)  # type: ignore[return-value]
 
-        # 通知事件
-        elif post_type == "notice":
-            return await self.notice_handler.handle_notice(raw)  # type: ignore[return-value]
+            # 元事件
+            elif post_type == "meta_event":
+                return await self.meta_event_handler.handle_meta_event(raw)  # type: ignore[return-value]
 
-        # 元事件
-        elif post_type == "meta_event":
-            return await self.meta_event_handler.handle_meta_event(raw)  # type: ignore[return-value]
-
-        # 未知事件类型
-        else:
-            return
-
+            # 未知事件类型
+            else:
+                return None
+        except ValueError as ve:
+            logger.warning(f"处理 Napcat 事件时数据无效: {ve}")
+            return None
+        except Exception as e:
+            logger.error(f"处理 Napcat 事件失败: {e}, 原始数据: {raw}")
+            return None
+    
     async def _send_platform_message(self, envelope: MessageEnvelope) -> None:  # type: ignore[override]
         """
         将 MessageEnvelope 转换并发送到 Napcat
@@ -156,7 +201,10 @@ class NapcatAdapter(BaseAdapter):
         这里不直接通过 WebSocket 发送 envelope，
         而是调用 Napcat API（send_group_msg, send_private_msg 等）
         """
-        await self.send_handler.handle_message(envelope)
+        try:
+            await self.send_handler.handle_message(envelope)
+        except Exception as e:
+            logger.error(f"发送 Napcat 消息失败: {e}")
 
     async def send_napcat_api(self, action: str, params: Dict[str, Any], timeout: float = 30.0) -> Dict[str, Any]:
         """
@@ -265,6 +313,10 @@ class NapcatAdapterPlugin(BasePlugin):
             "private_list": ConfigField(type=list, default=[], description="私聊名单；根据名单模式过滤"),
             "ban_user_id": ConfigField(type=list, default=[], description="全局封禁的用户 ID 列表"),
             "ban_qq_bot": ConfigField(type=bool, default=False, description="是否屏蔽其他 QQ 机器人消息"),
+            "enable_poke": ConfigField(type=bool, default=True, description="是否启用戳一戳消息处理"),
+            "ignore_non_self_poke": ConfigField(type=bool, default=False, description="是否忽略不是针对自己的戳一戳消息"),
+            "poke_debounce_seconds": ConfigField(type=float, default=2.0, description="戳一戳防抖时间（秒）"),
+            "enable_emoji_like": ConfigField(type=bool, default=True, description="是否启用群聊表情回复处理"),
         },
     }
 
