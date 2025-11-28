@@ -360,7 +360,7 @@ class MainSystem:
     async def initialize(self) -> None:
         """初始化系统组件"""
         # 检查必要的配置
-        if not hasattr(global_config, "bot") or not hasattr(global_config.bot, "nickname"):
+        if not global_config or not global_config.bot or not global_config.bot.nickname:
             logger.error("缺少必要的bot配置")
             raise ValueError("Bot配置不完整")
 
@@ -386,7 +386,7 @@ class MainSystem:
         selected_egg = choices(egg_texts, weights=weights, k=1)[0]
 
         logger.info(f"""
-全部系统初始化完成，{global_config.bot.nickname}已成功唤醒
+全部系统初始化完成，{global_config.bot.nickname if global_config and global_config.bot else 'Bot'}已成功唤醒
 =========================================================
 MoFox_Bot(第三方修改版)
 全部组件已成功启动!
@@ -484,7 +484,7 @@ MoFox_Bot(第三方修改版)
 
         # 初始化三层记忆系统（如果启用）
         try:
-            if global_config.memory and global_config.memory.enable:
+            if global_config and global_config.memory and global_config.memory.enable:
                 from src.memory_graph.manager_singleton import initialize_unified_memory_manager
                 logger.info("三层记忆系统已启用，正在初始化...")
                 await initialize_unified_memory_manager()
@@ -568,7 +568,7 @@ MoFox_Bot(第三方修改版)
     async def _init_planning_components(self) -> None:
         """初始化计划相关组件"""
         # 初始化月度计划管理器
-        if global_config.planning_system.monthly_plan_enable:
+        if global_config and global_config.planning_system and global_config.planning_system.monthly_plan_enable:
             try:
                 await monthly_plan_manager.start_monthly_plan_generation()
                 logger.info("月度计划管理器初始化成功")
@@ -576,7 +576,7 @@ MoFox_Bot(第三方修改版)
                 logger.error(f"月度计划管理器初始化失败: {e}")
 
         # 初始化日程管理器
-        if global_config.planning_system.schedule_enable:
+        if global_config and global_config.planning_system and global_config.planning_system.schedule_enable:
             try:
                 await schedule_manager.load_or_generate_today_schedule()
                 await schedule_manager.start_daily_schedule_generation()

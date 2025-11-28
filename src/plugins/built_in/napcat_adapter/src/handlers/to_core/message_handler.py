@@ -214,6 +214,9 @@ class MessageHandler:
             case RealMessageType.record:
                 return await self._handle_record_message(segment)
             case RealMessageType.video:
+                if not config_api.get_plugin_config(self.plugin_config, "features.enable_video_processing", False):
+                    logger.debug("视频消息处理已禁用，跳过")
+                    return {"type": "text", "data": "[视频消息]"}
                 return await self._handle_video_message(segment)
             case RealMessageType.rps:
                 return await self._handle_rps_message(segment)

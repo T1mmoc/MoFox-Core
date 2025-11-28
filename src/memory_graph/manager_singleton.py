@@ -50,7 +50,7 @@ async def initialize_memory_manager(
         from src.config.config import global_config
 
         # 检查是否启用
-        if not global_config.memory or not getattr(global_config.memory, "enable", False):
+        if not global_config or not global_config.memory or not getattr(global_config.memory, "enable", False):
             logger.info("记忆图系统已在配置中禁用")
             _initialized = False
             _memory_manager = None
@@ -58,7 +58,7 @@ async def initialize_memory_manager(
 
         # 处理数据目录
         if data_dir is None:
-            data_dir = getattr(global_config.memory, "data_dir", "data/memory_graph")
+            data_dir = getattr(global_config.memory, "data_dir", "data/memory_graph") if global_config and global_config.memory else "data/memory_graph"
         if isinstance(data_dir, str):
             data_dir = Path(data_dir)
 
@@ -136,12 +136,15 @@ async def initialize_unified_memory_manager():
         from src.memory_graph.unified_manager import UnifiedMemoryManager
 
         # 检查是否启用三层记忆系统
-        if not hasattr(global_config, "memory") or not getattr(
+        if not global_config or not global_config.memory or not getattr(
             global_config.memory, "enable", False
         ):
             logger.warning("三层记忆系统未启用，跳过初始化")
             return None
 
+        if not global_config or not global_config.memory:
+            logger.warning("未找到内存配置，跳过统一内存管理器初始化。")
+            return None
         config = global_config.memory
 
         # 创建管理器实例

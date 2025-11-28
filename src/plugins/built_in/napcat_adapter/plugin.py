@@ -317,6 +317,9 @@ class NapcatAdapterPlugin(BasePlugin):
             "ignore_non_self_poke": ConfigField(type=bool, default=False, description="是否忽略不是针对自己的戳一戳消息"),
             "poke_debounce_seconds": ConfigField(type=float, default=2.0, description="戳一戳防抖时间（秒）"),
             "enable_emoji_like": ConfigField(type=bool, default=True, description="是否启用群聊表情回复处理"),
+            "enable_reply_at": ConfigField(type=bool, default=True, description="是否在回复时自动@原消息发送者"),
+            "reply_at_rate": ConfigField(type=float, default=0.5, description="回复时@的概率（0.0-1.0）"),
+            "enable_video_processing": ConfigField(type=bool, default=True, description="是否启用视频消息处理（下载和解析）"),
         },
     }
 
