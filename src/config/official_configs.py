@@ -702,28 +702,6 @@ class WebSearchConfig(ValidatedConfigBase):
     search_strategy: Literal["fallback", "single", "parallel"] = Field(default="single", description="搜索策略")
 
 
-class ContextGroup(ValidatedConfigBase):
-    """
-    上下文共享组配置
-
-    定义了一个聊天上下文的共享范围和规则。
-    """
-
-    name: str = Field(..., description="共享组的名称，用于唯一标识一个共享组")
-    mode: Literal["whitelist", "blacklist"] = Field(
-        default="whitelist",
-        description="共享模式。'whitelist'表示仅共享chat_ids中列出的聊天；'blacklist'表示共享除chat_ids中列出的所有聊天。",
-    )
-    default_limit: int = Field(
-        default=5,
-        description="在'blacklist'模式下，对于未明确指定数量的聊天，默认获取的消息条数。",
-    )
-    chat_ids: list[list[str]] = Field(
-        ...,
-        description='定义组内成员的列表。格式为 [["type", "id", "limit"(可选)]]。type为"group"或"private"，id为群号或用户ID，limit为可选的消息条数。',
-    )
-
-
 class MaizoneContextGroup(ValidatedConfigBase):
     """QQ空间专用互通组配置"""
 
@@ -739,8 +717,6 @@ class CrossContextConfig(ValidatedConfigBase):
 
     enable: bool = Field(default=False, description="是否启用跨群聊上下文共享功能")
 
-    # --- Normal模式: 共享组配置 ---
-    groups: list[ContextGroup] = Field(default_factory=list, description="上下文共享组列表")
     # --- S4U模式: 用户中心上下文检索 ---
     s4u_mode: Literal["whitelist", "blacklist"] = Field(
         default="whitelist",

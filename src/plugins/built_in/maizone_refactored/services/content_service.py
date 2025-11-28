@@ -274,7 +274,7 @@ class ContentService:
                 await asyncio.sleep(2)
         return None
 
-    async def generate_story_from_activity(self, activity: str) -> str:
+    async def generate_story_from_activity(self, activity: str, context: str | None = None) -> str:
         """
         根据当前的日程活动生成一条QQ空间说说。
 
@@ -350,6 +350,9 @@ class ContentService:
             - 鼓励你多描述日常生活相关的生产活动和消遣，展现真实，而不是浮在空中。
             """
 
+            # 如果有上下文，则加入到prompt中
+            if context:
+                prompt += f"\n作为参考，这里有一些最近的聊天记录：\n---\n{context}\n---"
             # 添加历史记录避免重复
             prompt += "\n\n---历史说说记录---\n"
             history_block = await get_send_history(qq_account)
