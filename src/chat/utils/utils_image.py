@@ -57,18 +57,41 @@ class ImageManager:
             assert model_config is not None
             self.vlm = LLMRequest(model_set=model_config.model_task_config.vlm, request_type="image")
 
-            # try:
-            #     db.connect(reuse_if_open=True)
-            #     # 使用SQLAlchemy创建表已在初始化时完成
-            #     logger.debug("使用SQLAlchemy进行表管理")
-            # except Exception as e:
-            #     logger.error(f"数据库连接失败: {e}")
+            # 用于防止同一图片并发重复调用 VLM 的锁机制
+            # key: image_hash, value: asyncio.Lock
+            self._image_locks: dict[str, asyncio.Lock] = {}
+            self._locks_lock = asyncio.Lock()  # 保护 _image_locks 字典本身的锁
 
             self._initialized = True
 
     def _ensure_image_dir(self):
         """确保图像存储目录存在"""
         os.makedirs(self.IMAGE_DIR, exist_ok=True)
+
+    async def _get_image_lock(self, image_hash: str) -> asyncio.Lock:
+        """获取指定图片哈希对应的锁，用于防止并发重复调用 VLM
+
+        Args:
+            image_hash: 图片哈希值
+
+        Returns:
+            asyncio.Lock: 该图片对应的锁对象
+        """
+        async with self._locks_lock:
+            if image_hash not in self._image_locks:
+                self._image_locks[image_hash] = asyncio.Lock()
+            return self._image_locks[image_hash]
+
+    async def _release_image_lock(self, image_hash: str) -> None:
+        """释放图片锁（从字典中移除，避免内存泄漏）
+
+        只在确认不再需要该锁时调用（即描述已生成并缓存）
+
+        Args:
+            image_hash: 图片哈希值
+        """
+        async with self._locks_lock:
+            self._image_locks.pop(image_hash, None)
 
     @staticmethod
     async def _get_description_from_db(image_hash: str, description_type: str) -> str | None:
@@ -157,7 +180,10 @@ class ImageManager:
         return f"[表情包：{tag_str}]"
 
     async def get_emoji_description(self, image_base64: str) -> str:
-        """获取表情包描述，统一使用EmojiManager中的逻辑进行处理和缓存"""
+        """获取表情包描述，统一使用EmojiManager中的逻辑进行处理和缓存
+
+        使用锁机制防止对同一张表情包并发重复调用 VLM
+        """
         try:
             from src.chat.emoji_system.emoji_manager import get_emoji_manager
 
@@ -181,37 +207,55 @@ class ImageManager:
                 refined_part = cached_description.split(" Keywords:")[0]
                 return f"[表情包：{refined_part}]"
 
-            # 4. 如果都未命中，则调用新逻辑生成描述
-            logger.info(f"[新表情识别] 表情包未注册且无缓存 (Hash: {image_hash[:8]}...)，调用新逻辑生成描述")
-            full_description, emotions = await emoji_manager.build_emoji_description(image_base64)
+            # 4. 未命中缓存，获取该图片的锁，防止并发重复调用 VLM
+            image_lock = await self._get_image_lock(image_hash)
+            async with image_lock:
+                # 4.1 获取锁后再次检查缓存（可能其他协程已经生成了描述）
+                if full_description := await emoji_manager.get_emoji_description_by_hash(image_hash):
+                    logger.info("[缓存命中-锁内] 其他协程已生成描述(Emoji表)")
+                    refined_part = full_description.split(" Keywords:")[0]
+                    return f"[表情包：{refined_part}]"
 
-            if not full_description:
-                logger.warning("未能通过新逻辑生成有效描述")
-                return "[表情包(描述生成失败)]"
+                if cached_description := await self._get_description_from_db(image_hash, "emoji"):
+                    logger.info("[缓存命中-锁内] 其他协程已生成描述(ImageDescriptions表)")
+                    refined_part = cached_description.split(" Keywords:")[0]
+                    return f"[表情包：{refined_part}]"
 
-            # 4. (可选) 如果启用了“偷表情包”，则将图片和完整描述存入待注册区
-            if global_config and global_config.emoji and global_config.emoji.steal_emoji:
-                logger.debug(f"偷取表情包功能已开启，保存待注册表情包: {image_hash}")
-                try:
-                    image_format = (Image.open(io.BytesIO(image_bytes)).format or "jpeg").lower()
-                    current_timestamp = time.time()
-                    filename = f"{int(current_timestamp)}_{image_hash[:8]}.{image_format}"
-                    emoji_dir = os.path.join(self.IMAGE_DIR, "emoji")
-                    os.makedirs(emoji_dir, exist_ok=True)
-                    file_path = os.path.join(emoji_dir, filename)
+                # 4.2 确认没有缓存，调用新逻辑生成描述
+                logger.info(f"[新表情识别] 表情包未注册且无缓存 (Hash: {image_hash[:8]}...)，调用新逻辑生成描述")
+                full_description, emotions = await emoji_manager.build_emoji_description(image_base64)
 
-                    async with aiofiles.open(file_path, "wb") as f:
-                        await f.write(image_bytes)
-                    logger.info(f"新表情包已保存至待注册目录: {file_path}")
-                except Exception as e:
-                    logger.error(f"保存待注册表情包文件失败: {e!s}")
+                if not full_description:
+                    logger.warning("未能通过新逻辑生成有效描述")
+                    return "[表情包(描述生成失败)]"
 
-            # 5. 将新生成的完整描述存入通用缓存（ImageDescriptions表）
-            await self._save_description_to_db(image_hash, full_description, "emoji")
-            logger.info(f"新生成的表情包描述已存入通用缓存 (Hash: {image_hash[:8]}...)")
+                # 5. (可选) 如果启用了"偷表情包"，则将图片和完整描述存入待注册区
+                if global_config and global_config.emoji and global_config.emoji.steal_emoji:
+                    logger.debug(f"偷取表情包功能已开启，保存待注册表情包: {image_hash}")
+                    try:
+                        image_format = (Image.open(io.BytesIO(image_bytes)).format or "jpeg").lower()
+                        current_timestamp = time.time()
+                        filename = f"{int(current_timestamp)}_{image_hash[:8]}.{image_format}"
+                        emoji_dir = os.path.join(self.IMAGE_DIR, "emoji")
+                        os.makedirs(emoji_dir, exist_ok=True)
+                        file_path = os.path.join(emoji_dir, filename)
 
-            # 6. 返回新生成的描述中用于显示的“精炼描述”部分
-            refined_part = full_description.split(" Keywords:")[0]
+                        async with aiofiles.open(file_path, "wb") as f:
+                            await f.write(image_bytes)
+                        logger.info(f"新表情包已保存至待注册目录: {file_path}")
+                    except Exception as e:
+                        logger.error(f"保存待注册表情包文件失败: {e!s}")
+
+                # 6. 将新生成的完整描述存入通用缓存（ImageDescriptions表）
+                await self._save_description_to_db(image_hash, full_description, "emoji")
+                logger.info(f"新生成的表情包描述已存入通用缓存 (Hash: {image_hash[:8]}...)")
+
+                # 保存结果用于返回
+                refined_part = full_description.split(" Keywords:")[0]
+
+            # 7. 释放锁后清理（描述已缓存，后续请求将直接命中缓存）
+            await self._release_image_lock(image_hash)
+
             return f"[表情包：{refined_part}]"
 
         except Exception as e:
@@ -219,7 +263,10 @@ class ImageManager:
             return "[表情包(处理失败)]"
 
     async def get_image_description(self, image_base64: str) -> str:
-        """获取普通图片描述，采用同步识别+缓存策略"""
+        """获取普通图片描述，采用同步识别+缓存策略
+
+        使用锁机制防止对同一张图片并发重复调用 VLM
+        """
         try:
             # 1. 计算图片哈希
             if isinstance(image_base64, str):
@@ -242,8 +289,7 @@ class ImageManager:
             except Exception as e:
                 logger.warning(f"图片格式检测失败: {e!s}，将按原格式处理")
 
-
-            # 2. 优先查询 Images 表缓存
+            # 2. 优先查询 Images 表缓存（在获取锁之前先快速检查）
             async with get_db_session() as session:
                 result = await session.execute(select(Images).where(Images.emoji_hash == image_hash))
                 existing_image = result.scalar()
@@ -256,51 +302,69 @@ class ImageManager:
                 logger.debug(f"[缓存命中] 使用ImageDescriptions表中的描述: {cached_description[:50]}...")
                 return f"[图片：{cached_description}]"
 
-            # 4. 如果都未命中，则同步调用VLM生成新描述
-            logger.info(f"[新图片识别] 无缓存 (Hash: {image_hash[:8]}...)，调用VLM生成描述")
-            description = None
-            assert global_config is not None
-            assert global_config.custom_prompt is not None
-            prompt = global_config.custom_prompt.image_prompt
-            logger.info(f"[识图VLM调用] Prompt: {prompt}")
-            for i in range(3):  # 重试3次
-                try:
-                    image_format = (Image.open(io.BytesIO(image_bytes)).format or "jpeg").lower()
-                    logger.info(f"[VLM调用] 正在为图片生成描述 (第 {i+1}/3 次)...")
-                    description, response_tuple = await self.vlm.generate_response_for_image(
-                        prompt, image_base64, image_format, temperature=0.4, max_tokens=300
-                    )
-                    # response_tuple is (reasoning, model_name, tool_calls)
-                    model_name_used = response_tuple[1]
-                    logger.info(f"[VLM调用成功] 使用模型: {model_name_used}")
-                    if description and description.strip():
-                        break  # 成功获取描述则跳出循环
-                except Exception as e:
-                    logger.error(f"VLM调用失败 (第 {i+1}/3 次): {e}")
+            # 4. 未命中缓存，获取该图片的锁，防止并发重复调用 VLM
+            image_lock = await self._get_image_lock(image_hash)
+            async with image_lock:
+                # 4.1 获取锁后再次检查缓存（可能其他协程已经生成了描述）
+                async with get_db_session() as session:
+                    result = await session.execute(select(Images).where(Images.emoji_hash == image_hash))
+                    existing_image = result.scalar()
+                    if existing_image and existing_image.description:
+                        logger.debug(f"[缓存命中-锁内] 其他协程已生成描述: {existing_image.description[:50]}...")
+                        return f"[图片：{existing_image.description}]"
 
-                if i < 2: # 如果不是最后一次，则等待1秒
-                    logger.warning("识图失败，将在1秒后重试...")
-                    await asyncio.sleep(1)
+                if cached_description := await self._get_description_from_db(image_hash, "image"):
+                    logger.debug(f"[缓存命中-锁内] 其他协程已生成描述: {cached_description[:50]}...")
+                    return f"[图片：{cached_description}]"
 
-            if not description or not description.strip():
-                logger.warning("VLM未能生成有效描述")
-                return "[图片(描述生成失败)]"
+                # 4.2 确认没有缓存，调用 VLM 生成新描述
+                logger.info(f"[新图片识别] 无缓存 (Hash: {image_hash[:8]}...)，调用VLM生成描述")
+                description = None
+                assert global_config is not None
+                assert global_config.custom_prompt is not None
+                prompt = global_config.custom_prompt.image_prompt
+                logger.info(f"[识图VLM调用] Prompt: {prompt}")
+                for i in range(3):  # 重试3次
+                    try:
+                        image_format = (Image.open(io.BytesIO(image_bytes)).format or "jpeg").lower()
+                        logger.info(f"[VLM调用] 正在为图片生成描述 (第 {i+1}/3 次)...")
+                        description, response_tuple = await self.vlm.generate_response_for_image(
+                            prompt, image_base64, image_format, temperature=0.4, max_tokens=300
+                        )
+                        # response_tuple is (reasoning, model_name, tool_calls)
+                        model_name_used = response_tuple[1]
+                        logger.info(f"[VLM调用成功] 使用模型: {model_name_used}")
+                        if description and description.strip():
+                            break  # 成功获取描述则跳出循环
+                    except Exception as e:
+                        logger.error(f"VLM调用失败 (第 {i+1}/3 次): {e}")
 
-            logger.info(f"[VLM完成] 图片描述生成: {description[:50]}...")
+                    if i < 2:  # 如果不是最后一次，则等待1秒
+                        logger.warning("识图失败，将在1秒后重试...")
+                        await asyncio.sleep(1)
 
-            # 5. 将新描述存入两个缓存表
-            await self._save_description_to_db(image_hash, description, "image")
-            async with get_db_session() as session:
-                result = await session.execute(select(Images).where(Images.emoji_hash == image_hash))
-                existing_image_for_update = result.scalar()
-                if existing_image_for_update:
-                    existing_image_for_update.description = description
-                    existing_image_for_update.vlm_processed = True
-                    logger.debug(f"[数据库] 为现有图片记录补充描述: {image_hash[:8]}...")
-                # 注意：这里不创建新的Images记录，因为process_image会负责创建
-                await session.commit()
+                if not description or not description.strip():
+                    logger.warning("VLM未能生成有效描述")
+                    return "[图片(描述生成失败)]"
 
-            logger.info(f"新生成的图片描述已存入缓存 (Hash: {image_hash[:8]}...)")
+                logger.info(f"[VLM完成] 图片描述生成: {description[:50]}...")
+
+                # 5. 将新描述存入两个缓存表
+                await self._save_description_to_db(image_hash, description, "image")
+                async with get_db_session() as session:
+                    result = await session.execute(select(Images).where(Images.emoji_hash == image_hash))
+                    existing_image_for_update = result.scalar()
+                    if existing_image_for_update:
+                        existing_image_for_update.description = description
+                        existing_image_for_update.vlm_processed = True
+                        logger.debug(f"[数据库] 为现有图片记录补充描述: {image_hash[:8]}...")
+                    # 注意：这里不创建新的Images记录，因为process_image会负责创建
+                    await session.commit()
+
+                logger.info(f"新生成的图片描述已存入缓存 (Hash: {image_hash[:8]}...)")
+
+            # 6. 释放锁后清理（描述已缓存，后续请求将直接命中缓存）
+            await self._release_image_lock(image_hash)
 
             return f"[图片：{description}]"
 

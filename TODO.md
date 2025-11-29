@@ -22,7 +22,7 @@
 - [ ] 增加基于GPT-Sovits的多情感语音合成功能（插件形式）
 - [ ] 增加基于Open Voice的语音合成功能（插件形式）
 - [x] 对聊天信息的视频增加一个videoid（就像imageid一样）
-- [ ] 修复generate_responce_for_image方法有的时候会对同一张图片生成两次描述的问题
+- [x] 修复generate_response_for_image方法有的时候会对同一张图片生成两次描述的问题
 - [x] 主动思考的通用提示词改进
 - [x] 添加贴表情聊天流判断，过滤好友
 - [x] 记忆图系统 (Memory Graph System)
