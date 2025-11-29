@@ -186,7 +186,6 @@ def _build_generation_config(
         "temperature": temperature,
         "topK": 1,
         "topP": 1,
-        "safetySettings": gemini_safe_settings,
         "thinkingConfig": {"includeThoughts": True, "thinkingBudget": thinking_budget},
     }
 
@@ -589,6 +588,7 @@ class AiohttpGeminiClient(BaseClient):
         request_data = {
             "contents": contents,
             "generationConfig": _build_generation_config(max_tokens, temperature, tb, response_format, extra_params),
+            "safetySettings": gemini_safe_settings,
         }
 
         # 添加系统指令
@@ -701,6 +701,7 @@ class AiohttpGeminiClient(BaseClient):
         request_data = {
             "contents": contents,
             "generationConfig": _build_generation_config(2048, 0.1, THINKING_BUDGET_AUTO, None, extra_params),
+            "safetySettings": gemini_safe_settings,
         }
 
         try:
