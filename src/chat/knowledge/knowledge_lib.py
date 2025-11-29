@@ -36,6 +36,9 @@ def initialize_lpmm_knowledge():
     """初始化LPMM知识库"""
     global qa_manager, inspire_manager
 
+    if global_config is None:
+        raise RuntimeError("Global config is not initialized")
+
     # 检查LPMM知识库是否启用
     if global_config.lpmm_knowledge.enable:
         logger.info("正在初始化Mai-LPMM")

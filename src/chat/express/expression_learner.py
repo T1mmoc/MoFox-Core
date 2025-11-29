@@ -110,6 +110,8 @@ def init_prompt() -> None:
 
 class ExpressionLearner:
     def __init__(self, chat_id: str) -> None:
+        if model_config is None:
+            raise RuntimeError("Model config is not initialized")
         self.express_learn_model: LLMRequest = LLMRequest(
             model_set=model_config.model_task_config.replyer, request_type="expressor.learner"
         )
@@ -143,7 +145,10 @@ class ExpressionLearner:
         """
         # 从配置读取过期天数
         if expiration_days is None:
-            expiration_days = global_config.expression.expiration_days
+            if global_config is None:
+                expiration_days = 30  # Default value if config is missing
+            else:
+                expiration_days = global_config.expression.expiration_days
 
         current_time = time.time()
         expiration_threshold = current_time - (expiration_days * 24 * 3600)
@@ -192,6 +197,8 @@ class ExpressionLearner:
             bool: 是否允许学习
         """
         try:
+            if global_config is None:
+                return False
             use_expression, enable_learning, _ = global_config.expression.get_expression_config_for_chat(self.chat_id)
             return enable_learning
         except Exception as e:
@@ -212,6 +219,8 @@ class ExpressionLearner:
 
         # 获取该聊天流的学习强度
         try:
+            if global_config is None:
+                return False
             use_expression, enable_learning, learning_intensity = (
                 global_config.expression.get_expression_config_for_chat(self.chat_id)
             )
@@ -424,8 +433,10 @@ class ExpressionLearner:
             group_name = f"聊天流 {chat_id}"
         elif chat_stream.group_info:
             group_name = chat_stream.group_info.group_name
-        else:
+        elif chat_stream.user_info and chat_stream.user_info.user_nickname:
             group_name = f"{chat_stream.user_info.user_nickname}的私聊"
+        else:
+            group_name = f"聊天流 {chat_id}"
         learnt_expressions_str = ""
         for _chat_id, situation, style in learnt_expressions:
             learnt_expressions_str += f"{situation}->{style}\n"

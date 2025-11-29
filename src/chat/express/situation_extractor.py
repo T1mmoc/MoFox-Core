@@ -42,6 +42,8 @@ class SituationExtractor:
     """情境提取器，从聊天历史中提取当前情境"""
 
     def __init__(self):
+        if model_config is None:
+            raise RuntimeError("Model config is not initialized")
         self.llm_model = LLMRequest(
             model_set=model_config.model_task_config.utils_small,
             request_type="expression.situation_extractor"
@@ -81,6 +83,8 @@ class SituationExtractor:
 
         # 构建 prompt
         try:
+            if global_config is None:
+                raise RuntimeError("Global config is not initialized")
             prompt = (await global_prompt_manager.get_prompt_async("situation_extraction_prompt")).format(
                 bot_name=global_config.bot.nickname,
                 chat_history=chat_info,

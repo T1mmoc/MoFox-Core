@@ -78,6 +78,8 @@ def weighted_sample(population: list[dict], weights: list[float], k: int) -> lis
 class ExpressionSelector:
     def __init__(self, chat_id: str = ""):
         self.chat_id = chat_id
+        if model_config is None:
+            raise RuntimeError("Model config is not initialized")
         self.llm_model = LLMRequest(
             model_set=model_config.model_task_config.utils_small, request_type="expression.selector"
         )
@@ -94,6 +96,8 @@ class ExpressionSelector:
             bool: 是否允许使用表达
         """
         try:
+            if global_config is None:
+                return False
             use_expression, _, _ = global_config.expression.get_expression_config_for_chat(chat_id)
             return use_expression
         except Exception as e:
@@ -122,6 +126,8 @@ class ExpressionSelector:
 
     def get_related_chat_ids(self, chat_id: str) -> list[str]:
         """根据expression.rules配置，获取与当前chat_id相关的所有chat_id（包括自身）"""
+        if global_config is None:
+            return [chat_id]
         rules = global_config.expression.rules
         current_group = None
 
@@ -279,6 +285,9 @@ class ExpressionSelector:
             chat_info = "\n".join([f"{msg.get('sender', 'Unknown')}: {msg.get('content', '')}" for msg in chat_history])
         else:
             chat_info = chat_history
+
+        if global_config is None:
+            raise RuntimeError("Global config is not initialized")
 
         # 根据配置选择模式
         mode = global_config.expression.mode
@@ -581,6 +590,9 @@ class ExpressionSelector:
         else:
             target_message_str = ""
             target_message_extra_block = ""
+
+        if global_config is None:
+            raise RuntimeError("Global config is not initialized")
 
         # 3. 构建prompt（只包含情境，不包含完整的表达方式）
         prompt = (await global_prompt_manager.get_prompt_async("expression_evaluation_prompt")).format(

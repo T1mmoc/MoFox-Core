@@ -240,6 +240,9 @@ class ChatStream:
 
     async def calculate_focus_energy(self) -> float:
         """异步计算focus_energy"""
+        if global_config is None:
+            raise RuntimeError("Global config is not initialized")
+
         try:
             # 使用单流上下文管理器获取消息
             all_messages = self.context.get_messages(limit=global_config.chat.max_context_size)
@@ -629,6 +632,9 @@ class ChatManager:
 
         # 回退到原始方法（最终方案）
         async def _db_save_stream_async(s_data_dict: dict):
+            if global_config is None:
+                raise RuntimeError("Global config is not initialized")
+
             async with get_db_session() as session:
                 user_info_d = s_data_dict.get("user_info")
                 group_info_d = s_data_dict.get("group_info")

@@ -3,10 +3,11 @@ import re
 import time
 import traceback
 from collections import deque
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, cast
 
 import orjson
 from sqlalchemy import desc, select, update
+from sqlalchemy.engine import CursorResult
 
 from src.common.data_models.database_data_model import DatabaseMessages
 from src.common.database.core import get_db_session
@@ -343,7 +344,7 @@ class MessageUpdateBatcher:
                         .where(Messages.message_id == mmc_id)
                         .values(message_id=qq_id)
                     )
-                    if result.rowcount > 0:
+                    if cast(CursorResult, result).rowcount > 0:
                         updated_count += 1
 
                 await session.commit()
@@ -571,7 +572,7 @@ class MessageStorage:
                 result = await session.execute(stmt)
                 await session.commit()
 
-                if result.rowcount > 0:
+                if cast(CursorResult, result).rowcount > 0:
                     logger.debug(f"成功更新消息 {message_id} 的interest_value为 {interest_value}")
                 else:
                     logger.warning(f"未找到消息 {message_id}，无法更新interest_value")
@@ -667,7 +668,7 @@ class MessageStorage:
                     )
 
                     result = await session.execute(update_stmt)
-                    if result.rowcount > 0:
+                    if cast(CursorResult, result).rowcount > 0:
                         fixed_count += 1
                         logger.debug(f"修复消息 {msg.message_id} 的interest_value为 {default_interest}")
 

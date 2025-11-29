@@ -1,5 +1,6 @@
 import os
 import time
+from typing import cast
 
 import numpy as np
 import orjson
@@ -139,6 +140,9 @@ class KGManager:
         embedding_manager: EmbeddingManager,
     ) -> int:
         """同义词连接"""
+        if global_config is None:
+            raise RuntimeError("Global config is not initialized")
+
         new_edge_cnt = 0
         # 获取所有实体节点的hash值
         ent_hash_list = set()
@@ -242,7 +246,8 @@ class KGManager:
             else:
                 # 已存在的边
                 edge_item = self.graph[src_tgt[0], src_tgt[1]]
-                edge_item["weight"] += weight
+                edge_item = cast(di_graph.DiEdge, edge_item)
+                edge_item["weight"] = cast(float, edge_item["weight"]) + weight
                 edge_item["update_time"] = now_time
                 self.graph.update_edge(edge_item)
 
@@ -258,6 +263,7 @@ class KGManager:
                             continue
                         assert isinstance(node, EmbeddingStoreItem)
                         node_item = self.graph[node_hash]
+                        node_item = cast(di_graph.DiNode, node_item)
                         node_item["content"] = node.str
                         node_item["type"] = "ent"
                         node_item["create_time"] = now_time
@@ -271,6 +277,7 @@ class KGManager:
                         assert isinstance(node, EmbeddingStoreItem)
                         content = node.str.replace("\n", " ")
                         node_item = self.graph[node_hash]
+                        node_item = cast(di_graph.DiNode, node_item)
                         node_item["content"] = content if len(content) < 8 else content[:8] + "..."
                         node_item["type"] = "pg"
                         node_item["create_time"] = now_time
@@ -326,6 +333,9 @@ class KGManager:
             paragraph_search_result: ParagraphEmbedding的搜索结果（paragraph_hash, similarity）
             embed_manager: EmbeddingManager对象
         """
+        if global_config is None:
+            raise RuntimeError("Global config is not initialized")
+
         # 图中存在的节点总集
         existed_nodes = self.graph.get_node_list()
 
@@ -339,9 +349,12 @@ class KGManager:
 
         # 针对每个关系，提取出其中的主宾短语作为两个实体，并记录对应的三元组的相似度作为权重依据
         ent_sim_scores = {}
-        for relation_hash, similarity, _ in relation_search_result:
+        for relation_hash, similarity in relation_search_result:
             # 提取主宾短语
-            relation = embed_manager.relation_embedding_store.store.get(relation_hash).str
+            relation_item = embed_manager.relation_embedding_store.store.get(relation_hash)
+            if relation_item is None:
+                continue
+            relation = relation_item.str
             assert relation is not None  # 断言：relation不为空
             # 关系三元组
             triple = relation[2:-2].split("', '")

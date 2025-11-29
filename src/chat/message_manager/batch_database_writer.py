@@ -51,13 +51,13 @@ class BatchDatabaseWriter:
         self.writer_task: asyncio.Task | None = None
 
         # 统计信息
-        self.stats = {
+        self.stats: dict[str, int | float] = {
             "total_writes": 0,
             "batch_writes": 0,
             "failed_writes": 0,
             "queue_size": 0,
-            "avg_batch_size": 0,
-            "last_flush_time": 0,
+            "avg_batch_size": 0.0,
+            "last_flush_time": 0.0,
         }
 
         # 按优先级分类的批次
@@ -220,6 +220,9 @@ class BatchDatabaseWriter:
 
     async def _batch_write_to_database(self, payloads: list[StreamUpdatePayload]):
         """批量写入数据库"""
+        if global_config is None:
+            raise RuntimeError("Global config is not initialized")
+
         async with get_db_session() as session:
             for payload in payloads:
                 stream_id = payload.stream_id
@@ -254,11 +257,11 @@ class BatchDatabaseWriter:
                     stmt = stmt.on_conflict_do_update(index_elements=["stream_id"], set_=update_data)
 
                 await session.execute(stmt)
-
-            await session.commit()
-
     async def _direct_write(self, stream_id: str, update_data: dict[str, Any]):
         """直接写入数据库（降级方案）"""
+        if global_config is None:
+            raise RuntimeError("Global config is not initialized")
+
         async with get_db_session() as session:
             if global_config.database.database_type == "sqlite":
                 from sqlalchemy.dialects.sqlite import insert as sqlite_insert

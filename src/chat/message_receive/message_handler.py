@@ -30,7 +30,7 @@ from __future__ import annotations
 import os
 import re
 import traceback
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from mofox_wire import MessageEnvelope, MessageRuntime
 
@@ -55,6 +55,8 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 
 def _check_ban_words(text: str, chat: "ChatStream", userinfo) -> bool:
     """检查消息是否包含过滤词"""
+    if global_config is None:
+        return False
     for word in global_config.message_receive.ban_words:
         if word in text:
             chat_name = chat.group_info.group_name if chat.group_info else "私聊"
@@ -62,10 +64,10 @@ def _check_ban_words(text: str, chat: "ChatStream", userinfo) -> bool:
             logger.info(f"[过滤词识别]消息中含有{word}，filtered")
             return True
     return False
-
-
 def _check_ban_regex(text: str, chat: "ChatStream", userinfo) -> bool:
     """检查消息是否匹配过滤正则表达式"""
+    if global_config is None:
+        return False
     for pattern in global_config.message_receive.ban_msgs_regex:
         if re.search(pattern, text):
             chat_name = chat.group_info.group_name if chat.group_info else "私聊"
@@ -281,8 +283,8 @@ class MessageHandler:
             from src.chat.message_receive.chat_stream import get_chat_manager
             chat = await get_chat_manager().get_or_create_stream(
                 platform=platform,
-                user_info=DatabaseUserInfo.from_dict(user_info) if user_info else None,  # type: ignore
-                group_info=DatabaseGroupInfo.from_dict(group_info) if group_info else None,
+                user_info=DatabaseUserInfo.from_dict(cast(dict[str, Any], user_info)) if user_info else None,  # type: ignore
+                group_info=DatabaseGroupInfo.from_dict(cast(dict[str, Any], group_info)) if group_info else None,
             )
 
             # 将消息信封转换为 DatabaseMessages
@@ -431,8 +433,8 @@ class MessageHandler:
             from src.chat.message_receive.chat_stream import get_chat_manager
             chat = await get_chat_manager().get_or_create_stream(
                 platform=platform,
-                user_info=DatabaseUserInfo.from_dict(user_info) if user_info else None,  # type: ignore
-                group_info=DatabaseGroupInfo.from_dict(group_info) if group_info else None,
+                user_info=DatabaseUserInfo.from_dict(cast(dict[str, Any], user_info)) if user_info else None,  # type: ignore
+                group_info=DatabaseGroupInfo.from_dict(cast(dict[str, Any], group_info)) if group_info else None,
             )
 
             # 将消息信封转换为 DatabaseMessages
@@ -536,6 +538,8 @@ class MessageHandler:
             text = message.processed_plain_text or ""
 
             # 获取配置的命令前缀
+            if global_config is None:
+                return False, None, True
             prefixes = global_config.command.command_prefixes
 
             # 检查是否以任何前缀开头
@@ -704,6 +708,9 @@ class MessageHandler:
     async def _preprocess_message(self, message: DatabaseMessages, chat: "ChatStream") -> None:
         """预处理消息：存储、情绪更新等"""
         try:
+            if global_config is None:
+                return
+
             group_info = chat.group_info
 
             # 检查是否需要处理消息
