@@ -15,14 +15,15 @@ V5升级要点：
 """
 
 import asyncio
-import json
-import re
 import time
 from typing import TYPE_CHECKING, Any, Optional
+
+import orjson
 
 from src.chat.planner_actions.action_manager import ChatterActionManager
 from src.common.logger import get_logger
 from src.plugin_system.base.component_types import ActionInfo
+from src.utils.json_parser import extract_and_parse_json
 
 from .models import (
     ActionModel,
@@ -37,33 +38,6 @@ if TYPE_CHECKING:
     from src.chat.message_receive.chat_stream import ChatStream
 
 logger = get_logger("kokoro_action_executor")
-
-# ========== 情感分析关键词映射 ==========
-# 正面情感关键词（提升mood_intensity和engagement_level）
-POSITIVE_KEYWORDS = [
-    "开心", "高兴", "快乐", "喜欢", "爱", "好奇", "期待", "惊喜",
-    "感动", "温暖", "舒服", "放松", "满足", "欣慰", "感激", "兴奋",
-    "有趣", "好玩", "可爱", "太棒了", "哈哈", "嘻嘻", "hiahia",
-]
-
-# 负面情感关键词（降低mood_intensity，可能提升anxiety_level）
-NEGATIVE_KEYWORDS = [
-    "难过", "伤心", "失望", "沮丧", "担心", "焦虑", "害怕", "紧张",
-    "生气", "烦躁", "无聊", "疲惫", "累", "困", "不开心", "不高兴",
-    "委屈", "尴尬", "迷茫", "困惑", "郁闷",
-]
-
-# 亲密关键词（提升relationship_warmth）
-INTIMATE_KEYWORDS = [
-    "喜欢你", "想你", "想念", "在乎", "关心", "信任", "依赖",
-    "亲爱的", "宝贝", "朋友", "陪伴", "一起", "我们",
-]
-
-# 疏远关键词（降低relationship_warmth）
-DISTANT_KEYWORDS = [
-    "讨厌", "烦人", "无聊", "不想理", "走开", "别烦",
-    "算了", "随便", "不在乎",
-]
 
 
 class ActionExecutor:
@@ -146,75 +120,25 @@ class ActionExecutor:
         """
         解析LLM的JSON响应
         
+        使用统一的json_parser工具进行解析，自动处理：
+        - Markdown代码块标记
+        - 格式错误的JSON修复(json_repair)
+        - 多种包装格式
+        
         Args:
             response_text: LLM返回的原始文本
             
         Returns:
             LLMResponseModel: 解析后的响应模型
-            
-        Raises:
-            ValueError: 如果解析失败
         """
-        # 尝试提取JSON块
-        json_str = self._extract_json(response_text)
+        # 使用统一的json_parser工具解析
+        data = extract_and_parse_json(response_text, strict=False)
         
-        if not json_str:
-            logger.warning(f"无法从LLM响应中提取JSON: {response_text[:200]}...")
+        if not data or not isinstance(data, dict):
+            logger.warning(f"无法从LLM响应中提取有效JSON: {response_text[:200]}...")
             return LLMResponseModel.create_error_response("无法解析响应格式")
         
-        try:
-            data = json.loads(json_str)
-            return self._validate_and_create_response(data)
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON解析失败: {e}, 原始文本: {json_str[:200]}...")
-            return LLMResponseModel.create_error_response(f"JSON解析错误: {e}")
-    
-    def _extract_json(self, text: str) -> Optional[str]:
-        """
-        从文本中提取JSON块
-        
-        支持以下格式：
-        1. 纯JSON字符串
-        2. ```json ... ``` 代码块
-        3. 文本中嵌入的JSON对象
-        """
-        text = text.strip()
-        
-        # 尝试1：直接解析（如果整个文本就是JSON）
-        if text.startswith("{"):
-            # 找到匹配的结束括号
-            brace_count = 0
-            for i, char in enumerate(text):
-                if char == "{":
-                    brace_count += 1
-                elif char == "}":
-                    brace_count -= 1
-                    if brace_count == 0:
-                        return text[:i + 1]
-        
-        # 尝试2：提取 ```json ... ``` 代码块
-        json_block_pattern = r"```(?:json)?\s*([\s\S]*?)```"
-        matches = re.findall(json_block_pattern, text)
-        for match in matches:
-            match = match.strip()
-            if match.startswith("{"):
-                try:
-                    json.loads(match)
-                    return match
-                except json.JSONDecodeError:
-                    continue
-        
-        # 尝试3：寻找文本中的JSON对象
-        json_pattern = r"\{[\s\S]*\}"
-        matches = re.findall(json_pattern, text)
-        for match in matches:
-            try:
-                json.loads(match)
-                return match
-            except json.JSONDecodeError:
-                continue
-        
-        return None
+        return self._validate_and_create_response(data)
     
     def _validate_and_create_response(self, data: dict[str, Any]) -> LLMResponseModel:
         """
@@ -239,10 +163,11 @@ class ActionExecutor:
             data["max_wait_seconds"] = 300
             logger.warning("LLM响应缺少'max_wait_seconds'字段，使用默认值300")
         else:
-            # 确保在合理范围内
+            # 确保在合理范围内：0-900秒
+            # 0 表示不等待（话题结束/用户说再见等）
             try:
                 wait_seconds = int(data["max_wait_seconds"])
-                data["max_wait_seconds"] = max(60, min(wait_seconds, 600))
+                data["max_wait_seconds"] = max(0, min(wait_seconds, 900))
             except (ValueError, TypeError):
                 data["max_wait_seconds"] = 300
         
@@ -706,12 +631,13 @@ class ActionExecutor:
         session: KokoroSession,
     ) -> None:
         """
-        V5：根据thought字段的情感倾向动态更新EmotionalState
+        根据thought字段更新EmotionalState
         
-        分析策略：
-        1. 统计正面/负面/亲密/疏远关键词出现次数
-        2. 根据关键词比例计算情感调整值
-        3. 应用平滑的情感微调（每次变化不超过±0.1）
+        V6重构：
+        - 移除基于关键词的情感分析（诡异且不准确）
+        - 情感状态现在主要通过LLM输出的update_internal_state动作更新
+        - 关系温度应该从person_info/relationship_manager的好感度系统读取
+        - 此方法仅做简单的engagement_level更新
         
         Args:
             thought: LLM返回的内心独白
@@ -720,76 +646,16 @@ class ActionExecutor:
         if not thought:
             return
         
-        thought_lower = thought.lower()
         emotional_state = session.emotional_state
         
-        # 统计关键词
-        positive_count = sum(1 for kw in POSITIVE_KEYWORDS if kw in thought_lower)
-        negative_count = sum(1 for kw in NEGATIVE_KEYWORDS if kw in thought_lower)
-        intimate_count = sum(1 for kw in INTIMATE_KEYWORDS if kw in thought_lower)
-        distant_count = sum(1 for kw in DISTANT_KEYWORDS if kw in thought_lower)
-        
-        # 计算情感倾向分数 (-1.0 到 1.0)
-        total_mood = positive_count + negative_count
-        if total_mood > 0:
-            mood_score = (positive_count - negative_count) / total_mood
-        else:
-            mood_score = 0.0
-        
-        total_relation = intimate_count + distant_count
-        if total_relation > 0:
-            relation_score = (intimate_count - distant_count) / total_relation
-        else:
-            relation_score = 0.0
-        
-        # 应用情感微调（每次最多变化±0.05）
-        adjustment_rate = 0.05
-        
-        # 更新 mood_intensity
-        if mood_score != 0:
-            old_intensity = emotional_state.mood_intensity
-            new_intensity = old_intensity + (mood_score * adjustment_rate)
-            emotional_state.mood_intensity = max(0.0, min(1.0, new_intensity))
-            
-            # 更新 mood 文字描述
-            if mood_score > 0.3:
-                emotional_state.mood = "开心"
-            elif mood_score < -0.3:
-                emotional_state.mood = "低落"
-            # 小于0.3的变化不改变mood文字
-        
-        # 更新 anxiety_level（负面情绪增加焦虑）
-        if negative_count > 0 and negative_count > positive_count:
-            old_anxiety = emotional_state.anxiety_level
-            new_anxiety = old_anxiety + (adjustment_rate * 0.5)
-            emotional_state.anxiety_level = max(0.0, min(1.0, new_anxiety))
-        elif positive_count > negative_count * 2:
-            # 非常积极时降低焦虑
-            old_anxiety = emotional_state.anxiety_level
-            new_anxiety = old_anxiety - (adjustment_rate * 0.3)
-            emotional_state.anxiety_level = max(0.0, min(1.0, new_anxiety))
-        
-        # 更新 relationship_warmth
-        if relation_score != 0:
-            old_warmth = emotional_state.relationship_warmth
-            new_warmth = old_warmth + (relation_score * adjustment_rate)
-            emotional_state.relationship_warmth = max(0.0, min(1.0, new_warmth))
-        
-        # 更新 engagement_level（有内容的thought表示高投入）
+        # 简单的engagement_level更新：有内容的thought表示高投入
         if len(thought) > 50:
             old_engagement = emotional_state.engagement_level
-            new_engagement = old_engagement + (adjustment_rate * 0.5)
+            new_engagement = old_engagement + 0.025  # 微调
             emotional_state.engagement_level = max(0.0, min(1.0, new_engagement))
         
         emotional_state.last_update_time = time.time()
         
-        # 记录情感变化日志
-        if positive_count + negative_count + intimate_count + distant_count > 0:
-            logger.info(
-                f"[KFC] 动态情感更新: "
-                f"正面={positive_count}, 负面={negative_count}, "
-                f"亲密={intimate_count}, 疏远={distant_count} | "
-                f"mood_intensity={emotional_state.mood_intensity:.2f}, "
-                f"relationship_warmth={emotional_state.relationship_warmth:.2f}, "
-                f"anxiety_level={emotional_state.anxiety_level:.2f}"
-            )
+        # 注意：关系温度(relationship_warmth)应该从全局的好感度系统读取
+        # 参考 src/person_info/relationship_manager.py 和 src/plugin_system/apis/person_api.py
+        # 当前实现中，这个值主要通过 LLM 的 update_internal_state 动作来更新

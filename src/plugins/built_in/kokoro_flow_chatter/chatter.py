@@ -29,7 +29,7 @@ from .models import (
     SessionStatus,
 )
 from .prompt_generator import PromptGenerator, get_prompt_generator
-from .scheduler import BackgroundScheduler, get_scheduler
+from .kfc_scheduler_adapter import KFCSchedulerAdapter, get_scheduler
 from .session_manager import SessionManager, get_session_manager
 
 if TYPE_CHECKING:
@@ -79,7 +79,7 @@ class KokoroFlowChatter(BaseChatter):
         # 核心组件
         self.session_manager: SessionManager = get_session_manager()
         self.prompt_generator: PromptGenerator = get_prompt_generator()
-        self.scheduler: BackgroundScheduler = get_scheduler()
+        self.scheduler: KFCSchedulerAdapter = get_scheduler()
         self.action_executor: ActionExecutor = ActionExecutor(stream_id)
         
         # 配置
@@ -296,17 +296,30 @@ class KokoroFlowChatter(BaseChatter):
         
         # 10. 处理执行结果
         if execution_result["has_reply"]:
-            # 如果发送了回复，进入等待状态
-            session.start_waiting(
-                expected_reaction=parsed_response.expected_user_reaction,
-                max_wait=parsed_response.max_wait_seconds
-            )
+            # 如果发送了回复，检查是否需要进入等待状态
+            max_wait = parsed_response.max_wait_seconds
+            
+            if max_wait > 0:
+                # 正常等待状态
+                session.start_waiting(
+                    expected_reaction=parsed_response.expected_user_reaction,
+                    max_wait=max_wait
+                )
+                logger.debug(
+                    f"[KFC] 进入等待状态: user={user_id}, "
+                    f"max_wait={max_wait}s"
+                )
+            else:
+                # max_wait=0 表示不等待（话题结束/用户说再见等）
+                session.status = SessionStatus.IDLE
+                session.end_waiting()
+                logger.info(
+                    f"[KFC] 话题结束，不等待用户回复: user={user_id} "
+                    f"(max_wait_seconds=0)"
+                )
+            
             session.total_interactions += 1
             self.stats["successful_responses"] += 1
-            logger.debug(
-                f"[KFC] 进入等待状态: user={user_id}, "
-                f"max_wait={parsed_response.max_wait_seconds}s"
-            )
         else:
             # 没有发送回复，返回空闲状态
             session.status = SessionStatus.IDLE

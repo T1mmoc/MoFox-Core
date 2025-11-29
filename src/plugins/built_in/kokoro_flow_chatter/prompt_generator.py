@@ -441,8 +441,8 @@ class PromptGenerator:
                 for param_name, param_desc in action_info.action_parameters.items():
                     example_params[param_name] = f"<{param_desc}>"
             
-            import json
-            params_json = json.dumps(example_params, ensure_ascii=False, indent=2) if example_params else "{}"
+            import orjson
+            params_json = orjson.dumps(example_params, option=orjson.OPT_INDENT_2).decode('utf-8') if example_params else "{}"
             action_block += f"""
 **示例**:
 ```json
@@ -508,8 +508,9 @@ class PromptGenerator:
         """
         生成系统提示词
         
-        V4升级：从 global_config.personality 读取完整人设
-        V5超融合：集成S4U所有上下文模块
+        V6模块化升级：使用 prompt_modules 构建模块化的提示词
+        - 每个模块独立构建，职责清晰
+        - 回复相关（人设、上下文）与动作定义分离
         
         Args:
             session: 当前会话
@@ -520,69 +521,13 @@ class PromptGenerator:
         Returns:
             str: 系统提示词
         """
-        from src.config.config import global_config
-        from datetime import datetime
+        from .prompt_modules import build_system_prompt
         
-        emotional_params = self._format_emotional_state(session.emotional_state)
-        
-        # 格式化可用动作
-        available_actions_block = self._format_available_actions(available_actions or {})
-        
-        # 从 global_config.personality 读取完整人设
-        if global_config is None:
-            raise RuntimeError("global_config 未初始化")
-        
-        personality_cfg = global_config.personality
-        
-        # 核心人设
-        personality_core = personality_cfg.personality_core or self.persona_description
-        personality_side = personality_cfg.personality_side or ""
-        identity = personality_cfg.identity or ""
-        background_story = personality_cfg.background_story or ""
-        reply_style = personality_cfg.reply_style or ""
-        
-        # 安全规则：转换为格式化字符串
-        safety_guidelines = personality_cfg.safety_guidelines or []
-        if isinstance(safety_guidelines, list):
-            safety_guidelines_str = "\n".join(f"- {rule}" for rule in safety_guidelines)
-        else:
-            safety_guidelines_str = str(safety_guidelines)
-        
-        # 构建当前时间
-        current_time = datetime.now().strftime("%Y年%m月%d日 %H:%M:%S")
-        
-        # 判断聊天场景
-        is_group_chat = False
-        if chat_stream:
-            is_group_chat = bool(chat_stream.group_info)
-        chat_scene = "群聊" if is_group_chat else "私聊"
-        
-        # 从context_data提取S4U上下文模块（如果提供）
-        context_data = context_data or {}
-        relation_info_block = context_data.get("relation_info", "")
-        memory_block = context_data.get("memory_block", "")
-        expression_habits_block = context_data.get("expression_habits", "")
-        schedule_block = context_data.get("schedule", "")
-        
-        # 如果有日程，添加前缀
-        if schedule_block:
-            schedule_block = f"**当前活动**: {schedule_block}"
-        
-        return self.SYSTEM_PROMPT_TEMPLATE.format(
-            personality_core=personality_core,
-            personality_side=personality_side,
-            identity=identity,
-            background_story=background_story,
-            reply_style=reply_style,
-            safety_guidelines=safety_guidelines_str,
-            available_actions_block=available_actions_block,
-            current_time=current_time,
-            chat_scene=chat_scene,
-            relation_info_block=relation_info_block or "（暂无关系信息）",
-            memory_block=memory_block or "",
-            expression_habits_block=expression_habits_block or "",
-            schedule_block=schedule_block,
-            **emotional_params,
+        return build_system_prompt(
+            session=session,
+            available_actions=available_actions,
+            context_data=context_data,
+            chat_stream=chat_stream,
         )
     
     def generate_responding_prompt(
