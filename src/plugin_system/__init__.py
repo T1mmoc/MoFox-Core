@@ -50,6 +50,17 @@ from .base import (
     ToolParamType,
     create_plus_command_adapter,
 )
+# 沙盒插件系统
+from .base.sandbox_plugin import SandboxPlugin, SandboxPluginInfo
+from .base.sandbox_components import SandboxAction, SandboxCommand
+from .core.sandbox_environment import (
+    SandboxConfig,
+    SandboxEnvironment,
+    SandboxTimeoutError,
+    SandboxMemoryError,
+    SandboxSecurityError,
+    get_sandbox_environment,
+)
 from .utils.dependency_config import configure_dependency_settings, get_dependency_config
 
 # 导入依赖管理模块
@@ -81,16 +92,26 @@ __all__ = [  # noqa: RUF022
     "PluginInfo",
     # 增强命令系统
     "PlusCommand",
-    "BaseRouterComponent"
+    "BaseRouterComponent",
     "PythonDependency",
     "ToolInfo",
     "ToolParamType",
+    # 沙盒插件系统
+    "SandboxPlugin",
+    "SandboxPluginInfo",
+    "SandboxAction",
+    "SandboxCommand",
+    "SandboxConfig",
+    "SandboxEnvironment",
+    "SandboxTimeoutError",
+    "SandboxMemoryError",
+    "SandboxSecurityError",
+    "get_sandbox_environment",
     "chat_api",
     "component_manage_api",
     "config_api",
     "configure_dependency_manager",
     "configure_dependency_settings",
-    "create_plus_command_adapter",
     "create_plus_command_adapter",
     "database_api",
     "emoji_api",
@@ -98,7 +119,6 @@ __all__ = [  # noqa: RUF022
     "get_dependency_config",
     # 依赖管理
     "get_dependency_manager",
-    "get_logger",
     "get_logger",
     "llm_api",
     "message_api",
