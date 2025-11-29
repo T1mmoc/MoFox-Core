@@ -29,7 +29,7 @@ async def clean_permission_nodes():
             result = await session.execute(stmt)
             await session.commit()
 
-            deleted_count = result.rowcount if hasattr(result, "rowcount") else 0
+            deleted_count = getattr(result, "rowcount", 0)
             logger.info(f"✅ 已清理 {deleted_count} 个权限节点记录")
             print(f"✅ 已清理 {deleted_count} 个权限节点记录")
             print("请重启应用以重新注册权限节点")

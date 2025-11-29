@@ -31,6 +31,8 @@ async def get_message_stats(
 
         sent_count = 0
         received_count = 0
+        if global_config is None:
+            raise HTTPException(status_code=500, detail="Global config is not initialized")
         bot_qq = str(global_config.bot.qq_account)
 
         for msg in messages:
@@ -73,6 +75,8 @@ async def get_message_stats_by_chat(
         start_time = end_time - (days * 24 * 3600)
         # 从数据库获取指定时间范围内的所有消息
         messages = await message_api.get_messages_by_time(start_time, end_time)
+        if global_config is None:
+            raise HTTPException(status_code=500, detail="Global config is not initialized")
         bot_qq = str(global_config.bot.qq_account)
 
         # --- 2. 消息筛选 ---
