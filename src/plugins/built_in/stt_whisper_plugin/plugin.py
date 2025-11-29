@@ -1,8 +1,6 @@
 import asyncio
 from typing import ClassVar
 
-import whisper
-
 from src.common.logger import get_logger
 from src.plugin_system import BasePlugin, ComponentInfo, register_plugin
 from src.plugin_system.base.base_tool import BaseTool
@@ -35,6 +33,8 @@ class LocalASRTool(BaseTool):
         if _whisper_model is None and not _is_loading:
             _is_loading = True
             try:
+                import whisper
+
                 model_size = plugin_config.get("whisper", {}).get("model_size", "tiny")
                 device = plugin_config.get("whisper", {}).get("device", "cpu")
                 logger.info(f"正在预加载 Whisper ASR 模型: {model_size} ({device})")

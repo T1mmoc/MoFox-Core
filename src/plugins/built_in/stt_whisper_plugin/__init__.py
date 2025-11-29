@@ -6,4 +6,5 @@ __plugin_meta__ = PluginMetadata(
     usage="在 bot_config.toml 中将 asr_provider 设置为 'local' 即可启用",
     version="0.1.0",
     author="Elysia",
+    python_dependencies=["openai-whisper"],
 )
