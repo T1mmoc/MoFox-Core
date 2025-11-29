@@ -68,7 +68,7 @@ class PlusCommand(ABC):
         self.log_prefix = "[PlusCommand]"
 
         # chat_stream 会在运行时被 bot.py 设置
-        self.chat_stream: "ChatStream | None" = None
+        self.chat_stream: "ChatStream"
 
         # 解析命令参数
         self._parse_command()

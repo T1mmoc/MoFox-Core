@@ -31,6 +31,7 @@ from src.plugin_system.base.component_types import (
 from src.plugin_system.base.config_types import ConfigField
 from src.plugin_system.base.plus_command import PlusCommand
 from src.plugin_system.utils.permission_decorators import require_permission
+from src.plugin_system.apis.permission_api import permission_api
 
 logger = get_logger("SystemManagement")
 
@@ -48,9 +49,15 @@ class SystemCommand(PlusCommand):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    @require_permission("access", deny_message="❌ 你没有权限使用此命令")
     async def execute(self, args: CommandArgs) -> tuple[bool, str | None, bool]:
         """执行系统管理命令"""
+        if not self.chat_stream.user_info:
+            logger.error("chat_stream缺失用户信息,请报告开发者")
+            return False, "chat_stream缺失用户信息,请报告开发者", True
+        has_permission = await permission_api.check_permission(platform=self.chat_stream.platform,user_id=self.chat_stream.user_info.user_id,permission_node="access")
+        if has_permission:
+            logger.warning("没有权限使用此命令")
+            return False, "没有权限使用此命令", True
         if args.is_empty:
             await self._show_help("all")
             return True, "显示帮助信息", True
@@ -81,7 +88,7 @@ class SystemCommand(PlusCommand):
 🔧 主要功能：
 • `/system help` - 显示此帮助
 • `/system permission` - 权限管理
-• `/system plugin` - 插件管理
+• `/system plugin` - 插件与组件管理
 • `/system schedule` - 定时任务管理
 • `/system prompt` - 提示词注入管理
 """
@@ -98,16 +105,18 @@ class SystemCommand(PlusCommand):
 """
         elif target == "plugin":
             help_text = """🔌 插件管理命令帮助
-📋 基本操作：
-• `/system plugin help` - 显示插件管理帮助
-• `/system plugin report` - 查看系统插件报告
-• `/system plugin rescan` - 重新扫描所有插件目录
 
 ⚙️ 插件控制：
+• `/system plugin rescan` - 重新扫描所有插件目录
 • `/system plugin load <插件名>` - 加载指定插件
 • `/system plugin reload <插件名>` - 重新加载指定插件
 • `/system plugin reload_all` - 重新加载所有插件
-🎯 局部控制 (需要 `system.plugin.manage.local` 权限):
+
+🔧 全局组件控制 (需要 `system.plugin.manage` 权限):
+• `/system plugin enable <组件名>` - 全局启用组件
+• `/system plugin disable <组件名>` - 全局禁用组件
+
+🎯 局部组件控制 (需要 `system.plugin.manage.local` 权限):
 • `/system plugin enable_local <名称> [group <群号> | private <QQ号>]` - 在指定会话局部启用组件
 • `/system plugin disable_local <名称> [group <群号> | private <QQ号>]` - 在指定会话局部禁用组件
 """
@@ -156,6 +165,15 @@ class SystemCommand(PlusCommand):
             await self._show_help("plugin")
         elif action in ["report", "报告"]:
             await self._show_system_report()
+        elif action in ["info", "详情"] and remaining_args:
+            await self._show_plugin_info(remaining_args[0])
+        elif action in ["list", "列表"]:
+            comp_type = remaining_args[0] if remaining_args else None
+            await self._list_components(comp_type)
+        elif action in ["search", "搜索"] and remaining_args:
+            await self._search_components(remaining_args[0])
+        elif action in ["disabled", "禁用列表"]:
+            await self._list_disabled_components()
         elif action in ["rescan", "重扫"]:
             await self._rescan_plugin_dirs()
         elif action in ["load", "加载"] and len(remaining_args) > 0:
@@ -164,6 +182,10 @@ class SystemCommand(PlusCommand):
             await self._reload_plugin(remaining_args[0])
         elif action in ["reload_all", "重载全部"]:
             await self._reload_all_plugins()
+        elif action in ["enable", "启用"] and len(remaining_args) >= 1:
+            await self._set_global_component_state(remaining_args[0], enabled=True)
+        elif action in ["disable", "禁用"] and len(remaining_args) >= 1:
+            await self._set_global_component_state(remaining_args[0], enabled=False)
         elif action in ["enable_local", "局部启用"] and len(remaining_args) >= 1:
             await self._set_local_component_state(remaining_args, enabled=True)
         elif action in ["disable_local", "局部禁用"] and len(remaining_args) >= 1:
@@ -430,8 +452,193 @@ class SystemCommand(PlusCommand):
         await self.send_text("\n".join(response_parts))
 
     # =================================================================
-    # Permission Management Section
+    # Permission Management Section (Plugin Stats & Info)
     # =================================================================
+    @require_permission("plugin.manage", deny_message="❌ 你没有权限查看插件详情")
+    async def _show_plugin_info(self, plugin_name: str):
+        """显示单个插件的详细信息"""
+        details = plugin_info_api.get_plugin_details(plugin_name)
+
+        if not details:
+            # 尝试模糊匹配
+            all_plugins = plugin_info_api.list_plugins("loaded")
+            suggestions = [p for p in all_plugins if plugin_name.lower() in p.lower()]
+            if suggestions:
+                await self.send_text(
+                    f"❌ 未找到插件 `{plugin_name}`\n"
+                    f"你可能想找的是: {', '.join([f'`{s}`' for s in suggestions[:5]])}"
+                )
+            else:
+                await self.send_text(f"❌ 未找到插件 `{plugin_name}`")
+            return
+
+        response_parts = [
+            f"🔌 **插件详情: {details['display_name']}**",
+            f"  • 内部名称: `{details['name']}`",
+            f"  • 版本: {details['version']}",
+            f"  • 作者: {details['author']}",
+            f"  • 状态: {'✅ 已启用' if details['enabled'] else '❌ 已禁用'}",
+            f"  • 加载状态: {details['status']}",
+        ]
+
+        if details.get('description'):
+            response_parts.append(f"  • 描述: {details['description']}")
+
+        if details.get('license'):
+            response_parts.append(f"  • 许可证: {details['license']}")
+
+        # 组件信息
+        if details['components']:
+            response_parts.append(f"\n🧩 **组件列表** (共 {len(details['components'])} 个):")
+            for comp in details['components']:
+                status = "✅" if comp['enabled'] else "❌"
+                response_parts.append(f"  {status} `{comp['name']}` ({comp['component_type']})")
+                if comp.get('description'):
+                    response_parts.append(f"      {comp['description'][:50]}...")
+
+        await self._send_long_message("\n".join(response_parts))
+
+    @require_permission("plugin.manage", deny_message="❌ 你没有权限查看组件列表")
+    async def _list_components(self, comp_type_str: str | None):
+        """列出指定类型的组件"""
+        # 显示可用类型帮助
+        available_types = [t.value for t in ComponentType]
+
+        if comp_type_str:
+            # 尝试匹配组件类型
+            comp_type = None
+            for t in ComponentType:
+                if t.value.lower() == comp_type_str.lower() or t.name.lower() == comp_type_str.lower():
+                    comp_type = t
+                    break
+
+            if not comp_type:
+                await self.send_text(
+                    f"❌ 未知的组件类型: `{comp_type_str}`\n"
+                    f"可用类型: {', '.join([f'`{t}`' for t in available_types])}"
+                )
+                return
+
+            components = plugin_info_api.list_components(comp_type, enabled_only=False)
+            title = f"🧩 **{comp_type.value} 组件列表** (共 {len(components)} 个)"
+        else:
+            # 列出所有类型的统计
+            response_parts = ["🧩 **组件类型概览**", ""]
+            for t in ComponentType:
+                comps = plugin_info_api.list_components(t, enabled_only=False)
+                enabled = sum(1 for c in comps if c['enabled'])
+                if comps:
+                    response_parts.append(f"• **{t.value}**: {enabled}/{len(comps)} 启用")
+
+            response_parts.append(f"\n💡 使用 `/system plugin list <类型>` 查看详情")
+            response_parts.append(f"可用类型: {', '.join([f'`{t}`' for t in available_types])}")
+            await self.send_text("\n".join(response_parts))
+            return
+
+        if not components:
+            await self.send_text(f"📭 没有找到 {comp_type.value} 类型的组件")
+            return
+
+        response_parts = [title, ""]
+        for comp in components:
+            status = "✅" if comp['enabled'] else "❌"
+            response_parts.append(f"{status} `{comp['name']}` (来自: `{comp['plugin_name']}`)")
+
+        await self._send_long_message("\n".join(response_parts))
+
+    @require_permission("plugin.manage", deny_message="❌ 你没有权限搜索组件")
+    async def _search_components(self, keyword: str):
+        """搜索组件"""
+        results = plugin_info_api.search_components_by_name(keyword, case_sensitive=False)
+
+        if not results:
+            await self.send_text(f"🔍 未找到包含 `{keyword}` 的组件")
+            return
+
+        response_parts = [f"🔍 **搜索结果** (关键词: `{keyword}`, 共 {len(results)} 个)", ""]
+
+        for comp in results:
+            status = "✅" if comp['enabled'] else "❌"
+            response_parts.append(
+                f"{status} `{comp['name']}` ({comp['component_type']})\n"
+                f"   来自: `{comp['plugin_name']}`"
+            )
+
+        await self._send_long_message("\n".join(response_parts))
+
+    @require_permission("plugin.manage", deny_message="❌ 你没有权限查看禁用组件")
+    async def _list_disabled_components(self):
+        """列出所有禁用的组件"""
+        disabled = component_state_api.get_disabled_components()
+
+        if not disabled:
+            await self.send_text("✅ 当前没有被禁用的组件")
+            return
+
+        response_parts = [f"🚫 **禁用组件列表** (共 {len(disabled)} 个)", ""]
+
+        # 按插件分组
+        by_plugin: dict[str, list] = {}
+        for comp in disabled:
+            plugin_name = comp.plugin_name
+            if plugin_name not in by_plugin:
+                by_plugin[plugin_name] = []
+            by_plugin[plugin_name].append(comp)
+
+        for plugin_name, comps in by_plugin.items():
+            response_parts.append(f"🔌 **{plugin_name}**:")
+            for comp in comps:
+                response_parts.append(f"  ❌ `{comp.name}` ({comp.component_type.value})")
+
+        await self._send_long_message("\n".join(response_parts))
+
+    @require_permission("plugin.manage", deny_message="❌ 你没有权限管理组件状态")
+    async def _set_global_component_state(self, comp_name: str, enabled: bool):
+        """全局启用或禁用组件"""
+        # 搜索组件
+        found_components = plugin_info_api.search_components_by_name(comp_name, exact_match=True)
+
+        if not found_components:
+            # 尝试模糊搜索给出建议
+            fuzzy_results = plugin_info_api.search_components_by_name(comp_name, exact_match=False)
+            if fuzzy_results:
+                suggestions = ", ".join([f"`{c['name']}`" for c in fuzzy_results[:5]])
+                await self.send_text(f"❌ 未找到名为 `{comp_name}` 的组件\n你可能想找的是: {suggestions}")
+            else:
+                await self.send_text(f"❌ 未找到名为 `{comp_name}` 的组件")
+            return
+
+        if len(found_components) > 1:
+            suggestions = "\n".join([f"- `{c['name']}` (类型: {c['component_type']})" for c in found_components])
+            await self.send_text(f"❌ 发现多个名为 `{comp_name}` 的组件，操作已取消。\n找到的组件:\n{suggestions}")
+            return
+
+        component_info = found_components[0]
+        comp_type_str = component_info["component_type"]
+        component_type = ComponentType(comp_type_str)
+
+        # 禁用保护
+        if not enabled:
+            protected_types = [
+                ComponentType.INTEREST_CALCULATOR,
+                ComponentType.PROMPT,
+                ComponentType.ROUTER,
+            ]
+            if component_type in protected_types:
+                await self.send_text(f"❌ 无法禁用核心组件 `{comp_name}` ({comp_type_str})")
+                return
+
+        # 执行操作
+        success = await component_state_api.set_component_enabled(comp_name, component_type, enabled)
+
+        action_text = "启用" if enabled else "禁用"
+        if success:
+            await self.send_text(f"✅ 已全局{action_text}组件 `{comp_name}` ({comp_type_str})")
+        else:
+            if component_type == ComponentType.CHATTER and not enabled:
+                await self.send_text(f"❌ 无法禁用最后一个 Chatter 组件 `{comp_name}`")
+            else:
+                await self.send_text(f"❌ {action_text}组件 `{comp_name}` 失败，请检查日志")
 
     @require_permission("plugin.manage", deny_message="❌ 你没有权限查看插件报告")
     async def _show_system_report(self):
@@ -784,13 +991,13 @@ class SystemCommand(PlusCommand):
 @register_plugin
 class SystemManagementPlugin(BasePlugin):
     plugin_name: str = "system_management"
-    enable_plugin: bool = True
+    enable_plugin: bool = False
     dependencies: ClassVar[list[str]] = []  # 插件依赖列表
     python_dependencies: ClassVar[list[str]] = []  # Python包依赖列表，现在使用内置API
     config_file_name: str = "config.toml"  # 配置文件名
     config_schema: ClassVar[dict] = {
         "plugin": {
-            "enabled": ConfigField(bool, default=True, description="是否启用插件"),
+            "enabled": ConfigField(bool, default=False, description="是否启用插件"),
         }
     }
 
