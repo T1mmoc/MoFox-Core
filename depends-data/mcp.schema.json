@@ -26,12 +26,12 @@
               "properties": {
                 "type": {
                   "type": "string",
-                  "enum": ["streamable-http", "stdio"],
-                  "description": "Transport type"
+                  "enum": ["streamable-http", "stdio", "sse"],
+                  "description": "Transport type: streamable-http (new), stdio (local process), sse (legacy HTTP+SSE)"
                 },
                 "url": {
                   "type": "string",
-                  "description": "URL for HTTP-based transports",
+                  "description": "URL for HTTP-based transports (streamable-http or sse)",
                   "format": "uri"
                 },
                 "command": {
@@ -44,6 +44,11 @@
                     "type": "string"
                   },
                   "description": "Arguments for stdio transport"
+                },
+                "sse_read_timeout": {
+                  "type": "number",
+                  "description": "Timeout for SSE read operations in seconds (sse transport only)",
+                  "default": 300
                 }
               },
               "required": ["type"],
@@ -63,6 +68,14 @@
                     }
                   },
                   "required": ["command"]
+                },
+                {
+                  "properties": {
+                    "type": {
+                      "enum": ["sse"]
+                    }
+                  },
+                  "required": ["url"]
                 }
               ]
             },

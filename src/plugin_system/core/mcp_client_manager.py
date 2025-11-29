@@ -2,6 +2,11 @@
 MCP Client Manager
 
 管理多个 MCP (Model Context Protocol) 客户端连接，支持动态加载和工具注册
+
+支持的传输类型：
+- streamable-http: 新版 Streamable HTTP 传输（MCP 2025-06-18）
+- stdio: 本地进程标准输入输出传输
+- sse: 旧版 HTTP+SSE 传输（MCP 2024-11-05）
 """
 
 import asyncio
@@ -162,7 +167,7 @@ class MCPClientManager:
             server_config: 服务器配置
 
         Returns:
-            Client: 已连接的 MCP 客户端
+            Client: 已连接的 MCP 客户端（或兼容的 SSEClient）
         """
         transport_type = server_config.transport_config.get("type", "streamable-http")
 
@@ -180,6 +185,28 @@ class MCPClientManager:
                     transport._set_auth(BearerAuth(token))
 
             client = Client(transport, timeout=server_config.timeout)
+
+        elif transport_type == "sse":
+            # SSE 传输：旧版 HTTP+SSE 传输
+            from .mcp_sse_client import SSEClient
+
+            url = server_config.transport_config["url"]
+            sse_read_timeout = server_config.transport_config.get("sse_read_timeout", 300)
+
+            # 构建认证头
+            headers = {}
+            if server_config.auth_config:
+                auth_type = server_config.auth_config.get("type")
+                if auth_type == "bearer":
+                    token = server_config.auth_config.get("token", "")
+                    headers["Authorization"] = f"Bearer {token}"
+
+            client = SSEClient(
+                url=url,
+                timeout=server_config.timeout,
+                sse_read_timeout=sse_read_timeout,
+                headers=headers if headers else None,
+            )
 
         elif transport_type == "stdio":
             # stdio 传输：通过标准输入输出与本地进程通信

@@ -2,13 +2,46 @@
   "$schema": "../depends-data/mcp.schema.json",
   "mcpServers": {
     "demo_server": {
-      "description": "演示用的 MCP 服务器（无认证）",
+      "description": "演示用的 MCP 服务器（无认证）- Streamable HTTP 传输",
       "enabled": true,
       "transport": {
         "type": "streamable-http",
         "url": "http://localhost:8000/mcp"
       },
       "auth": null,
+      "timeout": 30,
+      "retry": {
+        "max_retries": 3,
+        "retry_delay": 1
+      }
+    },
+    "sse_demo_server": {
+      "description": "演示用的 MCP 服务器 - 旧版 HTTP+SSE 传输（2024-11-05 协议）",
+      "enabled": false,
+      "transport": {
+        "type": "sse",
+        "url": "http://localhost:8000/sse",
+        "sse_read_timeout": 300
+      },
+      "auth": null,
+      "timeout": 30,
+      "retry": {
+        "max_retries": 3,
+        "retry_delay": 1
+      }
+    },
+    "sse_auth_server": {
+      "description": "使用 Bearer Token 认证的 SSE 服务器",
+      "enabled": false,
+      "transport": {
+        "type": "sse",
+        "url": "https://api.example.com/sse",
+        "sse_read_timeout": 300
+      },
+      "auth": {
+        "type": "bearer",
+        "token": "your-secret-bearer-token-here"
+      },
       "timeout": 30,
       "retry": {
         "max_retries": 3,
