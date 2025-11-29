@@ -63,7 +63,7 @@ def find_available_data_files() -> list[Path]:
     return sorted(files, key=lambda f: f.stat().st_mtime, reverse=True)
 
 
-def load_graph_data_from_file(file_path: Path | None = None) -> dict[str, Any]:
+async def load_graph_data_from_file(file_path: Path | None = None) -> dict[str, Any]:
     """从磁盘加载图数据"""
     global graph_data_cache, current_data_file
 

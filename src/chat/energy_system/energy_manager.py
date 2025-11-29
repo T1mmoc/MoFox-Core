@@ -7,7 +7,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, TypedDict
+from typing import Any, Awaitable, TypedDict, cast
 
 from src.common.database.api.crud import CRUDBase
 from src.common.logger import get_logger
@@ -70,7 +70,7 @@ class EnergyCalculator(ABC):
     """能量计算器抽象基类"""
 
     @abstractmethod
-    def calculate(self, context: dict[str, Any]) -> float:
+    def calculate(self, context: "EnergyContext") -> float | Awaitable[float]:
         """计算能量值"""
         pass
 
@@ -83,7 +83,7 @@ class EnergyCalculator(ABC):
 class InterestEnergyCalculator(EnergyCalculator):
     """兴趣度能量计算器"""
 
-    def calculate(self, context: dict[str, Any]) -> float:
+    def calculate(self, context: "EnergyContext") -> float:
         """基于消息兴趣度计算能量"""
         messages = context.get("messages", [])
         if not messages:
@@ -117,7 +117,7 @@ class ActivityEnergyCalculator(EnergyCalculator):
     def __init__(self):
         self.action_weights = {"reply": 0.4, "react": 0.3, "mention": 0.2, "other": 0.1}
 
-    def calculate(self, context: dict[str, Any]) -> float:
+    def calculate(self, context: "EnergyContext") -> float:
         """基于活跃度计算能量"""
         messages = context.get("messages", [])
         if not messages:
@@ -147,7 +147,7 @@ class ActivityEnergyCalculator(EnergyCalculator):
 class RecencyEnergyCalculator(EnergyCalculator):
     """最近性能量计算器"""
 
-    def calculate(self, context: dict[str, Any]) -> float:
+    def calculate(self, context: "EnergyContext") -> float:
         """基于最近性计算能量"""
         messages = context.get("messages", [])
         if not messages:
@@ -194,7 +194,7 @@ class RecencyEnergyCalculator(EnergyCalculator):
 class RelationshipEnergyCalculator(EnergyCalculator):
     """关系能量计算器 - 基于聊天流兴趣度"""
 
-    async def calculate(self, context: dict[str, Any]) -> float:
+    async def calculate(self, context: "EnergyContext") -> float:
         """基于聊天流兴趣度计算能量"""
         stream_id = context.get("stream_id")
         if not stream_id:
@@ -260,6 +260,8 @@ class EnergyManager:
     def _load_thresholds_from_config(self) -> None:
         """从配置加载AFC阈值"""
         try:
+            if global_config is None:
+                return
             if hasattr(global_config, "affinity_flow") and global_config.affinity_flow is not None:
                 self.thresholds["high_match"] = getattr(
                     global_config.affinity_flow, "high_match_interest_threshold", 0.8
@@ -283,17 +285,17 @@ class EnergyManager:
         start_time = time.time()
 
         # 更新统计
-        self.stats["total_calculations"] += 1
+        self.stats["total_calculations"] = cast(int, self.stats["total_calculations"]) + 1
 
         # 检查缓存
         if stream_id in self.energy_cache:
             cached_energy, cached_time = self.energy_cache[stream_id]
             if time.time() - cached_time < self.cache_ttl:
-                self.stats["cache_hits"] += 1
+                self.stats["cache_hits"] = cast(int, self.stats["cache_hits"]) + 1
                 logger.debug(f"使用缓存能量: {stream_id} = {cached_energy:.3f}")
                 return cached_energy
         else:
-            self.stats["cache_misses"] += 1
+            self.stats["cache_misses"] = cast(int, self.stats["cache_misses"]) + 1
 
         # 构建计算上下文
         context: EnergyContext = {
@@ -358,9 +360,10 @@ class EnergyManager:
 
         # 更新平均计算时间
         calculation_time = time.time() - start_time
-        total_calculations = self.stats["total_calculations"]
+        total_calculations = cast(int, self.stats["total_calculations"])
+        current_avg = cast(float, self.stats["average_calculation_time"])
         self.stats["average_calculation_time"] = (
-            self.stats["average_calculation_time"] * (total_calculations - 1) + calculation_time
+            current_avg * (total_calculations - 1) + calculation_time
         ) / total_calculations
 
         logger.debug(
@@ -424,8 +427,11 @@ class EnergyManager:
         final_interval = base_interval * jitter
 
         # 确保在配置范围内
-        min_interval = getattr(global_config.chat, "dynamic_distribution_min_interval", 1.0)
-        max_interval = getattr(global_config.chat, "dynamic_distribution_max_interval", 60.0)
+        min_interval = 1.0
+        max_interval = 60.0
+        if global_config is not None and hasattr(global_config, "chat"):
+            min_interval = getattr(global_config.chat, "dynamic_distribution_min_interval", 1.0)
+            max_interval = getattr(global_config.chat, "dynamic_distribution_max_interval", 60.0)
 
         return max(min_interval, min(max_interval, final_interval))
 
@@ -487,10 +493,12 @@ class EnergyManager:
 
     def get_cache_hit_rate(self) -> float:
         """获取缓存命中率"""
-        total_requests = self.stats.get("cache_hits", 0) + self.stats.get("cache_misses", 0)
+        hits = cast(int, self.stats.get("cache_hits", 0))
+        misses = cast(int, self.stats.get("cache_misses", 0))
+        total_requests = hits + misses
         if total_requests == 0:
             return 0.0
-        return self.stats["cache_hits"] / total_requests
+        return hits / total_requests
 
 
 # 全局能量管理器实例
