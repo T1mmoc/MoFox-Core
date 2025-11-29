@@ -63,6 +63,15 @@ PIE_CHART_COST_BY_MODULE = "pie_chart_cost_by_module"
 BAR_CHART_COST_BY_MODEL = "bar_chart_cost_by_model"
 BAR_CHART_REQ_BY_MODEL = "bar_chart_req_by_model"
 
+# 新增更多图表数据
+BAR_CHART_TOKEN_COMPARISON = "bar_chart_token_comparison"  # Token输入输出对比图
+SCATTER_CHART_RESPONSE_TIME = "scatter_chart_response_time"  # 响应时间分布散点图
+RADAR_CHART_MODEL_EFFICIENCY = "radar_chart_model_efficiency"  # 模型效率雷达图
+HEATMAP_CHAT_ACTIVITY = "heatmap_chat_activity"  # 聊天活跃度热力图
+DOUGHNUT_CHART_PROVIDER_REQUESTS = "doughnut_chart_provider_requests"  # 供应商请求占比环形图
+LINE_CHART_COST_TREND = "line_chart_cost_trend"  # 成本趋势折线图
+BAR_CHART_AVG_RESPONSE_TIME = "bar_chart_avg_response_time"  # 平均响应时间条形图
+
 # 新增消息分析指标
 MSG_CNT_BY_USER = "messages_by_user"  # 按用户的消息数
 ACTIVE_CHATS_CNT = "active_chats_count"  # 活跃聊天数

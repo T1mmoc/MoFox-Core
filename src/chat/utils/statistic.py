@@ -302,6 +302,13 @@ class StatisticOutputTask(AsyncTask):
                 PIE_CHART_COST_BY_MODULE: {},
                 BAR_CHART_COST_BY_MODEL: {},
                 BAR_CHART_REQ_BY_MODEL: {},
+                BAR_CHART_TOKEN_COMPARISON: {},
+                SCATTER_CHART_RESPONSE_TIME: {},
+                RADAR_CHART_MODEL_EFFICIENCY: {},
+                HEATMAP_CHAT_ACTIVITY: {},
+                DOUGHNUT_CHART_PROVIDER_REQUESTS: {},
+                LINE_CHART_COST_TREND: {},
+                BAR_CHART_AVG_RESPONSE_TIME: {},
             }
             for period_key, _ in collect_period
         }
@@ -474,6 +481,91 @@ class StatisticOutputTask(AsyncTask):
                 period_stats[BAR_CHART_COST_BY_MODEL] = {
                     "labels": [item[0] for item in sorted_models],
                     "data": [round(item[1], 4) for item in sorted_models],
+                }
+            
+            # 1. Token输入输出对比条形图
+            model_names = list(period_stats[REQ_CNT_BY_MODEL].keys())
+            if model_names:
+                period_stats[BAR_CHART_TOKEN_COMPARISON] = {
+                    "labels": model_names,
+                    "input_tokens": [period_stats[IN_TOK_BY_MODEL].get(m, 0) for m in model_names],
+                    "output_tokens": [period_stats[OUT_TOK_BY_MODEL].get(m, 0) for m in model_names],
+                }
+            
+            # 2. 响应时间分布散点图数据（限制数据点以提高加载速度）
+            scatter_data = []
+            max_points_per_model = 50  # 每个模型最多50个点
+            for model_name, time_costs in period_stats[TIME_COST_BY_MODEL].items():
+                # 如果数据点太多，进行采样
+                if len(time_costs) > max_points_per_model:
+                    step = len(time_costs) // max_points_per_model
+                    sampled_costs = time_costs[::step][:max_points_per_model]
+                else:
+                    sampled_costs = time_costs
+                
+                for idx, time_cost in enumerate(sampled_costs):
+                    scatter_data.append({
+                        "model": model_name,
+                        "x": idx,
+                        "y": round(time_cost, 3),
+                        "tokens": period_stats[TOTAL_TOK_BY_MODEL].get(model_name, 0) // len(time_costs) if time_costs else 0
+                    })
+            period_stats[SCATTER_CHART_RESPONSE_TIME] = scatter_data
+            
+            # 3. 模型效率雷达图
+            if model_names:
+                # 取前5个最常用的模型
+                top_models = sorted(period_stats[REQ_CNT_BY_MODEL].items(), key=lambda x: x[1], reverse=True)[:5]
+                radar_data = []
+                for model_name, _ in top_models:
+                    # 归一化各项指标到0-100
+                    req_count = period_stats[REQ_CNT_BY_MODEL].get(model_name, 0)
+                    tps = period_stats[TPS_BY_MODEL].get(model_name, 0)
+                    avg_time = period_stats[AVG_TIME_COST_BY_MODEL].get(model_name, 0)
+                    cost_per_ktok = period_stats[COST_PER_KTOK_BY_MODEL].get(model_name, 0)
+                    avg_tokens = period_stats[AVG_TOK_BY_MODEL].get(model_name, 0)
+                    
+                    # 简单的归一化（反向归一化时间和成本，值越小越好）
+                    max_req = max([period_stats[REQ_CNT_BY_MODEL].get(m[0], 1) for m in top_models])
+                    max_tps = max([period_stats[TPS_BY_MODEL].get(m[0], 1) for m in top_models])
+                    max_time = max([period_stats[AVG_TIME_COST_BY_MODEL].get(m[0], 0.1) for m in top_models])
+                    max_cost = max([period_stats[COST_PER_KTOK_BY_MODEL].get(m[0], 0.001) for m in top_models])
+                    max_tokens = max([period_stats[AVG_TOK_BY_MODEL].get(m[0], 1) for m in top_models])
+                    
+                    radar_data.append({
+                        "model": model_name,
+                        "metrics": [
+                            round((req_count / max_req) * 100, 2) if max_req > 0 else 0,  # 请求量
+                            round((tps / max_tps) * 100, 2) if max_tps > 0 else 0,  # TPS
+                            round((1 - avg_time / max_time) * 100, 2) if max_time > 0 else 100,  # 速度(反向)
+                            round((1 - cost_per_ktok / max_cost) * 100, 2) if max_cost > 0 else 100,  # 成本效益(反向)
+                            round((avg_tokens / max_tokens) * 100, 2) if max_tokens > 0 else 0,  # Token容量
+                        ]
+                    })
+                period_stats[RADAR_CHART_MODEL_EFFICIENCY] = {
+                    "labels": ["请求量", "TPS", "响应速度", "成本效益", "Token容量"],
+                    "datasets": radar_data
+                }
+            
+            # 4. 供应商请求占比环形图
+            provider_requests = period_stats[REQ_CNT_BY_PROVIDER]
+            if provider_requests:
+                sorted_provider_reqs = sorted(provider_requests.items(), key=lambda item: item[1], reverse=True)
+                period_stats[DOUGHNUT_CHART_PROVIDER_REQUESTS] = {
+                    "labels": [item[0] for item in sorted_provider_reqs],
+                    "data": [item[1] for item in sorted_provider_reqs],
+                }
+            
+            # 5. 平均响应时间条形图
+            if model_names:
+                sorted_by_time = sorted(
+                    [(m, period_stats[AVG_TIME_COST_BY_MODEL].get(m, 0)) for m in model_names],
+                    key=lambda x: x[1],
+                    reverse=True
+                )
+                period_stats[BAR_CHART_AVG_RESPONSE_TIME] = {
+                    "labels": [item[0] for item in sorted_by_time],
+                    "data": [round(item[1], 3) for item in sorted_by_time],
                 }
         return stats
 

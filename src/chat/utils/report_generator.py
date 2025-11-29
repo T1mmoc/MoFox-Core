@@ -319,11 +319,21 @@ class HTMLReportGenerator:
                 "provider_cost_data": stat[period_id].get(PIE_CHART_COST_BY_PROVIDER, {}),
                 "module_cost_data": stat[period_id].get(PIE_CHART_COST_BY_MODULE, {}),
                 "model_cost_data": stat[period_id].get(BAR_CHART_COST_BY_MODEL, {}),
+                "token_comparison_data": stat[period_id].get(BAR_CHART_TOKEN_COMPARISON, {}),
+                "response_time_scatter_data": stat[period_id].get(SCATTER_CHART_RESPONSE_TIME, []),
+                "model_efficiency_radar_data": stat[period_id].get(RADAR_CHART_MODEL_EFFICIENCY, {}),
+                "provider_requests_data": stat[period_id].get(DOUGHNUT_CHART_PROVIDER_REQUESTS, {}),
+                "avg_response_time_data": stat[period_id].get(BAR_CHART_AVG_RESPONSE_TIME, {}),
             }
         static_chart_data["all_time"] = {
             "provider_cost_data": stat["all_time"].get(PIE_CHART_COST_BY_PROVIDER, {}),
             "module_cost_data": stat["all_time"].get(PIE_CHART_COST_BY_MODULE, {}),
             "model_cost_data": stat["all_time"].get(BAR_CHART_COST_BY_MODEL, {}),
+            "token_comparison_data": stat["all_time"].get(BAR_CHART_TOKEN_COMPARISON, {}),
+            "response_time_scatter_data": stat["all_time"].get(SCATTER_CHART_RESPONSE_TIME, []),
+            "model_efficiency_radar_data": stat["all_time"].get(RADAR_CHART_MODEL_EFFICIENCY, {}),
+            "provider_requests_data": stat["all_time"].get(DOUGHNUT_CHART_PROVIDER_REQUESTS, {}),
+            "avg_response_time_data": stat["all_time"].get(BAR_CHART_AVG_RESPONSE_TIME, {}),
         }
 
         # 渲染模板
@@ -332,15 +342,15 @@ class HTMLReportGenerator:
             report_css = await f.read()
         async with aiofiles.open(os.path.join(self.jinja_env.loader.searchpath[0], "report.js"), encoding="utf-8") as f:
             report_js = await f.read()
-        # 渲染模板
+        # 渲染模板（使用紧凑的JSON格式减少文件大小）
         template = self.jinja_env.get_template("report.html")
         rendered_html = template.render(
             report_title="MoFox-Bot运行统计报告",
             generation_time=now.strftime("%Y-%m-%d %H:%M:%S"),
             tab_list="\n".join(tab_list_html),
             tab_content="\n".join(tab_content_html_list),
-            all_chart_data=json.dumps(chart_data),
-            static_chart_data=json.dumps(static_chart_data),
+            all_chart_data=json.dumps(chart_data, separators=(',', ':'), ensure_ascii=False),
+            static_chart_data=json.dumps(static_chart_data, separators=(',', ':'), ensure_ascii=False),
             report_css=report_css,
             report_js=report_js,
         )

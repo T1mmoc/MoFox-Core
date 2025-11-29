@@ -1,16 +1,65 @@
 <div style="margin: -24px -24px 0 -24px; padding: 20px 24px; background: linear-gradient(135deg, #1976D2 0%, #2196F3 100%); border-radius: 20px 20px 0 0; margin-bottom: 20px;">
-    <h2 style="margin: 0; color: white; font-size: 1.3em; font-weight: 500; display: flex; align-items: center; gap: 8px;">
+    <h2 style="margin: 0 0 8px 0; color: white; font-size: 1.3em; font-weight: 500; display: flex; align-items: center; gap: 8px;">
         <span style="font-size: 1.2em;">📊</span> 数据可视化
     </h2>
+    <p style="margin: 0; color: rgba(255,255,255,0.9); font-size: 0.85em; display: flex; align-items: center; gap: 6px;">
+        <span style="font-size: 1.1em;">💡</span> 提示：点击图例可以隐藏/显示对应的数据系列
+    </p>
 </div>
-<div style="display: flex; flex-direction: column; gap: 20px;">
-    <div class="chart-container" style="height: 280px; margin: 0; padding: 16px; background: white;">
-        <canvas id="providerCostPieChart_{{ period_id }}"></canvas>
+<div style="display: flex; flex-direction: column; gap: 20px; max-height: none; overflow: visible;">
+    <!-- 原有图表 -->
+    <div class="chart-container" style="min-height: 280px; max-height: 400px; margin: 0; padding: 16px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
+        <h3 style="margin: 0 0 12px 0; color: #1976D2; font-size: 1.1em; font-weight: 600;">💰 供应商成本分布</h3>
+        <div style="position: relative; height: calc(100% - 40px); min-height: 220px;">
+            <canvas id="providerCostPieChart_{{ period_id }}"></canvas>
+        </div>
     </div>
-    <div class="chart-container" style="height: 280px; margin: 0; padding: 16px; background: white;">
-        <canvas id="moduleCostPieChart_{{ period_id }}"></canvas>
+    <div class="chart-container" style="min-height: 280px; max-height: 500px; margin: 0; padding: 16px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
+        <h3 style="margin: 0 0 12px 0; color: #1976D2; font-size: 1.1em; font-weight: 600;">📦 模块成本分布</h3>
+        <div style="position: relative; height: calc(100% - 40px); min-height: 220px;">
+            <canvas id="moduleCostPieChart_{{ period_id }}"></canvas>
+        </div>
     </div>
-    <div class="chart-container" style="height: 300px; margin: 0; padding: 16px; background: white;">
-        <canvas id="modelCostBarChart_{{ period_id }}"></canvas>
+    <div class="chart-container" style="min-height: 300px; max-height: 600px; margin: 0; padding: 16px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: auto;">
+        <h3 style="margin: 0 0 12px 0; color: #1976D2; font-size: 1.1em; font-weight: 600;">🤖 模型成本对比</h3>
+        <div style="position: relative; min-height: 250px; height: auto;">
+            <canvas id="modelCostBarChart_{{ period_id }}"></canvas>
+        </div>
+    </div>
+    
+    <!-- 新增图表 -->
+    <div class="chart-container" style="min-height: 320px; max-height: 600px; margin: 0; padding: 16px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: auto;">
+        <h3 style="margin: 0 0 12px 0; color: #FF9800; font-size: 1.1em; font-weight: 600;">🔄 Token使用对比</h3>
+        <div style="position: relative; min-height: 270px; height: auto;">
+            <canvas id="tokenComparisonChart_{{ period_id }}"></canvas>
+        </div>
+    </div>
+    
+    <div class="chart-container" style="min-height: 280px; max-height: 400px; margin: 0; padding: 16px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
+        <h3 style="margin: 0 0 12px 0; color: #9C27B0; font-size: 1.1em; font-weight: 600;">📞 供应商请求占比</h3>
+        <div style="position: relative; height: calc(100% - 40px); min-height: 220px;">
+            <canvas id="providerRequestsDoughnutChart_{{ period_id }}"></canvas>
+        </div>
+    </div>
+    
+    <div class="chart-container" style="min-height: 320px; max-height: 700px; margin: 0; padding: 16px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: auto;">
+        <h3 style="margin: 0 0 12px 0; color: #E91E63; font-size: 1.1em; font-weight: 600;">⚡ 平均响应时间</h3>
+        <div style="position: relative; min-height: 270px; height: auto;">
+            <canvas id="avgResponseTimeChart_{{ period_id }}"></canvas>
+        </div>
+    </div>
+    
+    <div class="chart-container" style="min-height: 350px; max-height: 450px; margin: 0; padding: 16px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
+        <h3 style="margin: 0 0 12px 0; color: #00BCD4; font-size: 1.1em; font-weight: 600;">🎯 模型效率雷达</h3>
+        <div style="position: relative; height: calc(100% - 40px); min-height: 300px;">
+            <canvas id="modelEfficiencyRadarChart_{{ period_id }}"></canvas>
+        </div>
+    </div>
+    
+    <div class="chart-container" style="min-height: 400px; max-height: 600px; margin: 0; padding: 16px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: auto;">
+        <h3 style="margin: 0 0 12px 0; color: #4CAF50; font-size: 1.1em; font-weight: 600;">⏱️ 响应时间分布</h3>
+        <div style="position: relative; min-height: 350px; height: auto;">
+            <canvas id="responseTimeScatterChart_{{ period_id }}"></canvas>
+        </div>
     </div>
 </div>
