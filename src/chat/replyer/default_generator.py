@@ -390,6 +390,21 @@ class DefaultReplyer:
                 if result and not result.all_continue_process():
                     raise UserWarning(f"插件{result.get_summary().get('stopped_handlers', '')}于请求前中断了内容生成")
 
+            # 在好友聊天中，发送标记已读命令（模拟输入状态）
+            if not self.chat_stream.group_info:
+                try:
+                    from src.plugin_system.apis import send_api
+                    
+                    asyncio.create_task(
+                        send_api.mark_msg_as_read_to_stream(
+                            stream_id=self.chat_stream.stream_id,
+                            storage_message=False,
+                        )
+                    )
+                    logger.debug(f"[{self.chat_stream.stream_id}] 已发送输入状态（标记已读）")
+                except Exception as mark_error:
+                    logger.warning(f"发送输入状态失败: {mark_error}")
+
             # 4. 调用 LLM 生成回复
             content = None
             reasoning_content = None

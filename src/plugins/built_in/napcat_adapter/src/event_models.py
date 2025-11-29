@@ -88,6 +88,7 @@ class CommandType(Enum):
     SET_EMOJI_LIKE = "set_msg_emoji_like"  # 设置表情回应
     SEND_AT_MESSAGE = "send_at_message"  # 发送@消息
     SEND_LIKE = "send_like"  # 发送点赞
+    MARK_MSG_AS_READ = "mark_private_msg_as_read"  # 标记私聊消息已读（模拟输入状态）
 
     def __str__(self) -> str:
         return self.value

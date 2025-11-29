@@ -575,3 +575,51 @@ async def adapter_command_to_stream(
         traceback.print_exc()
         return {"status": "error", "message": f"发送适配器命令时出错: {e!s}"}
 
+
+async def mark_msg_as_read_to_stream(
+    stream_id: str,
+    storage_message: bool = False,
+) -> bool:
+    """向指定私聊流发送标记消息已读命令（模拟输入状态）
+
+    Args:
+        stream_id: 聊天流ID
+        storage_message: 是否存储消息到数据库（默认不存储）
+
+    Returns:
+        bool: 是否发送成功
+    """
+    try:
+        target_stream = await get_chat_manager().get_stream(stream_id)
+        if not target_stream:
+            logger.error(f"[SendAPI] 未找到聊天流: {stream_id}")
+            return False
+
+        # 只在私聊场景下发送标记已读
+        if target_stream.group_info:
+            logger.debug("[SendAPI] 群聊不支持标记已读，跳过")
+            return False
+
+        if not target_stream.user_info or not target_stream.user_info.user_id:
+            logger.error("[SendAPI] 缺少用户信息，无法发送标记已读")
+            return False
+
+        user_id = target_stream.user_info.user_id
+
+        command_data = {
+            "name": "MARK_MSG_AS_READ",
+            "args": {"user_id": user_id},
+        }
+
+        return await command_to_stream(
+            command=command_data,
+            stream_id=stream_id,
+            storage_message=storage_message,
+            display_message="",
+            set_reply=False,
+        )
+
+    except Exception as e:
+        logger.error(f"[SendAPI] 发送标记已读命令时出错: {e}")
+        traceback.print_exc()
+        return False

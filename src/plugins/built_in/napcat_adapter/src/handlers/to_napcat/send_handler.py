@@ -151,6 +151,8 @@ class SendHandler:
                 command, args_dict = self.handle_at_message_command(args, group_info)
             elif command_name == CommandType.SEND_LIKE.name:
                 command, args_dict = self.handle_send_like_command(args)
+            elif command_name == CommandType.MARK_MSG_AS_READ.name:
+                command, args_dict = self.handle_mark_msg_as_read_command(args)
             else:
                 logger.error(f"未知命令: {command_name}")
                 return
@@ -507,6 +509,18 @@ class SendHandler:
         return (
             CommandType.SEND_LIKE.value,
             {"user_id": user_id, "times": times},
+        )
+
+    def handle_mark_msg_as_read_command(self, args: Dict[str, Any]) -> tuple[str, Dict[str, Any]]:
+        """处理标记私聊消息已读命令的逻辑（用于模拟输入状态）。"""
+        try:
+            user_id: int = int(args["user_id"])
+        except (KeyError, ValueError):
+            raise ValueError("缺少必需参数: user_id")
+
+        return (
+            CommandType.MARK_MSG_AS_READ.value,
+            {"user_id": user_id},
         )
 
     def handle_at_message_command(self, args: Dict[str, Any], group_info: Optional[Dict[str, Any]]) -> tuple[str, Dict[str, Any]]:
