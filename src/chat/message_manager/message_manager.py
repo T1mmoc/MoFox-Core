@@ -277,6 +277,9 @@ class MessageManager:
 
     async def _check_and_handle_interruption(self, chat_stream: "ChatStream | None" = None, message: DatabaseMessages | None = None):
         """检查并处理消息打断 - 通过取消 stream_loop_task 实现"""
+        if global_config is None:
+            raise RuntimeError("Global config is not initialized")
+
         if not global_config.chat.interruption_enabled or not chat_stream or not message:
             return
 

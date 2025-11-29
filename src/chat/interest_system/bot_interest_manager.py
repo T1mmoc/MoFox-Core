@@ -5,7 +5,7 @@
 
 import traceback
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from sqlalchemy import select
@@ -76,6 +76,9 @@ class BotInterestManager:
         # 使用项目配置的embedding模型
         from src.config.config import model_config
         from src.llm_models.utils_model import LLMRequest
+
+        if model_config is None:
+            raise RuntimeError("Model config is not initialized")
 
         # 检查embedding配置是否存在
         if not hasattr(model_config.model_task_config, "embedding"):
@@ -251,6 +254,9 @@ class BotInterestManager:
             from src.config.config import model_config
             from src.plugin_system.apis import llm_api
 
+            if model_config is None:
+                raise RuntimeError("Model config is not initialized")
+
             # 构建完整的提示词，明确要求只返回纯JSON
             full_prompt = f"""你是一个专业的机器人人设分析师，擅长根据人设描述生成合适的兴趣标签。
 
@@ -348,9 +354,15 @@ class BotInterestManager:
         embedding, model_name = await self.embedding_request.get_embedding(text)
 
         if embedding and len(embedding) > 0:
-            self.embedding_cache[text] = embedding
+            if isinstance(embedding[0], list):
+                # If it's a list of lists, take the first one (though get_embedding(str) should return list[float])
+                embedding = embedding[0]
+            
+            # Now we can safely cast to list[float] as we've handled the nested list case
+            embedding_float = cast(list[float], embedding)
+            self.embedding_cache[text] = embedding_float
 
-            current_dim = len(embedding)
+            current_dim = len(embedding_float)
             if self._detected_embedding_dimension is None:
                 self._detected_embedding_dimension = current_dim
                 if self.embedding_dimension and self.embedding_dimension != current_dim:
@@ -367,7 +379,7 @@ class BotInterestManager:
                     self.embedding_dimension,
                     current_dim,
                 )
-            return embedding
+            return embedding_float
         else:
             raise RuntimeError(f"❌ 返回的embedding为空: {embedding}")
 
@@ -416,7 +428,10 @@ class BotInterestManager:
 
             for idx_offset, message_id in enumerate(chunk_keys):
                 vector = normalized[idx_offset] if idx_offset < len(normalized) else []
-                results[message_id] = vector
+                if isinstance(vector, list) and vector and isinstance(vector[0], float):
+                     results[message_id] = cast(list[float], vector)
+                else:
+                     results[message_id] = []
 
         return results
 
@@ -492,6 +507,9 @@ class BotInterestManager:
         high_similarity_count = 0
         medium_similarity_count = 0
         low_similarity_count = 0
+
+        if global_config is None:
+            raise RuntimeError("Global config is not initialized")
 
         # 分级相似度阈值 - 优化后可以提高阈值，因为匹配更准确了
         affinity_config = global_config.affinity_flow
@@ -709,6 +727,9 @@ class BotInterestManager:
     def _calculate_keyword_match_bonus(self, keywords: list[str], matched_tags: list[str]) -> dict[str, float]:
         """计算关键词直接匹配奖励"""
         if not keywords or not matched_tags:
+            return {}
+
+        if global_config is None:
             return {}
 
         affinity_config = global_config.affinity_flow
@@ -1010,7 +1031,10 @@ class BotInterestManager:
             # 验证缓存版本和embedding模型
             cache_version = cache_data.get("version", 1)
             cache_embedding_model = cache_data.get("embedding_model", "")
-            current_embedding_model = self.embedding_config.model_list[0] if hasattr(self.embedding_config, "model_list") else ""
+            
+            current_embedding_model = ""
+            if self.embedding_config and hasattr(self.embedding_config, "model_list") and self.embedding_config.model_list:
+                 current_embedding_model = self.embedding_config.model_list[0]
 
             if cache_embedding_model != current_embedding_model:
                 logger.warning(f"⚠️ Embedding模型已变更 ({cache_embedding_model} → {current_embedding_model})，忽略旧缓存")
@@ -1044,7 +1068,10 @@ class BotInterestManager:
             cache_file = cache_dir / f"{personality_id}_embeddings.json"
 
             # 准备缓存数据
-            current_embedding_model = self.embedding_config.model_list[0] if hasattr(self.embedding_config, "model_list") and self.embedding_config.model_list else ""
+            current_embedding_model = ""
+            if self.embedding_config and hasattr(self.embedding_config, "model_list") and self.embedding_config.model_list:
+                 current_embedding_model = self.embedding_config.model_list[0]
+
             cache_data = {
                 "version": 1,
                 "personality_id": personality_id,

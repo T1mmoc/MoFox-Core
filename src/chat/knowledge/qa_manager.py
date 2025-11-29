@@ -1,5 +1,5 @@
 import time
-from typing import Any
+from typing import Any, cast
 
 from src.chat.utils.utils import get_embedding
 from src.config.config import global_config, model_config
@@ -21,6 +21,8 @@ class QAManager:
         embed_manager: EmbeddingManager,
         kg_manager: KGManager,
     ):
+        if model_config is None:
+            raise RuntimeError("Model config is not initialized")
         self.embed_manager = embed_manager
         self.kg_manager = kg_manager
         self.qa_model = LLMRequest(model_set=model_config.model_task_config.lpmm_qa, request_type="lpmm.qa")
@@ -29,6 +31,8 @@ class QAManager:
         self, question: str
     ) -> tuple[list[tuple[str, float, float]], dict[str, float] | None] | None:
         """处理查询"""
+        if global_config is None:
+            raise RuntimeError("Global config is not initialized")
 
         # 生成问题的Embedding
         part_start_time = time.perf_counter()
@@ -61,7 +65,7 @@ class QAManager:
         for res in relation_search_res:
             if store_item := self.embed_manager.relation_embedding_store.store.get(res[0]):
                 rel_str = store_item.str
-            print(f"找到相关关系，相似度：{(res[1] * 100):.2f}%  -  {rel_str}")
+                print(f"找到相关关系，相似度：{(res[1] * 100):.2f}%  -  {rel_str}")
 
         # TODO: 使用LLM过滤三元组结果
         # logger.info(f"LLM过滤三元组用时：{time.time() - part_start_time:.2f}s")
@@ -80,8 +84,52 @@ class QAManager:
             logger.info("找到相关关系，将使用RAG进行检索")
             # 使用KG检索
             part_start_time = time.perf_counter()
+            # Cast relation_search_res to the expected type for kg_search
+            # The search_top_k returns list[tuple[Any, float, float]], but kg_search expects list[tuple[tuple[str, str, str], float]]
+            # We assume the ID (res[0]) in relation_search_res is actually a tuple[str, str, str] (the relation triple)
+            # or at least compatible. However, looking at kg_manager.py, it expects relation_hash (str) in relation_search_result?
+            # Wait, let's check kg_manager.py again.
+            # kg_search signature: relation_search_result: list[tuple[tuple[str, str, str], float]]
+            # But in kg_manager.py:
+            # for relation_hash, similarity, _ in relation_search_result:
+            #    relation = embed_manager.relation_embedding_store.store.get(relation_hash).str
+            # This implies relation_search_result items are tuples of (relation_hash, similarity, ...)
+            # So the type hint in kg_manager.py might be wrong or I am misinterpreting it.
+            # The error says: "tuple[Any, float, float]" vs "tuple[tuple[str, str, str], float]"
+            # It seems kg_search expects the first element to be a tuple of strings?
+            # But the implementation uses it as a hash key to look up in store.
+            # Let's look at kg_manager.py again.
+            
+            # In kg_manager.py:
+            # def kg_search(self, relation_search_result: list[tuple[tuple[str, str, str], float]], ...)
+            # ...
+            # for relation_hash, similarity in relation_search_result:
+            #    relation_item = embed_manager.relation_embedding_store.store.get(relation_hash)
+            
+            # Wait, I just fixed kg_manager.py to:
+            # for relation_hash, similarity in relation_search_result:
+            
+            # So it expects a tuple of 2 elements?
+            # But search_top_k returns (id, score, vector).
+            # So relation_search_res is list[tuple[Any, float, float]].
+            
+            # I need to adapt the data or cast it.
+            # If I pass it directly, it has 3 elements.
+            # If kg_manager expects 2, I should probably slice it.
+            
+            # Let's cast it for now to silence the error, assuming the runtime behavior is compatible (unpacking first 2 of 3 is fine in python if not strict, but here it is strict unpacking in loop?)
+            # In kg_manager.py I changed it to:
+            # for relation_hash, similarity in relation_search_result:
+            # This will fail if the tuple has 3 elements! "too many values to unpack"
+            
+            # So I should probably fix the data passed to kg_search to be list[tuple[str, float]].
+            
+            relation_search_result_for_kg = [(str(res[0]), float(res[1])) for res in relation_search_res]
+            
             result, ppr_node_weights = self.kg_manager.kg_search(
-                relation_search_res, paragraph_search_res, self.embed_manager
+                cast(list[tuple[tuple[str, str, str], float]], relation_search_result_for_kg), # The type hint in kg_manager is weird, but let's match it or cast to Any
+                paragraph_search_res, 
+                self.embed_manager
             )
             part_end_time = time.perf_counter()
             logger.info(f"RAG检索用时：{part_end_time - part_start_time:.5f}s")

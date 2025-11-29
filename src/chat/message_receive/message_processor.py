@@ -256,7 +256,7 @@ async def _process_single_segment(
             # 检查消息是否由机器人自己发送
             user_info = message_info.get("user_info", {})
             user_id_str = str(user_info.get("user_id", ""))
-            if user_id_str == str(global_config.bot.qq_account):
+            if global_config and user_id_str == str(global_config.bot.qq_account):
                 logger.info(f"检测到机器人自身发送的语音消息 (User ID: {user_id_str})，尝试从缓存获取文本。")
                 if isinstance(seg_data, str):
                     cached_text = consume_self_voice_text(seg_data)
@@ -299,7 +299,7 @@ async def _process_single_segment(
                 logger.warning("⚠️ Rust视频处理模块不可用，跳过视频分析")
                 return "[视频]"
 
-            if global_config.video_analysis.enable:
+            if global_config and global_config.video_analysis.enable:
                 logger.info("已启用视频识别,开始识别")
                 if isinstance(seg_data, dict):
                     try:

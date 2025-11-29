@@ -133,7 +133,7 @@ class HeartFCSender:
 
                 # 将发送的消息写入上下文历史
                 try:
-                    if chat_stream and chat_stream.context and global_config.chat:
+                    if chat_stream and chat_stream.context and global_config and global_config.chat:
                         context = chat_stream.context
                         chat_config = global_config.chat
                         if chat_config:
