@@ -141,29 +141,13 @@ async def process_reply_content(content: str) -> list[str]:
             # 失败时使用原内容
             processed_content = content
     
-    # Step 2: 消息分割
-    splitter_cfg = global_config.response_splitter
-    if splitter_cfg.enable:
-        split_mode = splitter_cfg.split_mode
-        max_length = splitter_cfg.max_length
-        max_sentences = splitter_cfg.max_sentence_num
-        
-        if split_mode == "punctuation":
-            # 基于标点符号分割
-            result = split_by_punctuation(
-                processed_content,
-                max_length=max_length,
-                max_sentences=max_sentences,
-            )
-            logger.info(f"[KFC PostProcessor] 标点分割完成，分为 {len(result)} 条消息")
-            return result
-        elif split_mode == "llm":
-            # LLM模式：目前暂不支持，回退到不分割
-            logger.info("[KFC PostProcessor] LLM分割模式暂不支持，返回完整内容")
-            return [processed_content]
-        else:
-            logger.warning(f"[KFC PostProcessor] 未知分割模式: {split_mode}")
-            return [processed_content]
-    else:
-        # 分割器禁用，返回完整内容
-        return [processed_content]
+    # Step 2: 消息分割 - 已禁用
+    # KFC 的 LLM 会自己通过多个 reply 动作来分割消息，
+    # 后处理器不再进行二次分割，避免破坏 LLM 的自然分割决策。
+    # 
+    # 参考提示词中的指导：
+    # - LLM 被引导在合适的语气词、标点处自然分段
+    # - 每个分段作为独立的 reply 动作发送
+    # - 这样更符合真人发微信的习惯
+    logger.debug("[KFC PostProcessor] 消息分割已禁用（由LLM自行通过多个reply分割）")
+    return [processed_content]

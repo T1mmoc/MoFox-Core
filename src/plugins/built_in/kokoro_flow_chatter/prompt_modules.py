@@ -233,7 +233,15 @@ def _format_available_actions(available_actions: dict[str, ActionInfo]) -> str:
 def _get_default_actions_block() -> str:
     """获取默认的内置动作描述块"""
     return """### `reply` - 发消息
-发送文字回复
+发送文字回复。
+
+**自然分段技巧**：像真人发微信一样，把长回复拆成几条短消息：
+- 在语气词后分段："嗯~"、"好呀"、"哈哈"、"嗯..."、"唔..."
+- 在情绪转折处分段：话题切换、语气变化的地方
+- 在自然停顿处分段：问句后、感叹后、一个完整意思表达完后
+- 每条消息保持简短，1-2句话最自然
+- 用多个 reply 动作，每条就是一条消息
+
 ```json
 {"type": "reply", "content": "你要说的话"}
 ```
@@ -291,8 +299,9 @@ def build_output_module(
   "expected_user_reaction": "你觉得对方会怎么回应",
   "max_wait_seconds": 等待秒数（60-900），不想等就填0,
   "actions": [
-    {"type": "reply", "content": "你要发送的消息"},
-    {"type": "其他动作", ...}
+    {"type": "reply", "content": "第一条消息"},
+    {"type": "reply", "content": "第二条消息"},
+    ...
   ]
 }
 ```
@@ -301,7 +310,12 @@ def build_output_module(
 - `thought`：你脑子里在想什么，越自然越好
 - `actions`：你要做的事，可以组合多个动作
 - `max_wait_seconds`：设定一个时间，对方没回的话你会再想想要不要说点什么
-- 即使什么都不想做，也放一个 `{"type": "do_nothing"}`"""
+- 即使什么都不想做，也放一个 `{"type": "do_nothing"}`
+
+💡 **回复技巧**：
+- 像发微信一样，把想说的话拆成几条短消息
+- 用多个 `reply` 动作，每个就是一条独立的消息
+- 这样更自然，真人聊天也是分段发的"""
     
     parts = ["## 6. 你的表达方式"]
     
