@@ -1,0 +1,338 @@
+"""
+Kokoro Flow Chatter V2 上下文构建器
+
+为 KFC V2 提供完整的情境感知能力。
+包含：
+- 关系信息 (relation_info)
+- 记忆块 (memory_block)
+- 表达习惯 (expression_habits)
+- 日程信息 (schedule)
+- 时间信息 (time)
+"""
+
+import asyncio
+import time
+from datetime import datetime, timedelta
+from typing import TYPE_CHECKING, Any, Optional
+
+from src.common.logger import get_logger
+from src.config.config import global_config
+from src.person_info.person_info import get_person_info_manager, PersonInfoManager
+
+if TYPE_CHECKING:
+    from src.chat.message_receive.chat_stream import ChatStream
+    from src.common.data_models.message_manager_data_model import StreamContext
+
+logger = get_logger("kfc_v2_context_builder")
+
+
+def _get_config():
+    """获取全局配置（带类型断言）"""
+    assert global_config is not None, "global_config 未初始化"
+    return global_config
+
+
+class KFCContextBuilder:
+    """
+    KFC V2 上下文构建器
+    
+    为提示词提供完整的情境感知数据。
+    """
+    
+    def __init__(self, chat_stream: "ChatStream"):
+        self.chat_stream = chat_stream
+        self.chat_id = chat_stream.stream_id
+        self.platform = chat_stream.platform
+        self.is_group_chat = bool(chat_stream.group_info)
+    
+    async def build_all_context(
+        self,
+        sender_name: str,
+        target_message: str,
+        context: Optional["StreamContext"] = None,
+    ) -> dict[str, str]:
+        """
+        并行构建所有上下文模块
+        
+        Args:
+            sender_name: 发送者名称
+            target_message: 目标消息内容
+            context: 聊天流上下文（可选）
+            
+        Returns:
+            dict: 包含所有上下文块的字典
+        """
+        chat_history = await self._get_chat_history_text(context)
+        
+        tasks = {
+            "relation_info": self._build_relation_info(sender_name, target_message),
+            "memory_block": self._build_memory_block(chat_history, target_message),
+            "expression_habits": self._build_expression_habits(chat_history, target_message),
+            "schedule": self._build_schedule_block(),
+            "time": self._build_time_block(),
+        }
+        
+        results = {}
+        try:
+            task_results = await asyncio.gather(
+                *[self._wrap_task(name, coro) for name, coro in tasks.items()],
+                return_exceptions=True
+            )
+            
+            for result in task_results:
+                if isinstance(result, tuple):
+                    name, value = result
+                    results[name] = value
+                else:
+                    logger.warning(f"上下文构建任务异常: {result}")
+        except Exception as e:
+            logger.error(f"并行构建上下文失败: {e}")
+        
+        return results
+    
+    async def _wrap_task(self, name: str, coro) -> tuple[str, str]:
+        """包装任务以返回名称和结果"""
+        try:
+            result = await coro
+            return (name, result or "")
+        except Exception as e:
+            logger.error(f"构建 {name} 失败: {e}")
+            return (name, "")
+    
+    async def _get_chat_history_text(
+        self,
+        context: Optional["StreamContext"] = None,
+        limit: int = 20,
+    ) -> str:
+        """获取聊天历史文本"""
+        if context is None:
+            return ""
+        
+        try:
+            from src.chat.utils.chat_message_builder import build_readable_messages
+            
+            messages = context.get_messages(limit=limit, include_unread=True)
+            if not messages:
+                return ""
+            
+            msg_dicts = [msg.flatten() for msg in messages]
+            
+            return await build_readable_messages(
+                msg_dicts,
+                replace_bot_name=True,
+                timestamp_mode="relative",
+                truncate=True,
+            )
+        except Exception as e:
+            logger.error(f"获取聊天历史失败: {e}")
+            return ""
+    
+    async def _build_relation_info(self, sender_name: str, target_message: str) -> str:
+        """构建关系信息块"""
+        config = _get_config()
+        
+        if sender_name == f"{config.bot.nickname}(你)":
+            return "你将要回复的是你自己发送的消息。"
+        
+        person_info_manager = get_person_info_manager()
+        person_id = await person_info_manager.get_person_id_by_person_name(sender_name)
+        
+        if not person_id:
+            logger.debug(f"未找到用户 {sender_name} 的ID")
+            return f"你完全不认识{sender_name}，这是你们的第一次互动。"
+        
+        try:
+            from src.person_info.relationship_fetcher import relationship_fetcher_manager
+            
+            relationship_fetcher = relationship_fetcher_manager.get_fetcher(self.chat_id)
+            
+            user_relation_info = await relationship_fetcher.build_relation_info(person_id, points_num=5)
+            stream_impression = await relationship_fetcher.build_chat_stream_impression(self.chat_id)
+            
+            parts = []
+            if user_relation_info:
+                parts.append(f"### 你与 {sender_name} 的关系\n{user_relation_info}")
+            if stream_impression:
+                scene_type = "这个群" if self.is_group_chat else "你们的私聊"
+                parts.append(f"### 你对{scene_type}的印象\n{stream_impression}")
+            
+            if parts:
+                return "\n\n".join(parts)
+            else:
+                return f"你与{sender_name}还没有建立深厚的关系，这是早期的互动阶段。"
+                
+        except Exception as e:
+            logger.error(f"获取关系信息失败: {e}")
+            return f"你与{sender_name}是普通朋友关系。"
+    
+    async def _build_memory_block(self, chat_history: str, target_message: str) -> str:
+        """构建记忆块（使用三层记忆系统）"""
+        config = _get_config()
+        
+        if not (config.memory and config.memory.enable):
+            return ""
+        
+        try:
+            from src.memory_graph.manager_singleton import get_unified_memory_manager
+            from src.memory_graph.utils.three_tier_formatter import memory_formatter
+            
+            unified_manager = get_unified_memory_manager()
+            if not unified_manager:
+                logger.debug("[三层记忆] 管理器未初始化")
+                return ""
+            
+            search_result = await unified_manager.search_memories(
+                query_text=target_message,
+                use_judge=True,
+                recent_chat_history=chat_history,
+            )
+            
+            if not search_result:
+                return ""
+            
+            perceptual_blocks = search_result.get("perceptual_blocks", [])
+            short_term_memories = search_result.get("short_term_memories", [])
+            long_term_memories = search_result.get("long_term_memories", [])
+            
+            formatted_memories = await memory_formatter.format_all_tiers(
+                perceptual_blocks=perceptual_blocks,
+                short_term_memories=short_term_memories,
+                long_term_memories=long_term_memories
+            )
+            
+            total_count = len(perceptual_blocks) + len(short_term_memories) + len(long_term_memories)
+            if total_count > 0 and formatted_memories.strip():
+                logger.info(
+                    f"[三层记忆] 检索到 {total_count} 条记忆 "
+                    f"(感知:{len(perceptual_blocks)}, 短期:{len(short_term_memories)}, 长期:{len(long_term_memories)})"
+                )
+                return f"### 🧠 相关记忆\n\n{formatted_memories}"
+            
+            return ""
+            
+        except Exception as e:
+            logger.error(f"[三层记忆] 检索失败: {e}")
+            return ""
+    
+    async def _build_expression_habits(self, chat_history: str, target_message: str) -> str:
+        """构建表达习惯块"""
+        config = _get_config()
+        
+        use_expression, _, _ = config.expression.get_expression_config_for_chat(self.chat_id)
+        if not use_expression:
+            return ""
+        
+        try:
+            from src.chat.express.expression_selector import expression_selector
+            
+            style_habits = []
+            grammar_habits = []
+            
+            selected_expressions = await expression_selector.select_suitable_expressions(
+                chat_id=self.chat_id,
+                chat_history=chat_history,
+                target_message=target_message,
+                max_num=8,
+                min_num=2
+            )
+            
+            if selected_expressions:
+                for expr in selected_expressions:
+                    if isinstance(expr, dict) and "situation" in expr and "style" in expr:
+                        expr_type = expr.get("type", "style")
+                        habit_str = f"当{expr['situation']}时，使用 {expr['style']}"
+                        if expr_type == "grammar":
+                            grammar_habits.append(habit_str)
+                        else:
+                            style_habits.append(habit_str)
+            
+            parts = []
+            if style_habits:
+                parts.append("**语言风格习惯**：\n" + "\n".join(f"- {h}" for h in style_habits))
+            if grammar_habits:
+                parts.append("**句法习惯**：\n" + "\n".join(f"- {h}" for h in grammar_habits))
+            
+            if parts:
+                return "### 💬 你的表达习惯\n\n" + "\n\n".join(parts)
+            
+            return ""
+            
+        except Exception as e:
+            logger.error(f"构建表达习惯失败: {e}")
+            return ""
+    
+    async def _build_schedule_block(self) -> str:
+        """构建日程信息块"""
+        config = _get_config()
+        
+        if not config.planning_system.schedule_enable:
+            return ""
+        
+        try:
+            from src.schedule.schedule_manager import schedule_manager
+            
+            activity_info = schedule_manager.get_current_activity()
+            if not activity_info:
+                return ""
+            
+            activity = activity_info.get("activity")
+            time_range = activity_info.get("time_range")
+            now = datetime.now()
+            
+            if time_range:
+                try:
+                    start_str, end_str = time_range.split("-")
+                    start_time = datetime.strptime(start_str.strip(), "%H:%M").replace(
+                        year=now.year, month=now.month, day=now.day
+                    )
+                    end_time = datetime.strptime(end_str.strip(), "%H:%M").replace(
+                        year=now.year, month=now.month, day=now.day
+                    )
+                    
+                    if end_time < start_time:
+                        end_time += timedelta(days=1)
+                    if now < start_time:
+                        now += timedelta(days=1)
+                    
+                    duration_minutes = (now - start_time).total_seconds() / 60
+                    remaining_minutes = (end_time - now).total_seconds() / 60
+                    
+                    return (
+                        f"你当前正在「{activity}」，"
+                        f"从{start_time.strftime('%H:%M')}开始，预计{end_time.strftime('%H:%M')}结束，"
+                        f"已进行{duration_minutes:.0f}分钟，还剩约{remaining_minutes:.0f}分钟。"
+                    )
+                except (ValueError, AttributeError):
+                    pass
+            
+            return f"你当前正在「{activity}」"
+            
+        except Exception as e:
+            logger.error(f"构建日程块失败: {e}")
+            return ""
+    
+    async def _build_time_block(self) -> str:
+        """构建时间信息块"""
+        now = datetime.now()
+        weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+        weekday = weekdays[now.weekday()]
+        return f"{now.strftime('%Y年%m月%d日')} {weekday} {now.strftime('%H:%M:%S')}"
+
+
+async def build_kfc_context(
+    chat_stream: "ChatStream",
+    sender_name: str,
+    target_message: str,
+    context: Optional["StreamContext"] = None,
+) -> dict[str, str]:
+    """
+    便捷函数：构建KFC所需的所有上下文
+    """
+    builder = KFCContextBuilder(chat_stream)
+    return await builder.build_all_context(sender_name, target_message, context)
+
+
+__all__ = [
+    "KFCContextBuilder",
+    "build_kfc_context",
+]
